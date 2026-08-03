@@ -1,10 +1,13 @@
 # Layout
 
+This is a deliberately restricted set of things related to layouts.
+Prefer these, and if something doesn't fit, please ask.
+
 ## Layout Tools
 
 There are two kinds of layout tools.
-One is just called grid, [example here](../assets/GridDemo.h).
-A more complex technique is flexboxes, [example here](../assets/FlexBoxDemo.h).
+One is just called grid, [example here](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/GridDemo.h).
+A more complex technique is flexboxes, [example here](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/FlexBoxDemo.h).
 They are both based on CSS.
 
 ### `juce::Grid` Class
@@ -25,7 +28,7 @@ FlexItem
 
 ## Grouping
 
-Grouping is used in several examples including [flexbox](../assets/FlexBoxDemo.h) and [widgets](../assets/WidgetsDemo.h).
+Grouping is used in several examples including [flexbox](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/FlexBoxDemo.h) and [widgets](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/WidgetsDemo.h).
 
 ### `juce::GroupComponent` Class
 A component that draws an outline around itself and has an optional title at the top, for drawing an outline around a group of controls.
@@ -33,7 +36,7 @@ A component that draws an outline around itself and has an optional title at the
 
 ## Bars
 
-An example of a toolbar is available in the [widgets demo](../assets/WidgetsDemo.h).
+An example of a toolbar is available in the [widgets demo](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/WidgetsDemo.h).
 A sidebar can either be [custom made](https://juce.com/tutorials/tutorial_rectangle_advanced/) or use the `SidePanel` class
 
 ### `juce::SidePanel` Class

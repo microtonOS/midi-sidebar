@@ -1,7 +1,8 @@
 # Widgets
 
-A subset of available widgets that are particularly useful.
-[Examples here](../assets/WidgetsDemo.h).
+This is a deliberately restricted set of widgets.
+Prefer these, and if something doesn't fit, please ask.
+[Examples here](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/WidgetsDemo.h).
 
 ## Text and Menus
 
@@ -31,13 +32,13 @@ You can register `Slider::Listener` objects with a slider, and they'll be called
 |-------|-------------|
 | `Slider::Rotary` | Knob. |
 | `Slider::LinearBar` and `Slider::LinearBarVertical` | Rectangle in a box that can be lengthened or shortened. |
-| `Slider::LinearHorizontal` and `Slider:LinearVertical` | Slider with a nubbin. Standard design which is extended below. |
-| `Slider::ThreeValueHorizontal` and `Slider:ThreeValueVertical` | The nubbin is contained within min and max limiters. |
-| `Slider::TwoValueHorizontal` and `Slider:TwoValueVertical` | The same as above but with the nubbin removed so there is only a range. |
+| `Slider::LinearHorizontal` and `Slider::LinearVertical` | Slider with a nubbin. Standard design which is extended below. |
+| `Slider::ThreeValueHorizontal` and `Slider::ThreeValueVertical` | The nubbin is contained within min and max limiters. |
+| `Slider::TwoValueHorizontal` and `Slider::TwoValueVertical` | The same as above but with the nubbin removed so there is only a range. |
 
 
-`SetPopupDisplayEnabled` adds a speech bubble. A common usage is to display the value and append the relevant unit if any.
-A less elegant way is to display the value in an associated textbox by using `setTextBoxSlide`.
+`setPopupDisplayEnabled` adds a speech bubble. A common usage is to display the value and append the relevant unit if any.
+A less elegant way is to display the value in an associated textbox by using `setTextBoxStyle`.
 The linear bars interestingly display text inside the rectangle.
 
 ## Buttons
@@ -45,12 +46,13 @@ The linear bars interestingly display text inside the rectangle.
 | class | description |
 |-------|-------------|
 | `TextButton` | Simple button with text in it |
-| `ToggleButton` | Button with toggle functionality |
-| `RadioButton` | Toggle functionality but different design: text with tick-box next to it |
-| `Slider::IncDecButtons` | Pair of "+" and "-" buttons to increment/decrement a value |
+| `ToggleButton` | Toggle drawn as a tick-box with a text label beside it |
+| `Slider::IncDecButtons`[^notClass] | Pair of "+" and "-" buttons to increment/decrement a value |
 | `DrawableButton` | Draws images either instead of the button or inside it |
 
+Note that although `Slider::IncDecButtons` behaves like a slider, its graphical appearance is that of a pair of buttons, which is why it is placed in this section.
 
 
+[^notClass]: Not technically a class but an enum value: make a `juce::Slider` and call `setSliderStyle (juce::Slider::IncDecButtons)`.
 
 

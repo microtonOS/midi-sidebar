@@ -1,7 +1,7 @@
 ---
 name: juce
 description: Create virtual instrument or sound effect with JUCE.
-allowed-commands: WebFetch(https://github.com/josmithiii/mcp-servers-jos/**) WebFetch(https://github.com/kunitoki/sonic-skills/**)
+allowed-tools: WebFetch(domain:docs.juce.com) WebFetch(domain:forum.juce.com)
 ---
 
 # JUCE

@@ -13,9 +13,12 @@
     "deny": [
       "Read(~/.ssh/**)"
     ],
+    "ask": [
+      "Edit(./.claude/skills/*/SKILL.md)"
+    ],
     "allow": [
-      "Read(//tmp/**)",
-      "Write(//tmp/**)"
+      "Bash(.claude/skills/juce-gui/scripts/snapshot.sh:*)",
+      "Bash(python3 .claude/skills/juce-gui/scripts/layout_lint.py:*)"
     ]
   }
 }

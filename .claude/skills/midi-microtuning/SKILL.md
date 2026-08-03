@@ -1,7 +1,7 @@
 ---
 name: midi-microtuning
 description: Different standards for implementing microtuning in digital instruments. For use in microtonal or xenharmonic applications. Standards include MIDI 2.0, the MIDI tuning standard (MTS), tuning files (e.g. .scl and .kbm), and MIDI polyphonic expression (MPE).
-allowed-tools: WebFetch(https://midi.org/**) WebFetch(https://github.com/ODDSound/**) WebFetch(https://github.com/surge-synthesizer/**) WebFetch(https://github.com/xenharmonic-devs/**)
+allowed-tools: WebFetch(domain:midi.org)
 ---
 
 # MIDI Microtuning

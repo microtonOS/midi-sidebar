@@ -1,5 +1,6 @@
 # Design
 
+This is a deliberately restricted subset of particularly important design tools.
 
 ## Colours
 
@@ -14,12 +15,14 @@ The standard set of colours to use.
 - highlightedFill 	
 - menuText 	
 
+`numColours` is 9.
+
 see 
 [`juce::LookAndFeel_V4::ColourScheme`](https://docs.juce.com/master/classjuce_1_1LookAndFeel__V4_1_1ColourScheme.html)
 
 ## Animations
 
-[Example of animations](../assets/AnimationEasingDemo.h).
+[Example of animations](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/AnimationEasingDemo.h).
 
 ### `juce::Animator` Class
 Wrapper class for managing the lifetime of all the different animator kinds created through the builder classes.

@@ -1,9 +1,12 @@
 # Popups
 
+This is a deliberately restricted set of things that popup.
+Prefer these, and if something doesn't fit, please ask.
+
 ## Windows
 
-A windows is available [here](../assets/DialogsDemo.h).
-And [another one](../assets/WindowsDemo.h).
+A windows is available [here](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/DialogsDemo.h).
+And [another one](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/WindowsDemo.h).
 Window frames can both be JUCE styled and use the styling of the native OS.
 
 | name | description |
@@ -15,7 +18,7 @@ Window frames can both be JUCE styled and use the styling of the native OS.
 
 ## Other
 
-Other popups include a popup menu (suitible for combo boxes or right-clicking) and speech bubble suitible for displaying further information about a widget such as a value with associated unit.
+Other popups include a popup menu (suitable for combo boxes or right-clicking) and speech bubble suitable for displaying further information about a widget such as a value with associated unit.
 
 ### `PopupMenu`
 
