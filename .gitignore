@@ -1,0 +1,6 @@
+# MIDI Association specifications are copyrighted and may not be redistributed.
+# Kept locally as reading material for the midi-microtuning skill only.
+.claude/skills/*/assets/
+
+# Files meant to be removed later
+temporary/**

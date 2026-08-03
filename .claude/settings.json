@@ -1,0 +1,21 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "credentials": {
+      "files": [
+        { "path": "~/.ssh", "mode": "deny" }
+      ]
+    }
+  },
+  "permissions": {
+    "deny": [
+      "Read(~/.ssh/**)"
+    ],
+    "allow": [
+      "Read(//tmp/**)",
+      "Write(//tmp/**)"
+    ]
+  }
+}
