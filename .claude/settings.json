@@ -17,8 +17,8 @@
       "Edit(./.claude/skills/*/SKILL.md)"
     ],
     "allow": [
-      "Bash(.claude/skills/juce-gui/scripts/snapshot.sh:*)",
-      "Bash(python3 .claude/skills/juce-gui/scripts/layout_lint.py:*)"
+      "Bash(.claude/skills/juce-ui/scripts/snapshot.sh:*)",
+      "Bash(python3 .claude/skills/juce-ui/scripts/layout_lint.py:*)"
     ]
   }
 }

@@ -3,7 +3,7 @@
 #  ---------------------------------------------------------------------------
 #  Include this file from your CMakeLists.txt and call the function once:
 #
-#      include(.claude/skills/juce-gui/scripts/add_snapshot_tool.cmake)
+#      include(.claude/skills/juce-ui/scripts/add_snapshot_tool.cmake)
 #
 #      juce_gui_add_snapshot_tool(
 #          TARGET           MyPlugin_snapshot

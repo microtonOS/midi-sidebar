@@ -8,7 +8,28 @@ Prefer these, and if something doesn't fit, please ask.
 There are two kinds of layout tools.
 One is just called grid, [example here](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/GridDemo.h).
 A more complex technique is flexboxes, [example here](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/FlexBoxDemo.h).
-They are both based on CSS.
+
+### How much CSS knowledge transfers
+
+Both are ports of the CSS specifications, close to one-to-one, so existing CSS
+layout knowledge is worth using here rather than relearning.
+
+**Transfers directly.** Track sizing, fractional units (`Grid::Fr` = CSS `fr`),
+gaps, `justifyContent`, `alignItems`, `flexDirection`, `flexGrow`. The mental
+model is the same: declare the container's structure, then place items into it.
+The css-tricks Complete Guide linked below is the reference JUCE's own
+documentation points at, so it is an accurate guide to `juce::Grid` and not just
+an analogy.
+
+**Does not transfer.**
+- There is no cascade and no stylesheet. Appearance lives in `LookAndFeel`
+  methods that receive the widget's state as parameters, so there is no `:hover`
+  or `:focus` — you branch on `isMouseOver` inside the drawing method.
+- There are no `em`, `rem`, percentages or media queries. Anything responsive is
+  written by hand in `resized()`.
+- There are no audio widgets. Knobs, meters, drawbars and multi-state switches
+  have no CSS equivalent, and neither does the convention around them. That is
+  the part this skill exists to cover.
 
 ### `juce::Grid` Class
 Container that handles geometry for grid layouts (fixed columns and rows) using a set of declarative rules.

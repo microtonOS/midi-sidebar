@@ -1,23 +1,51 @@
 ---
-name: juce-gui
+name: juce-ui
 description: Create a GUI in JUCE by adding widgets in a grid/flexbox layout (following the signal flow) as well as adding menus and popup windows. Some examples include knobs, sliders, buttons, toggles; context menus, sidebars, and sidepanels; popup windows for loading and saving files as well as custom windows. Edit colour palettes and fonts and other designs and customizations of various elements.
 allowed-tools: WebFetch(domain:docs.juce.com) WebFetch(domain:forum.juce.com)
 ---
 
-# JUCE GUI
+# JUCE UI
 
 Iterate with continuous feedback from the user.
 This is meant as a reusable skill for various JUCE projects, so the details of the user feedback may vary.
 It can make sense to update the skills file depending on the feedback from the user—ask to do this if something is missing or inconsistent and it is general enough to extend to other projects.
+
+## Files
+
+Decide the file structure when you create the first file, not once it has grown.
+A GUI that is not split up from the start becomes one enormous file, and then
+nobody — including you — can see what is in it.
+
+One file for each of:
+- the look and feel: every colour, font and size constant (see Layout mechanics
+  rule 1), and the `LookAndFeel` subclass that uses them;
+- each custom widget;
+- each page, panel or window;
+- the editor that owns the pages.
+
+Small widgets can be header-only; that is normal in JUCE and both of the
+reference plugins below do it. Put them under a `ui/` or `gui/` directory rather
+than beside the processor.
+
+If a GUI file passes roughly 500 lines it contains a page or a widget that wants
+extracting. Treat that as the trigger, not a suggestion.
+
+For scale: RippleRX's entire UI is about 30 kB across 12 files in `src/ui/`;
+tuneBfree's is 146 kB in a single `PluginEditor.cpp`. Same framework, comparable
+plugin. The split version is also what makes `layout_lint.py` output usable,
+since each report then names a file you can hold in your head.
+
+## Workflow
+
 Start out with a skeletal GUI and then add more details step by step:
 
-1. Create a "look and feel" file for global design choices such as colour palettes, widget ratios and sizes, fonts etc. As we start with the JUCE default choices this file will be mostly empty and filled out little by little. Make sure the `LookAndFeel (Dark)` colour theme is the initialized colour palette.
-2. In another file, create an empty page. <!-- I think that is MainComponent.cpp and .h in the GUI example. Not sure about the Audio example. Maybe check whats customary and update this. If the JUCE project already exists it may be something else --> Prepare the page for adding widgets later on by first setting up a layout tool. Use the `Grid` class. (Only use the `FlexBox` class if prompted by the user, and be prepared that `Grid` may change to `FlexBox` in future iterations.)
+1. Create a "look and feel" file for global design choices such as colour palettes, widget ratios and sizes, fonts etc. As we start with the JUCE default choices this file will be mostly empty and filled out little by little. Make sure the `LookAndFeel (Dark)` colour theme is the initialized colour palette. This is the one file every layout constant belongs in — see [Files](#files). Also decide now whether the editor will be resizable, because that changes what those constants mean; see [Resizing](#resizing).
+2. In another file — one file per page, per [Files](#files) — create an empty page. <!-- I think that is MainComponent.cpp and .h in the GUI example. Not sure about the Audio example. Maybe check whats customary and update this. If the JUCE project already exists it may be something else --> Prepare the page for adding widgets later on by first setting up a layout tool. Use the `Grid` class. (Only use the `FlexBox` class if prompted by the user, and be prepared that `Grid` may change to `FlexBox` in future iterations.)
 3. Add the widgets for the variables the user wants exposed. Use the JUCE default designs for now. Make a best effort attempt to lay them out in a reasonable layout. Follow the aesthetic considerations in the [Layout](#layout) section below. Run the screenshot tool and check the output. Iterate if necessary. Ask for feedback on whether it is an acceptable first pass.
 4. If the user is not satisfied, ask the user for a mockup. The designs in the mockup don't matter as we are still in the layout stage. By default, suggest that the user detail the mockup in either the docs (e.g. as markdown files containing html mockups or image mockups or natural language mockups) or a TODO file. The reason for doing it in the docs already is that the manual is half-done already. However, depending on the user and the agent, some other mockup method may be preferable, so take that into account as well.
 5. Connect the widgets to the variables via the plugin state, i.e. the APVTS. Ask the user to try it out and iterate on the feedback.
 6. When 5 is working. Ask if there is anything to finetune regarding the layout from step 4. If so, go back to step 4.
-7. Ask the user whether they would like to add another page or window or panel and repeat steps 1 to 5 for that new addition. Ask whether they would instead want to develop the look and feel further.
+7. Ask the user whether they would like to add another page or window or panel and repeat steps 1 to 5 for that new addition, giving it its own file rather than extending an existing one. Ask whether they would instead want to develop the look and feel further.
 8. Generate look and feel for all pages windows and panels. Make it beautiful according to the users preferences. If unstated, assume that the user want an elegant but simple design. Run the screenshot tool and check the output. Iterate if necessary. Ask the user for feedback and iterate. Make up a plan for what design features to add in which order so you get an iterative process going. Only do it all at once if the user asks you to.
 9. As a final step, go over the code and see if it can be cleaned up, e.g.: Are there design variables that have been hardcoded into a specific widget rather than placed in the "look and feel" file(s)? Are there legacy names of variables and files that do no longer make sense? Are important motivations for decisions you have iterated on explained as comments in the code? Are there gotchas or other things that should be added to the skill file? Are there any problems with licensing that the user should be aware of? Any other relevant question you can think of?
 
@@ -106,6 +134,47 @@ by inspection, and follow rules that make the invariants structural instead.
    range only. Do not spend the user's attention on something you can see
    yourself.
 
+### Resizing
+
+Hosts resize plugin editors and users expect to be able to. Decide whether the
+editor is resizable in step 1, not later: the answer determines whether the
+constants in the look and feel file are absolute pixels or values to be scaled,
+and retrofitting means revisiting every one of them.
+
+- **Set it up on the editor, with the constrainer as a member.**
+  `setResizable (true, true)`, then `setResizeLimits (minW, minH, maxW, maxH)`,
+  and `setFixedAspectRatio` if the design has one. JUCE keeps a pointer to the
+  `ComponentBoundsConstrainer` and does not own it, so a local variable leaves a
+  dangling pointer.
+
+- **The minimum size is derived, not chosen.** It is the size at which the
+  top-anchored and bottom-anchored content collides — mechanics rule 6. Add up
+  the fixed track extents and use that. A round number picked by eye will be
+  wrong in one direction or the other.
+
+- **Persist the size in the processor's state, not the editor's.** The host
+  saves and restores editor size, and the editor is destroyed and recreated
+  every time the window is closed and reopened.
+
+- **Reflow and scale are different designs; pick one and say which.** Reflowing
+  re-solves the tracks and leaves text at its original size, so a bigger window
+  shows more breathing room. Scaling multiplies everything including fonts, so a
+  bigger window shows the same layout larger. Reflow is the better default;
+  scaling suits skeuomorphic designs built on bitmap artwork.
+
+- **If you scale, every constant becomes `constant * scale`.** This is the
+  second reason for mechanics rule 6: a literal cannot be scaled. Pass the
+  factor explicitly down the component tree rather than querying the display,
+  which is unreliable inside a host.
+
+- **`setBounds` bypasses the constrainer.** Only user drags and host-driven
+  resizes go through it, so testing by calling `setBounds` proves nothing about
+  what the user will experience.
+
+- **Snapshot at the minimum, the default and the maximum.** This is mechanics
+  rule 7 with concrete sizes to test:
+  `snapshot.sh --target X -- --size 640x360 --name min`.
+
 ## Design
 
 The design should be both beautiful and functional/self-explanatory.
@@ -167,11 +236,22 @@ In the functional/self-explanatory vein:
 
 
 ## Resources
+
+### Documentation
 There are numerous examples in `JUCE/examples/GUI`.
 Documentation is available at [docs](https://docs.juce.com/master/).
 There is also the [forum](https://forum.juce.com/) for further discussions.
 
+
+### Tools
 To look at the GUI you have built, use the snapshot tool in
 [scripts](scripts/README.md). It renders the editor to a PNG in software — no
 window, no screen capture — so it works headless and inside a sandbox. Never use
 the operating system's screenshot utility.
+
+
+### Role Models
+tiagolr's RipplerX ([GitHub](https://github.com/tiagolr/ripplerx)) is a beautiful opensource plugin in the simple but elegant style.
+The Surge Synth Team's [Ob-Xf](https://surge-synth-team.org/ob-xf/) ([GitHub](https://github.com/surge-synthesizer/OB-Xf)) is a good example in the more skeuomorphic style.
+(Surge XT itself is not a good role model for a GUI even though some UI elements are good.)
+Read for ideas if you get stuck in a loop where you and the user struggle to communicate UI ideas, but note that both are under GPL-3.0 licenses (or later for OB-Xf).

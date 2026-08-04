@@ -41,7 +41,7 @@
 namespace
 {
 
-constexpr auto defaultSubDir = "juce-gui-snapshots";
+constexpr auto defaultSubDir = "juce-ui-snapshots";
 
 //==============================================================================
 struct Options

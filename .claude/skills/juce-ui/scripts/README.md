@@ -22,7 +22,7 @@ own GUI work instead of asking the user for a screenshot.
 Add to the project's `CMakeLists.txt`, after the `juce_add_plugin` call:
 
 ```cmake
-include(.claude/skills/juce-gui/scripts/add_snapshot_tool.cmake)
+include(.claude/skills/juce-ui/scripts/add_snapshot_tool.cmake)
 
 juce_gui_add_snapshot_tool(
     TARGET           MyPlugin_snapshot
@@ -38,11 +38,11 @@ juce_gui_add_snapshot_tool(
 ## Use
 
 ```bash
-.claude/skills/juce-gui/scripts/snapshot.sh --target MyPlugin_snapshot
+.claude/skills/juce-ui/scripts/snapshot.sh --target MyPlugin_snapshot
 ```
 
 That builds the target if needed, runs it, and prints something like
-`/var/folders/.../T/juce-gui-snapshots/snapshot.png`. Read that file to see the
+`/var/folders/.../T/juce-ui-snapshots/snapshot.png`. Read that file to see the
 GUI.
 
 Useful variations — everything after `--` goes to the tool:
@@ -70,7 +70,7 @@ code stays free of dev-only branches.
 
 ## Where the files go
 
-By default `<system temp>/juce-gui-snapshots/`, via
+By default `<system temp>/juce-ui-snapshots/`, via
 `juce::File::getSpecialLocation (juce::File::tempDirectory)`. Under Claude Code
 that resolves to the session temp directory, which is writable inside the
 sandbox by default and is discarded with the session. On Linux and the RPi it
@@ -108,7 +108,7 @@ To let the agent run this without a prompt, add to `.claude/settings.json`:
 ```json
 {
   "permissions": {
-    "allow": ["Bash(.claude/skills/juce-gui/scripts/snapshot.sh:*)"]
+    "allow": ["Bash(.claude/skills/juce-ui/scripts/snapshot.sh:*)"]
   }
 }
 ```
@@ -157,7 +157,7 @@ Everything else — output paths, pruning, message pumping — is unchanged.
 # Layout lint
 
 ```bash
-python3 .claude/skills/juce-gui/scripts/layout_lint.py plugin/
+python3 .claude/skills/juce-ui/scripts/layout_lint.py plugin/
 ```
 
 Needs no build and no JUCE. It finds every `resized()` body in the given files
