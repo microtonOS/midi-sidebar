@@ -20,6 +20,17 @@ A master owns the scale and must construct messages; a client only has to interp
 - **Control of both ends.** If the project talks only to itself, pick one standard and do it well. If it talks to arbitrary third-party instruments, breadth matters more than depth.
 - **Real-time.** Must a sounding note be able to change pitch, or is tuning fixed at note-on?
 
+
+| standard | master | client |
+|----------|--------|--------|
+| MIDI 2.0 | ideally | ideally |
+| MTS Sysex | yes | yes |
+| MTS ESP | if Linux, MacOS, Windows | if Linux, MacOS, Windows |
+| tuning files | yes | if uploading possible |
+| MPE | yes | if pitchbend possible |
+| monophonic pitchbend | yes | no, workaround for clients without microtuning |
+
+
 Support several standards where the project allows.
 Consider the following cross-standards features:
 - Multichannel support. Add if possible.

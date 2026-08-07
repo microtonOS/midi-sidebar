@@ -13,6 +13,8 @@ In addition, it adds simple utilities:
 - Volume slider (hardcoded to CC7 MSB and CC29 LSB) and a parallel VU meter.
 - All sound off button (hardcoded to CC120).
 
+Throughout the documentation, we distinguish between the *developer* of the plugin and the *end-user*.
+
 For more, see [Sidebar](docs/sidebar.md).
 
 ## Motivation
