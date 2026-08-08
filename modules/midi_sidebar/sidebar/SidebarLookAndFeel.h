@@ -151,6 +151,20 @@ class SidebarLookAndFeel : public juce::LookAndFeel_V4
 public:
     SidebarLookAndFeel();
 
+    /** Switches the whole module to another JUCE colour scheme.
+
+        `LookAndFeel_V4::setColourScheme` on its own is not enough: it re-derives
+        JUCE's own ColourIds and leaves this module's — which were derived from
+        the *previous* scheme — behind, so the sidebar keeps its old colours
+        while everything around it changes. This does both halves.
+
+        The caller still has to tell the components about it. Colours resolved
+        during `paint` follow immediately, but anything that caches a colour —
+        the rail's icons bake theirs into a Drawable — only rebuilds on a
+        look-and-feel change, so call `sendLookAndFeelChange()` on the component
+        that owns this LookAndFeel afterwards. */
+    void setScheme (const ColourScheme& newScheme);
+
     /** Teaches a LookAndFeel every ColourId this module's widgets ask for.
 
         The constructor calls this on itself. Call it yourself if you use your

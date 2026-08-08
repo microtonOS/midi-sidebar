@@ -125,5 +125,12 @@ A speech-bubble component that displays a short message.
 
 This can be used to show a message with the tail of the speech bubble pointing to a particular component or location on the screen.
 
+`BubbleComponent` has ColourIds for its `background` and its `outline` but
+**none for its text**, so anything drawing text into a bubble has to borrow a
+colour from elsewhere. `Slider`'s value bubble borrows `TooltipWindow::`
+`textColourId`, which collides with the bubble's own background in
+`LookAndFeel_V4`'s Light scheme and leaves the read-out invisible. See
+[widgets](widgets.md#sliders) for the mechanism and the fix.
+
 See also
 BubbleComponent

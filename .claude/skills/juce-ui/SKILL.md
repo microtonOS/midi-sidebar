@@ -238,6 +238,11 @@ looking at; follow the link once you recognise it.
   needs a reversed range, not a mirrored paint.
   See [widgets](references/widgets.md#sliders).
 
+- **A slider's value bubble is invisible in one theme.** A JUCE bug, not your
+  call site: the bubble's background and its text come from two unrelated colour
+  pairs, which collide in `LookAndFeel_V4`'s Light scheme.
+  See [widgets](references/widgets.md#sliders).
+
 - **Identical knobs come out different sizes.** A rotary slider's radius is
   `jmin (width, height)`, so the cell's aspect ratio decides it, not its area.
   See [widgets](references/widgets.md#sliders).

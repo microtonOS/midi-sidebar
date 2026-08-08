@@ -17,6 +17,7 @@
 - Rename the GitHub repo and this directory to `midi-sidebar`. The module inside is already renamed; this is the remaining half.
 - Attach the volume fader to its APVTS parameter. Both are already in dB over the same range with the same floor, so this is small — the sidebar just needs to expose the fader, or take a value + callback so the module stays free of `juce_audio_processors`.
 - Decide whether the value bubble and the volume pop-up should look different. They are currently the same colour: `BubbleComponent::backgroundColourId` and `Sidebar::backgroundColourId` both resolve to `widgetBackground`.
+    - Related, and now documented as a gotcha in the juce-ui skill rather than fixed here: the bubble's *text* comes from `TooltipWindow::textColourId` (`highlightedText`), so in the Light scheme it is white on white and invisible. A JUCE bug — it reproduces in the DemoRunner. The demo has a Bubble text switch for trying the workaround. Giving the bubble `highlightedFill` as a background would fix the contrast *and* settle this item in one move, if that is the direction you want.
 - Compact-mode volume pop-up has only been checked in a headless render, never by clicking it in a real host.
 
 **Low Priority**.

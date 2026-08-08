@@ -1,0 +1,142 @@
+#pragma once
+
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <midi_sidebar/midi_sidebar.h>
+
+#include "ChoiceStrip.h"
+#include "DemoSettings.h"
+#include "DemoStyle.h"
+
+namespace microtonos::sidebar::demo
+{
+
+//==============================================================================
+/** The area a host plugin's own UI would occupy, holding the demo's controls.
+
+    Two jobs in one component, and they are the same job: the outline marks
+    where the host's UI would be — which is how the sidebar's overlaying can be
+    seen at all — and the settings that only a demo needs are put inside it,
+    because that rectangle is precisely the space this project does not own.
+    Nothing here is part of the sidebar; a plugin embedding it makes these
+    choices once, in code.
+
+    Height is the scarce direction here, not width: the editor has to go down to
+    the sidebar's own minimum height so that the rail can be tested there, and
+    that leaves 140px for these rows. At `choiceButtonHeight` plus
+    `controlsGap` each, three is what fits — which is what there is. A fourth
+    setting therefore does not go on the end; it goes in a second **column**,
+    which costs nothing, since the window may be as wide as it likes and
+    `controlsWidthFor` already gives a column's width. Adding rows instead would
+    push the last one out of sight at exactly the size the sidebar most needs
+    testing at.
+
+    A real Component rather than something the editor draws in its own `paint`.
+    Drawing it in the editor meant deriving its bounds from the sidebar's
+    current width, which is wrong twice over: the editor is not repainted while
+    the sidebar animates, so the outline lagged behind and then stayed stale
+    once the animation finished. A child gets laid out and repaints itself.
+*/
+class DemoControls final : public juce::Component
+{
+public:
+    DemoControls()
+    {
+        // The panel itself is scenery and should not swallow clicks; its
+        // children are the point, so they still get them.
+        setInterceptsMouseClicks (false, true);
+
+        caption.setJustificationType (juce::Justification::centred);
+
+        addAndMakeVisible (caption);
+        addAndMakeVisible (themeStrip);
+        addAndMakeVisible (bubbleTextStrip);
+        addAndMakeVisible (edgeStrip);
+    }
+
+    ChoiceStrip& getThemeStrip()      noexcept { return themeStrip; }
+    ChoiceStrip& getBubbleTextStrip() noexcept { return bubbleTextStrip; }
+    ChoiceStrip& getEdgeStrip()       noexcept { return edgeStrip; }
+
+    void paint (juce::Graphics& g) override
+    {
+        g.setColour (dimmedText());
+        g.drawRect (getLocalBounds(), 1);
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced (layout::controlsPadding);
+
+        // The caption keeps the full width — it names the whole placeholder,
+        // not the controls — while the settings are capped and centred under
+        // it. Without the cap a wide window stretches a row of four buttons
+        // across the entire editor, which stops reading as a control.
+        caption.setBounds (area.removeFromTop (layout::captionHeight));
+        area.removeFromTop (layout::controlsGap);
+
+        const auto widest = juce::jmax (themeStrip.getChoiceCount(),
+                                        edgeStrip.getChoiceCount(),
+                                        bubbleTextStrip.getChoiceCount());
+
+        const auto capped = juce::jmin (area.getWidth(),
+                                        layout::controlsWidthFor (widest, layout::choiceButtonMaxWidth));
+
+        juce::Grid grid;
+        using Track = juce::Grid::TrackInfo;
+
+        grid.templateColumns = { Track (juce::Grid::Fr (1)) };
+
+        // Settings anchored to the top with one flexible track below them
+        // taking up the rest. Growing the window then only grows the empty part
+        // of the placeholder, which is the part that is standing in for
+        // something else anyway.
+        //
+        // One row per setting, all the same height, so the label column and
+        // every button edge line up because they are the same tracks.
+        //
+        // Theme and bubble text are adjacent because both are about colour and
+        // are read against each other — the bug the second one works around
+        // only appears in one of the themes. This is the display order only;
+        // the parameters keep their own order in the processor, since their
+        // indices are what a host automates.
+        const Track row { juce::Grid::Px (layout::choiceButtonHeight) };
+
+        grid.templateRows = { row, row, row, Track (juce::Grid::Fr (1)) };
+        grid.rowGap = juce::Grid::Px (layout::controlsGap);
+
+        grid.items = { juce::GridItem (themeStrip),
+                       juce::GridItem (bubbleTextStrip),
+                       juce::GridItem (edgeStrip),
+                       juce::GridItem() };
+
+        grid.performLayout (area.withSizeKeepingCentre (capped, area.getHeight()));
+    }
+
+    void lookAndFeelChanged() override
+    {
+        // Label caches nothing, but its colour is an override rather than a
+        // lookup, so it has to be re-applied whenever the theme changes.
+        caption.setColour (juce::Label::textColourId, dimmedText());
+        caption.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
+    }
+
+private:
+    /** The outline and the caption are both scenery: present enough to read,
+        quiet enough not to compete with the sidebar. */
+    juce::Colour dimmedText() const
+    {
+        return getLookAndFeel().findColour (juce::Label::textColourId)
+                               .withMultipliedAlpha (shades::scenery);
+    }
+
+    juce::Label caption { "Caption", "host plugin content" };
+
+    // Declared in the order they appear; `resized` is what actually decides it.
+    ChoiceStrip themeStrip      { "Theme",        settings::themeNames };
+    ChoiceStrip bubbleTextStrip { "Bubble text",  settings::bubbleTextNames };
+    ChoiceStrip edgeStrip       { "Sidebar edge", settings::edgeNames };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DemoControls)
+};
+
+} // namespace microtonos::sidebar::demo

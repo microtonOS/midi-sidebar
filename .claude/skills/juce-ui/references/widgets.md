@@ -46,7 +46,7 @@ argument, so it is clipped to that component's bounds. Pass something with room
 — usually the editor. Passing the widget itself leaves a sliver of the bubble
 and its tail showing, which reads on screen as a stray `<`.
 
-### Three ways a slider comes out wrong
+### Four ways a slider comes out wrong
 
 **A vertical fader is shorter than a meter of the same height.**
 `LookAndFeel_V2::getSliderLayout` reduces a vertical slider's bounds by
@@ -71,6 +71,52 @@ cells of equal *area* but different aspect ratio give visibly different knobs.
 Fix it in the layout, never at the widget: give the knob's grid track a fixed
 size, or `GridItem (knob).withSize (kKnob, kKnob)`. Do not hand each knob its
 own literal rectangle.
+
+**The value bubble is invisible in a light theme.** This one is a JUCE bug, not
+a mistake at the call site, and it reproduces in JUCE's own DemoRunner — Widgets
+demo, light scheme. The bubble takes its two colours from two *unrelated* pairs:
+
+| | colour id | `LookAndFeel_V4` maps it to |
+|---|---|---|
+| background | `BubbleComponent::backgroundColourId` | `widgetBackground` |
+| text | `TooltipWindow::textColourId` | `highlightedText` |
+
+`BubbleComponent` has no text colour of its own, so `PopupDisplayComponent::`
+`paintContent` borrows the tooltip's. For a real tooltip that pairing is safe —
+its background is `highlightedFill`, and V4 keeps that pair contrasting in every
+scheme. The bubble breaks the pairing, and in the Light scheme both halves land
+on white:
+
+| scheme | background | text | |
+|---|---|---|---|
+| Dark | `0xff323e44` | white | ok |
+| Midnight | `0xff191926` | white | ok |
+| Grey | `0xff606060` | black | ~3:1, legible |
+| **Light** | **`0xffffffff`** | **`0xffffffff`** | **invisible** |
+
+Fix it by overriding `TooltipWindow::textColourId` on an **ancestor**, not on
+each slider — `paintContent` resolves it with
+`findColour (TooltipWindow::textColourId, true)`, and that `true` walks the
+parent chain, so one call on the editor covers every bubble in the plugin:
+
+```cpp
+setColour (juce::TooltipWindow::textColourId, juce::Colours::black);
+removeColour (juce::TooltipWindow::textColourId);   // back to stock
+```
+
+Two things to know about that walk. It stops early at any component whose *own*
+`LookAndFeel` specifies the id (`Component::findColour`: `lookAndFeel == nullptr
+|| ! lookAndFeel->isColourSpecified (colourID)`), so a child with
+`setLookAndFeel` on it ignores the override. And setting the id on a LookAndFeel
+instead re-colours real tooltips too, where nothing was wrong.
+
+Overriding `drawBubble` cannot fix it. That method draws only the background and
+the outline; the text is drawn by `paintContent` inside `Slider::Pimpl`'s
+private `PopupDisplayComponent`, which no LookAndFeel method reaches.
+
+Changing the *background* to `highlightedFill` also works, and restores JUCE's
+contrasting pair for all four schemes — but it is a design decision as much as a
+fix, since the bubble then stops matching the surface it floats over.
 
 ## Buttons
 

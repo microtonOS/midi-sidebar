@@ -1,30 +1,8 @@
 #include "DemoEditor.h"
+#include "DemoSettings.h"
 
 namespace microtonos::sidebar::demo
 {
-
-namespace layout
-{
-    /** The content area beside the sidebar. Stands in for the host plugin's own
-        UI, so its only real constraint is being wide enough to look like a
-        plugin rather than a strip. */
-    inline constexpr int minContentWidth     = 320;
-    inline constexpr int defaultContentWidth = 460;
-
-    /** Default height sits well above the breakpoint so the sidebar opens with
-        the volume strip showing and a comfortable gap above it. */
-    inline constexpr int defaultHeight = 420;
-    inline constexpr int maxWidth      = 1600;
-    inline constexpr int maxHeight     = 1200;
-
-    /** Meter refresh. Fast enough to look continuous, slow enough to cost
-        nothing. */
-    inline constexpr int meterHz = 24;
-
-    /** Inset of the "host plugin content" placeholder from the area left over
-        beside the sidebar. */
-    inline constexpr int placeholderInset = 8;
-}
 
 //==============================================================================
 DemoEditor::DemoEditor (DemoProcessor& p)
@@ -32,9 +10,9 @@ DemoEditor::DemoEditor (DemoProcessor& p)
 {
     setLookAndFeel (&lookAndFeel);
 
-    // Placeholder first so the sidebar is added later and therefore draws on
-    // top of it, which is what an overlaying sidebar would need.
-    addAndMakeVisible (placeholder);
+    // Controls first so the sidebar is added later and therefore draws on top
+    // of them, which is what an overlaying sidebar needs.
+    addAndMakeVisible (controls);
     addAndMakeVisible (sidebar);
 
     sidebar.onPreferredWidthChanged = [this] { layOutSidebar (true); };
@@ -62,9 +40,33 @@ DemoEditor::DemoEditor (DemoProcessor& p)
         pageAttachment->sendInitialUpdate();
     }
 
+    // The two developer settings, bound the same way. Their initial update is
+    // what puts the sidebar on the saved edge and the saved theme on screen,
+    // so neither is applied twice — once here and once from a default.
+    themeAttachment = attachChoice ("theme", controls.getThemeStrip(),
+                                    [this] (int index) { applyTheme (index); });
+
+    edgeAttachment = attachChoice ("edge", controls.getEdgeStrip(),
+                                   [this] (int index)
+                                   {
+                                       sidebar.setEdge (settings::edgeFor (index));
+
+                                       // Not animated: an edge change teleports
+                                       // the sidebar across the window, and
+                                       // sliding it through the middle of the
+                                       // host's UI reads as a bug rather than
+                                       // as a transition.
+                                       layOutSidebar (false);
+                                   });
+
+    bubbleTextAttachment = attachChoice ("bubbleText", controls.getBubbleTextStrip(),
+                                         [this] (int index) { applyBubbleTextColour (index); });
+
     // Minimum size is derived, not chosen: the sidebar reports the height below
-    // which its rail cannot be drawn, and the content area supplies the width.
-    constrainer.setSizeLimits (layout::minContentWidth + Sidebar::getRailWidth(),
+    // which its rail cannot be drawn, and the content area is as narrow as the
+    // widest row of developer controls — the four themes — allows.
+    constrainer.setSizeLimits (layout::contentWidthFor (settings::themeNames.size())
+                                   + Sidebar::getRailWidth(),
                                Sidebar::getMinimumHeight(),
                                layout::maxWidth,
                                layout::maxHeight);
@@ -85,6 +87,69 @@ DemoEditor::DemoEditor (DemoProcessor& p)
 DemoEditor::~DemoEditor()
 {
     setLookAndFeel (nullptr);
+}
+
+//==============================================================================
+std::unique_ptr<juce::ParameterAttachment> DemoEditor::attachChoice (const juce::String& parameterID,
+                                                                    ChoiceStrip& strip,
+                                                                    std::function<void (int)> apply)
+{
+    auto* parameter = processor.apvts.getParameter (parameterID);
+
+    if (parameter == nullptr)
+    {
+        jassertfalse;   // A parameter was renamed in the processor but not here.
+        return {};
+    }
+
+    // ParameterAttachment hands a choice parameter's value over already
+    // denormalised, so this is the index rather than a 0..1 fraction.
+    auto attachment = std::make_unique<juce::ParameterAttachment> (
+        *parameter,
+        [&strip, applyChoice = std::move (apply)] (float value)
+        {
+            const auto index = juce::roundToInt (value);
+
+            strip.setSelectedIndex (index);
+            applyChoice (index);
+        },
+        nullptr);
+
+    strip.onChoice = [raw = attachment.get()] (int index)
+    {
+        raw->setValueAsCompleteGesture ((float) index);
+    };
+
+    attachment->sendInitialUpdate();
+
+    return attachment;
+}
+
+void DemoEditor::applyTheme (int themeIndex)
+{
+    lookAndFeel.setScheme (settings::schemeFor (themeIndex));
+
+    // Changing the colours in a LookAndFeel does not tell anything that it
+    // happened. Most widgets look them up while painting and so only need a
+    // repaint, but the rail's icons bake their colour into a Drawable and
+    // rebuild it on a look-and-feel change — which is what this sends, to this
+    // component and every descendant.
+    sendLookAndFeelChange();
+    repaint();
+}
+
+void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)
+{
+    // On the editor, not on the fader. A slider's value bubble resolves its
+    // text with `findColour (TooltipWindow::textColourId, true)`, and that
+    // `true` walks the parent chain — so one override up here reaches every
+    // bubble in the plugin, which is how a real plugin would apply the
+    // workaround rather than repeating it at each slider. (The walk does stop
+    // early at any component that has its own LookAndFeel specifying the id.)
+    if (const auto colour = settings::bubbleTextColourFor (bubbleTextIndex))
+        setColour (juce::TooltipWindow::textColourId, *colour);
+    else
+        removeColour (juce::TooltipWindow::textColourId);
 }
 
 //==============================================================================
@@ -120,7 +185,7 @@ void DemoEditor::layOutSidebar (bool animated)
     content = onLeft ? content.withTrimmedLeft (Sidebar::getRailWidth())
                      : content.withTrimmedRight (Sidebar::getRailWidth());
 
-    placeholder.setBounds (content.reduced (layout::placeholderInset));
+    controls.setBounds (content.reduced (layout::placeholderInset));
 
     auto bounds = getLocalBounds();
     const auto width = sidebar.getPreferredWidth();

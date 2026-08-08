@@ -22,3 +22,10 @@ Exceptions to this rule include:
 - Typos.
 - Adding sources/references.
 - Fixing small mistakes easily verified from references.
+
+The same set of rules as for skills apply to docs.
+
+Temporary files that the user needs to see can be placed in `./tmp`.
+Only use this if the user's feedback is necessary for e.g. A/B testing.
+The user may also add files Claude needs to see there.
+Or any other file that is temporary for one reason or another.

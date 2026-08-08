@@ -1,5 +1,6 @@
 #include "DemoProcessor.h"
 #include "DemoEditor.h"
+#include "DemoSettings.h"
 
 namespace microtonos::sidebar::demo
 {
@@ -8,6 +9,9 @@ namespace ids
 {
     const juce::String volume { "volume" };
     const juce::String page   { "page" };
+    const juce::String theme      { "theme" };
+    const juce::String edge       { "edge" };
+    const juce::String bubbleText { "bubbleText" };
 }
 
 //==============================================================================
@@ -43,6 +47,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout DemoProcessor::createParamet
         juce::ParameterID { ids::page, 1 },
         "Page",
         juce::StringArray { "None", "Presets", "Controllers", "Tuning" },
+        0));
+
+    // The developer settings the demo exposes as buttons. Parameters for the
+    // same three reasons the page is one: they survive the editor being
+    // closed, they are saved with the session, and they can be set from the
+    // command line — `--param theme=Light` renders a theme the agent never has
+    // to click its way to. The choice lists live in DemoSettings.h so the
+    // parameter's index and the button's index cannot drift apart.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ids::theme, 1 },
+        "Theme",
+        settings::themeNames,
+        0));
+
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ids::edge, 1 },
+        "Sidebar edge",
+        settings::edgeNames,
+        0));
+
+    // Not a sidebar setting at all: a switch for a JUCE bug that makes slider
+    // value bubbles unreadable in some themes. It is here because the demo is
+    // where a theme is switched, which is the only place the bug can be seen.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ids::bubbleText, 1 },
+        "Bubble text",
+        settings::bubbleTextNames,
         0));
 
     return layout;

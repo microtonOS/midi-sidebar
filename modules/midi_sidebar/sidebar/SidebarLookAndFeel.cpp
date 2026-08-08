@@ -11,9 +11,13 @@ SidebarLookAndFeel::SidebarLookAndFeel()
     // Start from JUCE's dark scheme rather than inventing a palette. Anything
     // the sidebar needs beyond those nine colours is derived from them below,
     // so re-theming means changing the scheme and nothing else.
-    const auto scheme = getDarkColourScheme();
-    setColourScheme (scheme);
-    registerColours (*this, scheme);
+    setScheme (getDarkColourScheme());
+}
+
+void SidebarLookAndFeel::setScheme (const ColourScheme& newScheme)
+{
+    setColourScheme (newScheme);
+    registerColours (*this, newScheme);
 }
 
 void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const ColourScheme& scheme)
