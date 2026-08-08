@@ -12,7 +12,7 @@
 - Does MIDI 2.0 have a way of naming tunings like MTS ESP and Sysex and Scala files?
 - Make sure that the skills are shareable with repect to licensing and containing all the relevant information.
 - If this project is a submodule to something already having JUCE as a submodule, then it shouldn't need a JUCE submodule of its own, right?
-- In temporary, there is also an audio testing file. put this in juce, well unless you think there should be a juce-dsp or whether a similar script already exists in a more developed form for some other developer.
+- In tmp, there is also an audio testing file. put this in juce, well unless you think there should be a juce-dsp or whether a similar script already exists in a more developed form for some other developer.
 - add the continuous controller names to the reference for midi.
 - Rename the GitHub repo and this directory to `midi-sidebar`. The module inside is already renamed; this is the remaining half.
 - Attach the volume fader to its APVTS parameter. Both are already in dB over the same range with the same floor, so this is small — the sidebar just needs to expose the fader, or take a value + callback so the module stays free of `juce_audio_processors`.
