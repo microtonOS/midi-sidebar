@@ -12,6 +12,7 @@ In its collapsed state it looks like in Figure 1.
             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 48 48"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M14.7 4.5h-2.3c-2.2 0-4 1.8-4 4v31c0 2.2 1.8 4 4 4h2.3m19.6-39v11L30.8 12l-3.5 3.5v-11H14.7v39h20.9c2.2 0 4-1.8 4-4v-31c0-2.2-1.8-4-4-4z"/></svg>
         </button>
     </div>
+    <!-- Always a bit uncertain whetehr to have this only as a rightlick menu or as both sideclick and sidebar --->
     <div>
         <button style="width:3.5em; height:3.5em">
             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 48 48"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M36.038 15.505a3.88 3.88 0 1 1-3.723-4.03m-14.84 6.764a3.88 3.88 0 1 1 .296-5.478m17.134 22.631a3.88 3.88 0 1 1 0-5.487m-20.021-1.136a3.88 3.88 0 1 1-3.88 3.88m3.88-.001l-4.35-3.33m26.931 3.501l-5.303-.17M20.283 15.531l-5.57-.22m21.328-3.441l-3.88 3.482"/><rect width="37" height="37" x="5.5" y="5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" rx="4" ry="4"/></svg>
@@ -52,13 +53,72 @@ From top to bottom.
 Either or none of these can be active. The menu is collapsed if and only if none.
 You can toggle between them if expanded.
 
-4. The fourth button is the volume button. When pressed a volume slider appears. In addition there is a meter for the volume. The slider and the meter are parallel and use a common scale.[^surge] CC7 is hardcoded for volume.
+4. The fourth button is the volume button. When pressed a volume slider appears. In addition there is a meter for the volume. The slider and the meter are parallel and use a common scale.[^surge] CC7 is hardcoded for volume. See [Volume and metering](#volume-and-metering).
 5. All sound off (and implicitly all notes off) button. CC120 is hardcoded to this control.
 
 
-The design above applies to window sizes with small heights.
-If the window height is intermediate button 4 is replaced by the volume slider+meter.
-If the window height is large, then a space appears between 3 and 4 such that 1 to 3 is at the top and 4 to 5 at the bottom.
+## Placement and expansion
+
+The rail rides the *inner* edge of the panel, so it always sits between the
+panel and the host's content: with the sidebar on the left, an open page reads
+panel, then rail, then content. This is the hypothes.is arrangement[^hypothesis]
+rather than the browser-sidebar one, where the rail stays pinned to the window
+edge. The cost, accepted deliberately, is that all five buttons move by the
+panel's width whenever a page opens or closes.
+
+The panel **lies over** the host's UI rather than pushing it aside. Only the
+rail's width is permanently reserved; what the panel covers while open is hidden
+on purpose. This is what lets the sidebar be dropped into an existing plugin
+without that plugin's layout having to respond to it — its bounds never change.
+
+
+## Heights
+
+There is one arrangement at every height: the three page buttons at the top, the
+volume control and the all-sound-off button anchored to the bottom, and one
+flexible gap between them that absorbs whatever is left over. Growing the window
+only grows that gap.
+
+Only the volume control changes with height:
+
+| window height | volume control |
+|---|---|
+| below the breakpoint | an icon button; pressing it opens the fader and meter in a pop-up |
+| at or above it | the fader and meter inline in the rail |
+
+Both the minimum height and the breakpoint are **derived from the content**, not
+chosen: the minimum is the height at which the five controls and their gaps
+exactly fit, and the breakpoint is the same sum with the fader-and-meter strip
+in place of the volume button. Changing a button size or a gap moves both.
+
+
+## Volume and metering
+
+The fader and the meter are drawn to the same rectangle, so they can be read
+against each other. That only means something if they share a scale, so:
+
+- **Both are in decibels**, from 0 dB at the top down to a floor of −60 dB,
+  below which the fader is off and the meter is empty. Not a linear amplitude
+  or a percentage: MIDI defines CC7 as a dB curve — the General MIDI
+  specifications give `dB = 40 × log₁₀(cc/127)`, so CC7 64 is about −12 dB
+  rather than half volume — and a meter is inherently logarithmic. A linear
+  scale would crush everything below about −20 dB into the bottom pixel.
+- **The meter is post-fader.** It shows what actually leaves the plugin, so
+  pulling the fader down takes the meter with it. The fader then reads as a
+  ceiling with the signal beneath it, and the space between them is headroom.
+  (Note that Surge XT's meter, cited above, is *not* coupled to a fader this
+  way — the shared scale is this project's own idea, not something borrowed.)
+- **The meter is stereo**, two bars side by side, left then right. A mono source
+  feeds both.
+- The fader's value appears in a bubble while it is being dragged rather than in
+  a permanent read-out, to one decimal place, as `-6.0 dB` or `-∞ dB`.
+
+The two are inset from the edges of their column so that **the distance from the
+column's left edge to the fader's track equals the distance from its right edge
+to the outer meter bar**. That is measured from the drawn marks, not from the
+widgets' bounding boxes — the fader's box is wider than its track, because the
+thumb overhangs it, so laying the boxes out symmetrically leaves the visible
+marks lopsided.
 
 
 

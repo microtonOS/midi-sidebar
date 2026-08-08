@@ -128,11 +128,23 @@ by inspection, and follow rules that make the invariants structural instead.
    with a trailing `// layout-lint: allow`, and use `--max <n>` to hold an
    existing codebase to its current count while you bring it down.
 
-7. **Snapshot before asking.** After any layout change, render at minimum,
-   default and large window sizes with the tool in [scripts](scripts/README.md)
-   and look at the results. Most layout faults appear at one end of the size
-   range only. Do not spend the user's attention on something you can see
+7. **Snapshot before asking, and vary two things at once.** After any layout
+   change, render with the tool in [scripts](scripts/README.md) and *look* at
+   the results. Do not spend the user's attention on something you can see
    yourself.
+
+   Vary size **and** state together rather than one at a time. Checking three
+   sizes with the UI in a single state, then several states at a single size,
+   proves less than it appears to: it misses everything that only breaks at an
+   intersection, and an intersection is exactly where layout faults live,
+   because that is where the content finally runs out of room.
+
+   Faults concentrate at the minimum, so be thorough there and sparing
+   elsewhere: render **every distinct state at the minimum size**, then the
+   default and one large size in whichever state is busiest. States that differ
+   only in their content and not in their geometry count as one. For most GUIs
+   that is four or five images rather than a full matrix — cheap enough that
+   there is no excuse for skipping it, and it is where the bugs are.
 
 ### Resizing
 
@@ -198,41 +210,61 @@ In the functional/self-explanatory vein:
 
 
 ## Gotchas
-- **UTF-8 string literals get mangled.** Passing a `const char*` with multi-byte
-   UTF-8 (the ' fractions ⅓⅔⅗, em-dash —, ellipsis …, middle-dot ·) straight to
-   `juce::String`/`setText`/`setButtonText` renders garbage like `â€¦`. Wrap every
-   non-ASCII literal: `juce::String (juce::CharPointer_UTF8 (s))`. We keep a
-   `utf8()` helper and store the bytes as hex escapes (e.g. `"\xe2\x85\x93"`).
 
-- **`juce::Font(float)` is deprecated in JUCE 8.** Use
-   `juce::Font (juce::FontOptions().withName("Futura").withHeight(h).withStyle("Bold"))`.
-   We wrap this in `uiFont(size, bold)`. One font family, two weights → satisfies
-   "≤3 fonts". Century-Gothic-like geometric sans (Futura on macOS; bundle a .ttf
-   for the RPi build later).
+Every one of these is a fault whose symptom does not point at its cause, which
+is why they are listed here rather than left to be found in the references: you
+would not know which reference to open. Each entry is what you will actually be
+looking at; follow the link once you recognise it.
 
-- **Small buttons clip their text.** A `TextButton` does not shrink its font to
-   fit, so "FAST" renders as "F...". Override `getTextButtonFont` in the
-   LookAndFeel to scale the font to the button height, e.g.
-   `uiFont (jmin (12.0f, (float) buttonHeight * 0.5f))`. Check every short-label
-   button after a layout change, because the clipping only appears below a
-   threshold width.
+- **Non-ASCII text renders as `â€¦`.** A multi-byte UTF-8 literal reached
+  `juce::String` as a bare `const char*`. Wrap every one:
+  `juce::String (juce::CharPointer_UTF8 (s))`. Affects accented letters,
+  fractions, dashes, ellipses, `∞` — anything you did not type on a US keyboard.
 
-- **An inverted fader needs a reversed range, not a mirrored paint.** For a
-   fader whose maximum sits at the *bottom* (a Hammond drawbar pulled out, a
-   fader that reads top-down), painting the fill upside-down in
-   `drawLinearSlider` looks right but leaves the mouse dragging the wrong way.
-   Give the slider a reversed `NormalisableRange` instead — proportion 0 maps to
-   the maximum value — so direction and fill agree by construction.
+- **Everything renders black, or one widget does.** A custom `ColourId` was
+  never registered, or was read before a LookAndFeel was reachable. Watch the
+  log for the assertion even when the picture looks plausible; black on a dark
+  background is easy to miss. See [design](references/design.md#colours).
 
-- **A rotary slider's drawn radius comes from jmin (width, height) of its bounds**, so cells of differing aspect ratio give differently-sized knobs even at equal area. Fix this in the layout, never at the widget: give the knob's grid track a fixed size, or GridItem (knob).withSize (kKnob, kKnob). Do not pass a different hand-written rectangle to each knob's setBounds.
+- **A pop-up looks like a different application.** A `CallOutBox` launched onto
+  the desktop does not inherit your LookAndFeel.
+  See [popups](references/popups.md#calloutbox).
 
-- **JUCE 9: `Drawable` no longer derives from `Component`.** It moved into
-   `juce_graphics`, so code that added a `Drawable` as a child component, or
-   called `Component` methods on one, no longer compiles. Wrap it in the new
-   `DrawableComponent`. Check this first when porting GUI code from JUCE 8.
-   JUCE 9 also adds variable fonts, so a single variable family can supply
-   several weights — that makes the "≤3 fonts" rule easier to keep, and is the
-   tidier way to bundle a face for the RPi build.
+- **A fader is shorter than the meter beside it.** `getSliderLayout` insets a
+  vertical slider by the thumb radius before any drawing happens.
+  See [widgets](references/widgets.md#sliders).
+
+- **A fader's fill looks right but drags the wrong way.** An inverted fader
+  needs a reversed range, not a mirrored paint.
+  See [widgets](references/widgets.md#sliders).
+
+- **Identical knobs come out different sizes.** A rotary slider's radius is
+  `jmin (width, height)`, so the cell's aspect ratio decides it, not its area.
+  See [widgets](references/widgets.md#sliders).
+
+- **A short button label turns into "F...".** `TextButton` does not shrink its
+  font to fit. See [widgets](references/widgets.md#buttons).
+
+- **Controls vanish after resizing the window.** `setBounds` loses to a running
+  `ComponentAnimator`. See [design](references/design.md#animations).
+
+- **`juce::Font (float)` no longer compiles cleanly.** Deprecated in JUCE 8; use
+  `FontOptions`. See [design](references/design.md#fonts).
+
+- **`Drawable` no longer compiles as a `Component`.** JUCE 9 moved it into
+  `juce_graphics` and removed the `Component` base; wrap it in
+  `DrawableComponent`. Check this first when porting a GUI from JUCE 8.
+
+   Before laying a component out directly, cancel any animation on it:
+
+   ```cpp
+   animator.cancelAnimation (&child, false);   // false = don't jump to the end
+   child.setBounds (target);
+   ```
+
+   `animator.isAnimating (&child)` is available if you need to branch instead.
+   The same applies to the animation's *target*: compute it from bounds that are
+   current, or you will animate towards a stale rectangle.
 
 
 ## Resources

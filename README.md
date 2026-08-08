@@ -3,7 +3,7 @@ A sidebar widget for JUCE managing microtunings, program changes, and continuous
 
 ## Introduction
 This Sidebar is a custom component for JUCE that can be easily added to a JUCE plugin.
-Sidebar merges the `juce::SidePanel` and `juce::ToolBar` classes into a new independent `SideBar` class.
+Sidebar merges the `juce::SidePanel` and `juce::ToolBar` classes into a new independent `Sidebar` class.
 In addition, it adds functionality:
 - A presets menu lets you save and load programs and banks. Presets can also be managed by program change and bank select messages (CC0 MSB and CC32 LSB). See [Presets](docs/presets.md).
 - A continuous controller menu lets you see what controller controls what parameter. You can edit this manually or via MIDI learn. The overview is in the sidebar and individual parameters can be edited through right-click. See [Right-Click](docs/right-click.md).

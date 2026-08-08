@@ -17,6 +17,9 @@ Renders a JUCE plugin editor to a PNG with no window, no audio device and no
 screen capture, so it works inside a sandbox. This is how the agent looks at its
 own GUI work instead of asking the user for a screenshot.
 
+It can also drive the GUI before rendering — set parameters, click things — so
+states that only exist after interaction can be captured too.
+
 ## Setup (once per project)
 
 Add to the project's `CMakeLists.txt`, after the `juce_add_plugin` call:
@@ -57,6 +60,12 @@ snapshot.sh --target MyPlugin_snapshot -- --nparam drawbar0=1.0
 # What are the IDs?
 snapshot.sh --target MyPlugin_snapshot -- --list-params
 
+# Click something first — a menu button, a panel toggle, a call-out
+snapshot.sh --target MyPlugin_snapshot -- --click Volume --name volume-open
+
+# What can be clicked? Names, sizes and positions of every component
+snapshot.sh --target MyPlugin_snapshot -- --list-components
+
 # Check the layout at an awkward window size
 snapshot.sh --target MyPlugin_snapshot -- --size 640x360 --name narrow
 
@@ -67,6 +76,38 @@ snapshot.sh --target MyPlugin_snapshot -- --timestamp
 `--param` is the reason this tool does not need environment-variable hooks
 baked into the editor. Drive the GUI through its parameters, and the shipped
 code stays free of dev-only branches.
+
+## Driving the GUI: `--click` and `--list-components`
+
+`--list-components` prints the editor's tree — name, size, position, and
+whether each component is visible — *after* any `--click`, so it describes the
+state being captured rather than the state before it. Names come from
+`Component::getName()`, which is usually the string passed to the widget's
+constructor. It is also the quickest way to answer "is this thing actually
+where I think it is", which beats measuring pixels.
+
+`--click <name>` finds a component by name and clicks it, and is repeatable, so
+several clicks happen in order. Only `Button`s can be clicked so far; anything
+else is reported as an error rather than silently ignored, and so is a name that
+matches nothing.
+
+**A call-out needs `--click-settle` left alone.** `juce::CallOutBox` starts a
+200 ms timer when it opens and dismisses itself if its process is not in the
+foreground — which a headless render never is. Everything between the click and
+the paint has to fit inside that window, which is why the dwell after a click
+defaults to 120 ms rather than the usual 250 ms, and why the final settle is
+skipped once anything has been clicked. If you are capturing something slower
+and no call-out is involved, raise it:
+
+```bash
+snapshot.sh --target X -- --click Tuning --click-settle 300
+```
+
+**A call-out must also be launched with a parent component** to be captured at
+all. `CallOutBox::launchAsynchronously (content, area, nullptr)` puts it on the
+desktop, where it is a separate window: outside the editor's component tree, so
+`createComponentSnapshot` cannot see it, and styled by the default LookAndFeel
+rather than yours. Pass the editor instead.
 
 ## Where the files go
 

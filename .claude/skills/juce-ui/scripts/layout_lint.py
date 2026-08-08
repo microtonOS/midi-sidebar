@@ -41,7 +41,15 @@ NUMBER = re.compile(r"(?<![\w.])(\d+\.?\d*)[fFuUlL]*(?![\w.])")
 HEX = re.compile(r"0[xX][0-9a-fA-F]+")
 SUBSCRIPT = re.compile(r"\[\s*\d+\s*\]")
 FOR_HEADER = re.compile(r"\bfor\s*\(")
-CONST_DECL = re.compile(r"\b(?:static\s+)?(?:const|constexpr)\s+\w+\s+\w+\s*[=({]")
+# Rule 1 is about measurements that should live in the look and feel file, so
+# only arithmetic types count. A `const auto` holding a Rectangle or an
+# iterator is an ordinary local, not a layout constant.
+CONST_DECL = re.compile(
+    r"\b(?:static\s+)?(?:const|constexpr)\s+"
+    r"(?:unsigned\s+|signed\s+|long\s+|short\s+)*"
+    r"(?:int|float|double|char|size_t|int8_t|int16_t|int32_t|int64_t"
+    r"|uint8_t|uint16_t|uint32_t|uint64_t)\s+\w+\s*[=({]"
+)
 DIVIDE_BY_COUNT = re.compile(r"\.get(?:Width|Height)\s*\(\s*\)\s*/\s*\d+")
 RESIZED_SIG = re.compile(r"(?:(\w+)\s*::\s*)?\bresized\s*\(\s*\)")
 ENCLOSING_TYPE = re.compile(r"\b(?:class|struct)\s+(\w+)")

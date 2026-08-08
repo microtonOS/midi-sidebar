@@ -77,6 +77,49 @@ Layouts:
 - Dropdown menu with custom items rather than plain text.
 
 
+### `CallOutBox`
+
+A small panel with an arrow pointing at whatever opened it. Good for a control
+that has no room where it lives — a fader in a narrow rail, say.
+
+```cpp
+auto content = std::make_unique<MyContent>();
+content->setSize (w, h);                       // must be sized before launching
+
+juce::CallOutBox::launchAsynchronously (
+    std::move (content),
+    parent->getLocalArea (&button, button.getLocalBounds()),
+    parent);
+```
+
+**Always pass a parent component.** With `nullptr` the box goes on the desktop
+as its own window, and four things follow, none of them obvious:
+
+- It has no parent component, so `getLookAndFeel()` walks up, finds nothing and
+  returns the **default** LookAndFeel. Every custom `ColourId` fails to resolve
+  and every drawing override is bypassed, so the same controls come out looking
+  like another application's.
+- It is outside the editor's component tree, so `createComponentSnapshot` cannot
+  see it and a headless screenshot shows nothing.
+- It has its own z-order, so anything parented to the editor — a slider's value
+  bubble, for instance — ends up stranded *behind* it.
+- `areaToPointTo` is then a screen coordinate. With a parent it is
+  parent-relative, so use `getLocalArea` rather than `getScreenBounds()`.
+
+The content must be sized before it can be attached, which means it is laid out
+while still parentless — so anything it caches from the LookAndFeel is computed
+from the wrong one. See the caching trap in [design](design.md#colours).
+
+`LookAndFeel_V4` paints a call-out with `widgetBackground` at **0.8 alpha** over
+a drop shadow, rimmed with a 2px `outline` stroke. If the box holds controls
+lifted out of an opaque panel, that translucency and pale rim will not match
+where they came from; override `drawCallOutBoxBackground` to fill opaquely in
+the panel's own colour.
+
+A call-out dismisses itself 200ms after opening if its process is not in the
+foreground — which matters when rendering headlessly, since the screenshot has
+to be taken inside that window.
+
 ### `BubbleMessageComponent`
 A speech-bubble component that displays a short message.
 

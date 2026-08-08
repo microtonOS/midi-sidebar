@@ -10,6 +10,11 @@ Note that you are in a [sandbox](.claude/settings.json).
 If there is something you need from outside, ask for it.
 If there is something you need to do repeatedly, ask for it to be exempted.
 
+Builds print `error: couldn't create cache file '/var/folders/.../xcrun_db-…'` once per
+compiler invocation. The sandbox blocks `xcrun`'s cache, which lives in the Darwin
+per-user temp dir and ignores $TMPDIR (so XCRUN_DB_PATH does not help). Harmless — the
+build succeeds. Filter with `grep -v "cache file"` rather than widening the sandbox.
+
 The agent skills are under construction.
 Give feedback on how they can be improved.
 Summarize what changes you would recommend before making any edits.

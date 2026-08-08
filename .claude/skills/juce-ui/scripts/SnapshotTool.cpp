@@ -53,9 +53,15 @@ struct Options
     int             width           { 0 };       // --size, 0 = leave editor's own size
     int             height          { 0 };
     int             settleMs        { 250 };
+    int             clickSettleMs   { 120 };
     int             keep            { 20 };
     bool            timestamp       { false };
     bool            listParams      { false };
+    bool            listComponents  { false };
+    bool            hostWindow      { false };
+
+    /** Components to click before rendering, by name, in order. */
+    juce::StringArray clicks;
     double          sampleRate      { 44100.0 };
     int             blockSize       { 512 };
 
@@ -89,6 +95,28 @@ Renders the plugin editor to a PNG and prints the absolute path on stdout.
                       GUI, e.g. "3.5" or "Fast"). Repeatable.
   --nparam <id>=<v>   Set parameter <id> from a normalised 0..1 value.
                       Repeatable.
+  --click <name>      Click the named component before rendering, so states
+                      that only exist after interaction — menus, call-outs,
+                      toggled panels — can be captured. Repeatable; clicks
+                      happen in order. Names come from Component::getName().
+  --click-settle <ms> How long to wait after each click. Default: 120.
+                      Kept deliberately short: a juce::CallOutBox dismisses
+                      itself 200ms after opening unless its process is in the
+                      foreground, which a headless render never is, so a
+                      call-out has to be painted inside that window. Raise it
+                      if you are capturing something slower and no call-out is
+                      involved — an animation, say.
+  --host-window       Put the editor inside a plain parent component that keeps
+                      the DEFAULT LookAndFeel, the way a standalone build or a
+                      host wraps it in a window. Without this the editor is the
+                      top-level component, which it never is in real use, so
+                      anything that walks up the hierarchy — getTopLevelComponent,
+                      getLookAndFeel on an ancestor, parenting a pop-up — behaves
+                      differently here than it will in a DAW. Render both ways
+                      when a change touches any of that.
+  --list-components   Print the editor's component tree with names, sizes and
+                      visibility, then exit. Reflects the state after any
+                      --click, so use it to check what you are capturing.
   --list-params       Print every parameter ID, name and current value, then
                       exit without rendering.
   --samplerate <hz>   prepareToPlay sample rate. Default: 44100.
@@ -125,16 +153,22 @@ bool parseArgs (int argc, char* argv[], Options& o, bool& showHelp)
 
     for (int i = 1; i < argc; ++i)
     {
-        const juce::String a (juce::CharPointer_UTF8 (argv[i]));
+        // Braces, not parentheses: with parentheses this is a declaration of a
+        // function named `a`, not a String (the most vexing parse).
+        const juce::String a { juce::CharPointer_UTF8 (argv[i]) };
 
         if (a == "--help" || a == "-h")          { showHelp = true; return true; }
         else if (a == "--list-params")           { o.listParams = true; }
+        else if (a == "--list-components")       { o.listComponents = true; }
+        else if (a == "--host-window")           { o.hostWindow = true; }
+        else if (a == "--click")                 { const auto v = needsValue (i, "--click");      if (v.isEmpty()) return false; o.clicks.add (v); }
         else if (a == "--timestamp")             { o.timestamp = true; }
         else if (a == "--out")                   { const auto v = needsValue (i, "--out");        if (v.isEmpty()) return false; o.explicitOut = juce::File::getCurrentWorkingDirectory().getChildFile (v); }
         else if (a == "--dir")                   { const auto v = needsValue (i, "--dir");        if (v.isEmpty()) return false; o.directory = v; }
         else if (a == "--name")                  { const auto v = needsValue (i, "--name");       if (v.isEmpty()) return false; o.stem = v; }
         else if (a == "--scale")                 { const auto v = needsValue (i, "--scale");      if (v.isEmpty()) return false; o.scale = (float) v.getDoubleValue(); }
         else if (a == "--settle")                { const auto v = needsValue (i, "--settle");     if (v.isEmpty()) return false; o.settleMs = v.getIntValue(); }
+        else if (a == "--click-settle")          { const auto v = needsValue (i, "--click-settle"); if (v.isEmpty()) return false; o.clickSettleMs = v.getIntValue(); }
         else if (a == "--keep")                  { const auto v = needsValue (i, "--keep");       if (v.isEmpty()) return false; o.keep = v.getIntValue(); }
         else if (a == "--samplerate")            { const auto v = needsValue (i, "--samplerate"); if (v.isEmpty()) return false; o.sampleRate = v.getDoubleValue(); }
         else if (a == "--blocksize")             { const auto v = needsValue (i, "--blocksize");  if (v.isEmpty()) return false; o.blockSize = v.getIntValue(); }
@@ -278,6 +312,73 @@ void listParameters (juce::AudioProcessor& proc)
 }
 
 //==============================================================================
+/** Depth-first search for a component by name, so --click can address anything
+    the editor builds without the editor having to expose it.
+*/
+juce::Component* findByName (juce::Component& root, const juce::String& name)
+{
+    if (root.getName() == name)
+        return &root;
+
+    for (auto* child : root.getChildren())
+        if (auto* found = findByName (*child, name))
+            return found;
+
+    return nullptr;
+}
+
+void listComponentTree (juce::Component& c, int depth = 0)
+{
+    const auto b = c.getBounds();
+
+    std::cout << juce::String::repeatedString ("  ", depth)
+              << (c.getName().isEmpty() ? juce::String ("(unnamed)") : c.getName())
+              << "\t" << b.getWidth() << "x" << b.getHeight()
+              << " @" << b.getX() << "," << b.getY()
+              << (c.isVisible() ? "" : "\t[hidden]") << "\n";
+
+    for (auto* child : c.getChildren())
+        listComponentTree (*child, depth + 1);
+}
+
+/** Returns false if any named component could not be found, so a typo fails
+    loudly rather than silently rendering the un-clicked state.
+*/
+bool applyClicks (juce::Component& editor, const Options& o)
+{
+    auto ok = true;
+
+    for (const auto& name : o.clicks)
+    {
+        auto* target = findByName (editor, name);
+
+        if (target == nullptr)
+        {
+            std::cerr << "[snapshot] no component named '" << name
+                      << "' (try --list-components)\n";
+            ok = false;
+            continue;
+        }
+
+        if (auto* button = dynamic_cast<juce::Button*> (target))
+        {
+            // triggerClick posts a message rather than calling straight
+            // through, so the settle below is what actually runs the handler.
+            button->triggerClick();
+        }
+        else
+        {
+            std::cerr << "[snapshot] '" << name << "' is not a Button; only buttons"
+                         " can be clicked so far\n";
+            ok = false;
+        }
+
+        settle (o.clickSettleMs);
+    }
+
+    return ok;
+}
+
 juce::File resolveOutputDirectory (const Options& o)
 {
     if (o.directory.isNotEmpty())
@@ -372,20 +473,63 @@ int main (int argc, char* argv[])
             return 2;
         }
 
+        // Size first, parameters second. A parameter change can trigger a
+        // relayout, and anything the editor computes from its own bounds — or
+        // any animation it starts — would otherwise be based on the size the
+        // editor gave itself in its constructor rather than the one asked for
+        // here.
+        if (o.width > 0 && o.height > 0)
+            editor->setSize (o.width, o.height);
+
+        // Optionally give the editor an ancestor. On its own it is the
+        // top-level component, which it never is in a DAW or a standalone
+        // build, so anything that walks up the hierarchy behaves differently
+        // here than in real use. The wrapper keeps the DEFAULT LookAndFeel,
+        // exactly like a host window that knows nothing about the plugin's
+        // styling.
+        juce::Component hostWindow;
+
+        if (o.hostWindow)
+        {
+            hostWindow.setName ("host window");
+            hostWindow.setSize (editor->getWidth(), editor->getHeight());
+            hostWindow.addAndMakeVisible (*editor);
+            editor->setTopLeftPosition (0, 0);
+        }
+
+        auto& root = o.hostWindow ? hostWindow : *editor;
+
         if (! applyParameters (proc, o))
         {
             proc.releaseResources();
             return 1;
         }
 
-        if (o.width > 0 && o.height > 0)
-            editor->setSize (o.width, o.height);
-
-        // Let the constructor's async work, any Timer, and the parameter
-        // changes above reach the editor before we paint it.
+        // Let the constructor's async work and the parameter changes above
+        // reach the editor before anything is clicked or measured.
         settle (o.settleMs);
 
-        const auto bounds = editor->getLocalBounds();
+        if (! applyClicks (root, o))
+        {
+            proc.releaseResources();
+            return 1;
+        }
+
+        // Listed after the clicks, so the tree shown is the one being captured.
+        if (o.listComponents)
+        {
+            listComponentTree (root);
+            proc.releaseResources();
+            return 0;
+        }
+
+        // Only when nothing was clicked. After a click the dwell has already
+        // happened, and adding another 250ms here would step past the 200ms
+        // at which a call-out dismisses itself.
+        if (o.clicks.isEmpty())
+            settle (o.settleMs);
+
+        const auto bounds = root.getLocalBounds();
 
         if (bounds.isEmpty())
         {
@@ -395,7 +539,7 @@ int main (int argc, char* argv[])
             return 2;
         }
 
-        const auto image = editor->createComponentSnapshot (bounds, true, o.scale);
+        const auto image = root.createComponentSnapshot (bounds, true, o.scale);
 
         if (! image.isValid())
         {
