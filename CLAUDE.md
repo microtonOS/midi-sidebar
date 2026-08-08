@@ -4,6 +4,14 @@ Read the [README](README.md) and the high and low priority sections of the [TODO
 The README is written as if the software has already been finished even though that is not true.
 After a TODO has been completed remove it from high/low priority and place it in completed.
 
+GUI mockups in [docs](docs/) are HTML tables. The table is a layout device only —
+ignore its borders, its widget styling and its `cm` widths, all of which are
+artefacts of writing a sketch in HTML. What *is* specification is the structure:
+the number of columns and each cell's `colspan` are the invisible grid the
+widgets sit on, and they translate directly into `juce::Grid` columns and spans.
+A row whose cells are `colspan="3"` twice is halved, exactly, and should come out
+halved.
+
 For markdown files I urge you to read the comments in `<!-- -->`. Sometimes they are meant for you to read but are commented out because it would be too much infomration for humans. At other times they comment out something but then that still makes useful context on difficult design choices where I may not be completely settled on a design choice and would accept suggestions for something better.
 
 Note that you are in a [sandbox](.claude/settings.json).

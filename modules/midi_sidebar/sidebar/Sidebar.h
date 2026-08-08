@@ -85,6 +85,12 @@ public:
         thread. */
     void setLevel (float left, float right);
 
+    /** The tuning page, so the owner can push values into it and take its
+        callbacks. Handed out rather than mirrored through the sidebar: the page
+        has a wide interface, and forwarding all of it would be a second copy of
+        the same API to keep in step. */
+    TuningPage& getTuningPage() noexcept { return panel.getTuningPage(); }
+
     //==========================================================================
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -102,18 +108,6 @@ private:
     };
 
     static Density densityFor (int height) noexcept;
-
-    /** The largest ancestor that still uses our LookAndFeel — where pop-ups
-        should go.
-
-        Not `getTopLevelComponent()`: in a standalone build, and in some hosts,
-        the editor sits inside a window that this module knows nothing about.
-        `setLookAndFeel` styles a component and its *descendants*, so that
-        window is an ancestor and keeps the default LookAndFeel. Parenting a
-        pop-up to it hands the pop-up the default styling — a differently
-        proportioned fader, unregistered colours — even though the same widget
-        looks right inside the editor. */
-    juce::Component* findPopupHost();
 
     /** True when the rail occupies the left-hand strip of the sidebar's own
         bounds. Computed rather than stored, so paint() and resized() cannot

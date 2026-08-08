@@ -3,7 +3,6 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <midi_sidebar/midi_sidebar.h>
 
-#include "ChoiceStrip.h"
 #include "DemoSettings.h"
 #include "DemoStyle.h"
 
@@ -132,9 +131,12 @@ private:
     juce::Label caption { "Caption", "host plugin content" };
 
     // Declared in the order they appear; `resized` is what actually decides it.
-    ChoiceStrip themeStrip      { "Theme",        settings::themeNames };
-    ChoiceStrip bubbleTextStrip { "Bubble text",  settings::bubbleTextNames };
-    ChoiceStrip edgeStrip       { "Sidebar edge", settings::edgeNames };
+    // The widget is the module's; only the label column is the demo's own, and
+    // it is wider than a page's because there is room here and the names are
+    // longer.
+    ChoiceStrip themeStrip      { "Theme",        settings::themeNames,      layout::choiceLabelWidth };
+    ChoiceStrip bubbleTextStrip { "Bubble text",  settings::bubbleTextNames, layout::choiceLabelWidth };
+    ChoiceStrip edgeStrip       { "Sidebar edge", settings::edgeNames,       layout::choiceLabelWidth };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DemoControls)
 };

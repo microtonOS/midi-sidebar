@@ -14,7 +14,9 @@
       "Read(~/.ssh/**)"
     ],
     "ask": [
-      "Edit(./.claude/skills/*/SKILL.md)"
+      "Edit(./.claude/skills/*/SKILL.md)",
+      "Edit(./README.md)",
+      "Edit(./docs/**)"
     ],
     "allow": [
       "Bash(.claude/skills/juce-ui/scripts/snapshot.sh:*)",

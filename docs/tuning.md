@@ -1,6 +1,23 @@
 # Tuning
 
-<!-- I have used allcaps bold, allcaps narrow, and all miniscule to indicate different header levels. I don't know if that make sense in the real ui. Then they should mayb all be allcaps. Is there a look and feel settings for allcaps, inital cap, all miniscule?-->
+<!-- I have used allcaps bold, allcaps narrow, and all miniscule to indicate different header levels. I don't know if that make sense in the real ui. Then they should mayb all be allcaps. Is there a look and feel settings for allcaps, inital cap, all miniscule?
+
+There is no such setting. JUCE has no text-transform anywhere in Font, Label or
+LookAndFeel: a label draws the string it is given, so anything in capitals is in
+capitals because someone typed it that way. What is implemented is:
+
+  Tuning     panel title, 15px bold, title case
+  STATUS     group title, uppercased, drawn into the frame's top edge
+  program    field label, 13px regular, lower case
+
+which keeps your three levels while letting the top one stay title case. The
+frame carries the section far better than capitals alone did at this size, and
+the two titles are indented to the same place, so "Tuning" sits above the "S" of
+"STATUS" rather than above the frame around it. -->
+
+> **Status.** The GUI described below is built; see [What is built](#what-is-built)
+> at the end for what that does and does not include. Nothing behind it is —
+> no MTS ESP, no sysex, no `.scl` parsing.
 
 <table style="border: 0px">
     <!-- The table is for layout, the table borders are to be ignored for example. Sizes are not to be taken literally. -->
@@ -221,4 +238,74 @@ So, one solution would be to correct for this.
 In more precise psychophysical experiments, you see that the just-noticeable difference is a function of both loadness and frequency and.
 This is probably overkill from the point of view of engineering.
 However, it would be good if you can look into both audio tools and psychophysics papers and geenrate a report on the matter. -->
+
+
+## What is built
+
+The page in `modules/midi_sidebar/sidebar/pages/`. It draws every row above and
+opens the channel selector, and it holds no tuning of its own: values are pushed
+in with `setInterval`, `setStatus` and `setPeriod`, and everything the end-user
+does leaves through a callback (`onSchemeChanged`, `onScaleFileRequested`, …).
+So it can be looked at now and does not have to change when the MIDI side
+arrives. The demo fills it with the sketch's own numbers; nothing drives it yet.
+
+The three named sections are `juce::GroupComponent`s; the interval and modulo at
+the top are not, as specified. A group is only a frame — its section's widgets
+are children of the *page*, not of it, so that they stay in the page's one grid
+and keep their columns. Each frame is a background item spanning its section's
+rows, and the grid has a gutter track at each end that the frames span and the
+widgets do not, which is what insets a group's contents from its own outline.
+
+Two widgets came out of the page, and the other two pages should use them rather
+than inventing their own: `ReadOutField` (every read-only value is one, which is
+what makes "you cannot type here" legible without saying so) and `ChoiceStrip`,
+which moved into the module from the demo. The colours a section's title and
+frame take are in `pageColours`, not on a widget, because the pages are included
+before the panel that would otherwise own them.
+
+**The page is one grid of six equal columns**, which is the grid the sketch
+above is drawn on — the finest division any of its rows uses, and each cell's
+`colspan` read straight off it. Everything spans a whole number of columns, so a
+row split in half really is halved, and things in different rows begin on the
+same line because the layout holds them there: `program`'s field and `updated`
+both start at column 3, while `bank`, the period source, the channels button and
+the update choices all start at column 4 — the middle of the page.
+
+It is deliberately *not* a grid per row. That version was written first and
+looked plausible, but each row divided its own width with its own fixed label
+widths, so the halves were not halves and nothing lined up between rows. See
+`metrics::pageColumns`.
+
+The bottom block follows the sketch: the two load buttons stacked in the left
+half, the two update choices stacked in the right, and no labels on either — the
+buttons say what they load, and the choices name themselves. The update strip is
+one control spanning both rows, divided by the same gap that separates the rows,
+which is what puts "note on" beside `load scale` and "always" beside
+`load maps`.
+
+**Two readings of the sketch, now settled.** `updated` is read-only — it stamps
+something that happened. The period source is a read-only indicator, and typing
+in the period field is what flips it to `edited`; anything that knows better
+pushes `inferred` or `specified` back through `setPeriod`.
+
+### Not solved: small heights
+
+The page needs `TuningPage::getNaturalHeight()` — currently 346px, derived from
+its own rows rather than written down — plus the panel's title and padding, so
+about 394px of editor. Below that the lower sections are simply cut off. The
+sidebar's minimum height is 212px, so at its own minimum the page shows down to
+`updated` and no further.
+
+Deliberately left, not overlooked. The candidates are scrolling, wrapping the
+sections into two columns (which needs a wider panel: at 248px a column is about
+120px, too narrow for `program [ ] bank [ ]`), and condensing sections the way
+the rail condenses its volume control. The page is built out of section blocks
+so that whichever is chosen is a layout change rather than a rewrite.
+
+### Not solved: persistence
+
+Nothing on the page survives closing the editor yet. The callbacks are where
+that attaches; whether the settings become APVTS parameters, properties on
+`apvts.state`, or both, is still open — a file path is a poor fit for a
+parameter, an enumerated setting is a good one.
 

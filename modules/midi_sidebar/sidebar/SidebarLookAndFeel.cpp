@@ -2,6 +2,8 @@
 #include "LevelMeter.h"
 #include "Sidebar.h"
 #include "SidebarPanel.h"
+#include "widgets/ChoiceStrip.h"
+#include "widgets/ReadOutField.h"
 
 namespace microtonos::sidebar
 {
@@ -59,6 +61,25 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     // background, which is exactly the bug this replaced.
     target.setColour (SidebarPanel::backgroundColourId, widget);
     target.setColour (SidebarPanel::titleColourId,      text);
+
+    // Pages. A section's outline is the same hairline the sidebar draws where
+    // it meets the host's content, so the two agree by construction.
+    target.setColour (pageColours::sectionTitleColourId,   text);
+    target.setColour (pageColours::sectionOutlineColourId, text.withMultipliedAlpha (0.15f));
+
+    // A read-out is recessed into the panel: `window` is darker than `widget`
+    // in every scheme that has a dark surface, and lighter in the light one, so
+    // it reads as a hollow either way. The same pairing the level meter uses
+    // for its track.
+    target.setColour (ReadOutField::backgroundColourId, window);
+    target.setColour (ReadOutField::textColourId,       text);
+    target.setColour (ReadOutField::outlineColourId,    text.withMultipliedAlpha (0.15f));
+
+    // The chosen button of a segmented control takes the accent, the same one
+    // the rail gives an active page icon, so "this one is on" means one thing
+    // across the whole sidebar.
+    target.setColour (ChoiceStrip::selectedColourId,     accent);
+    target.setColour (ChoiceStrip::selectedTextColourId, accent.contrasting());
 }
 
 juce::Slider::SliderLayout SidebarLookAndFeel::getSliderLayout (juce::Slider& slider)

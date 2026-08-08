@@ -18,6 +18,8 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     sidebar.onPreferredWidthChanged = [this] { layOutSidebar (true); };
     sidebar.onPanic = [] { /* CC120 goes here once the processor sends MIDI. */ };
 
+    showSampleTuning();
+
     // The volume slider is not yet attached to the APVTS parameter: that is a
     // later step, and doing it now would need the sidebar to hand out its
     // internals. The parameter already exists on the processor.
@@ -136,6 +138,24 @@ void DemoEditor::applyTheme (int themeIndex)
     // component and every descendant.
     sendLookAndFeelChange();
     repaint();
+}
+
+void DemoEditor::showSampleTuning()
+{
+    // Static values, not a simulation: enough to see the page populated and to
+    // check that nothing is clipped once the boxes have text in them. Something
+    // has to drive these for real, and that is the MIDI side's job — the page
+    // takes them through the same setters either way, so nothing here has to
+    // change when it arrives.
+    //
+    // The numbers are the ones from the sketch in docs/tuning.md, so the page
+    // can be compared against the thing it implements.
+    auto& page = sidebar.getTuningPage();
+
+    page.setInterval ({ 1902.98, tuning::defaultModDivisor });
+
+    page.setStatus ({ "Pythagorean 12", 3, 1, juce::Time::getCurrentTime() });
+    page.setPeriod ({ 1200.0, tuning::PeriodSource::specified });
 }
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)

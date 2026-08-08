@@ -138,11 +138,69 @@ width, so it can be introduced by a change that had nothing to do with the
 button.
 
 For mutually exclusive buttons use `Button::setRadioGroupId` rather than
-clearing the others by hand — but note two constraints. The search for siblings
-covers only `getParentComponent()->getChildren()`, so every button in a group
-must share one parent; and clicking the button that is already on will not turn
-it off. If you need an "all off" state, route the clicks through your own
+clearing the others by hand — but note three constraints. The search for
+siblings covers only `getParentComponent()->getChildren()`, so every button in a
+group must share one parent; and clicking the button that is already on will not
+turn it off. If you need an "all off" state, route the clicks through your own
 handler instead.
+
+The third is the one that costs an afternoon. **A radio group fires `onClick` on
+the button it switches OFF as well as the one it switches on.**
+`Button::internalClickCallback` calls `setToggleState (shouldBeOn,
+sendNotification)`, which passes that notification into
+`turnOffOtherButtonsInGroup`, which calls `sendClickMessage` on each loser. So
+one click produces two callbacks, and the second reports the index that was just
+*deselected*.
+
+Guard on the state rather than trusting the callback:
+
+```cpp
+button.onClick = [this, i]
+{
+    if (! buttons[i]->getToggleState())   // we are the loser; nothing to report
+        return;
+
+    ...
+};
+```
+
+Symptoms if you do not. An owner that acts on the spurious callback
+*synchronously* — pushing the choice back in by setting the toggle state — will
+re-enter the `setToggleState` it is still inside, and both buttons end up drawn
+as on until something rebuilds them. An owner that responds asynchronously (a
+`ParameterAttachment`, for instance, which marshals through an `AsyncUpdater`)
+appears to work, which is why this can hide in one part of a GUI while breaking
+another that is using the identical widget.
+
+### Segmented controls
+
+A row or column of buttons drawn as one control — rounded at the two outer ends,
+square where they meet — needs **no custom drawing**. `setConnectedEdges` takes
+any of `ConnectedOnLeft`, `ConnectedOnRight`, `ConnectedOnTop` and
+`ConnectedOnBottom`, and `LookAndFeel_V4::drawButtonBackground` reads all four
+to decide which corners of its rounded rectangle to keep:
+
+```cpp
+// Horizontal: joined towards the neighbours, open at the two ends.
+button.setConnectedEdges ((first ? 0 : juce::Button::ConnectedOnLeft)
+                          | (last ? 0 : juce::Button::ConnectedOnRight));
+
+// Vertical is the same with Top and Bottom. It is easy to assume this only
+// works horizontally — it does not.
+```
+
+Two things follow from it in practice:
+
+- **The buttons must touch.** Joined edges mean nothing across a gap, and a
+  rounded end on one side only looks like damage. So a segmented control cannot
+  also have a gap between its members — pick one.
+- **A vertical strip spanning several rows will not divide on the row gaps.**
+  Given the height of *n* rows plus the gaps between them, its seams land in the
+  middle of those gaps rather than on a row boundary — which is usually what you
+  want, since its outer edges still align exactly with the block. Expect the odd
+  pixel to go somewhere: two tracks across 49px come out 25 and 24, so a seam
+  meant for the centre of a 5px gap sits half a pixel off it. Only an even gap
+  can be split exactly.
 
 
 [^notClass]: Not technically a class but an enum value: make a `juce::Slider` and call `setSliderStyle (juce::Slider::IncDecButtons)`.

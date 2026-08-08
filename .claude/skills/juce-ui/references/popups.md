@@ -120,6 +120,57 @@ A call-out dismisses itself 200ms after opening if its process is not in the
 foreground — which matters when rendering headlessly, since the screenshot has
 to be taken inside that window.
 
+### Styling a pop-up's contents
+
+Two failures account for nearly every pop-up that comes out looking wrong, and
+neither is visible in the pop-up's own code.
+
+**1. Parent to the LookAndFeel, not to the top.** `getTopLevelComponent()` is
+the obvious choice and it is wrong: in a standalone or a host, the top level is
+a window that knows nothing about your LookAndFeel, so the pop-up resolves none
+of your `ColourId`s. Climb to the largest ancestor that still *shares* your
+LookAndFeel instead, and stop there:
+
+```cpp
+juce::Component* findPopupHost (juce::Component& c)
+{
+    auto& ours = c.getLookAndFeel();
+    juce::Component* host = &c;
+
+    for (auto* p = c.getParentComponent(); p != nullptr; p = p->getParentComponent())
+    {
+        if (&p->getLookAndFeel() != &ours)   // the boundary of what renders like us
+            break;
+
+        host = p;
+    }
+
+    return host;
+}
+```
+
+Write it once and call it; the rule is too easy to forget at the call site. A
+headless render does catch this, but only because it wraps the editor in a
+host-like window — see [scripts](../scripts/README.md#the-host-window). With the
+editor as the top-level component the two answers agree and the broken version
+looks perfect, so do not reach for `--no-host-window` while working on a pop-up.
+
+**2. Content built parentless never gets `lookAndFeelChanged`.** A `CallOutBox`
+requires its content to be sized before it can be attached, so the content is
+constructed and laid out with no parent, and *being attached sends
+`parentHierarchyChanged`, not `lookAndFeelChanged`*. Anything a widget does in
+`lookAndFeelChanged` — applying colours, re-reading a font, rebuilding a cached
+image — therefore never happens inside a pop-up, while the identical widget on
+the main surface looks right. Hook both:
+
+```cpp
+void parentHierarchyChanged() override { lookAndFeelChanged(); }
+```
+
+The two fire in different situations and a pop-up's contents need whichever
+comes: attaching to an already-styled parent sends the first, restyling in place
+sends the second.
+
 ### `BubbleMessageComponent`
 A speech-bubble component that displays a short message.
 

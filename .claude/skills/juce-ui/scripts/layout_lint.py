@@ -8,6 +8,9 @@ script finds every resized() body in the given files and reports:
   rule 1  constants declared inside resized() instead of in the look and feel
           file, which is how the same measurement ends up defined twice and
           drifting apart between pages
+  rule 2  more than one Grid built in a single resized(), which means the
+          columns exist only inside a row, so nothing can line up between rows
+          except by arithmetic that agrees today by accident
   rule 3  a region divided by an item count (getWidth() / n), which truncates
           and abandons the remainder at one edge
   rule 6  unnamed numeric literals greater than 2, each of which is a design
@@ -51,6 +54,10 @@ CONST_DECL = re.compile(
     r"|uint8_t|uint16_t|uint32_t|uint64_t)\s+\w+\s*[=({]"
 )
 DIVIDE_BY_COUNT = re.compile(r"\.get(?:Width|Height)\s*\(\s*\)\s*/\s*\d+")
+# A Grid *variable*, so `Grid grid;` and `juce::Grid g {` count, while
+# `Grid::Fr (1)` and `GridItem (c)` do not: neither has whitespace between the
+# name and what follows it.
+GRID_DECL = re.compile(r"\b(?:juce\s*::\s*)?Grid\s+(\w+)\s*[;{=]")
 RESIZED_SIG = re.compile(r"(?:(\w+)\s*::\s*)?\bresized\s*\(\s*\)")
 ENCLOSING_TYPE = re.compile(r"\b(?:class|struct)\s+(\w+)")
 
@@ -192,7 +199,7 @@ def check_file(path: Path, quiet: bool) -> tuple[int, int, int, list[str]]:
 
     suppressed = {i + 1 for i, l in enumerate(raw_lines) if SUPPRESS in l}
     report: list[str] = []
-    totals = [0, 0, 0]  # rule 6, rule 1, rule 3
+    totals = [0, 0, 0, 0]  # rule 6, rule 1, rule 3, rule 2
 
     for owner, start, end in find_resized_bodies(clean):
         body = clean[start : end + 1]
@@ -201,6 +208,7 @@ def check_file(path: Path, quiet: bool) -> tuple[int, int, int, list[str]]:
         literals: list[tuple[int, str]] = []
         consts: list[int] = []
         divisions: list[int] = []
+        grids: list[int] = []
 
         for rel_no, line in enumerate(body.split("\n")):
             lineno = first + rel_no
@@ -211,6 +219,8 @@ def check_file(path: Path, quiet: bool) -> tuple[int, int, int, list[str]]:
                 consts.append(lineno)
             if DIVIDE_BY_COUNT.search(line):
                 divisions.append(lineno)
+            if GRID_DECL.search(line):
+                grids.append(lineno)
 
             # Loop headers hold item counts, not measurements; array subscripts
             # and hex constants are not layout numbers either. Only the loop
@@ -227,16 +237,27 @@ def check_file(path: Path, quiet: bool) -> tuple[int, int, int, list[str]]:
                 except ValueError:
                     pass
 
-        if not (literals or consts or divisions):
+        # One grid per resized() is the normal case and says nothing; two or
+        # more is the signal, so the list is discarded below that threshold.
+        if len(grids) < 2:
+            grids = []
+
+        if not (literals or consts or divisions or grids):
             continue
 
         totals[0] += len(literals)
         totals[1] += len(consts)
         totals[2] += len(divisions)
+        totals[3] += len(grids)
 
         label = f"{owner}::resized()" if owner else "resized()"
         report.append(f"  {label:<44} lines {first}-{last}")
 
+        if grids:
+            report.append(f"    rule 2  {len(grids)} Grids here; columns cannot align between rows")
+            if not quiet:
+                for n in grids:
+                    report.append(f"      {n}: {raw_lines[n - 1].strip()}")
         if divisions:
             report.append(f"    rule 3  {len(divisions)} region(s) divided by an item count")
             if not quiet:
@@ -253,7 +274,7 @@ def check_file(path: Path, quiet: bool) -> tuple[int, int, int, list[str]]:
                 for n, val in literals:
                     report.append(f"      {n}: [{val}] {raw_lines[n - 1].strip()}")
 
-    return totals[0], totals[1], totals[2], report
+    return totals[0], totals[1], totals[2], totals[3], report
 
 
 def collect(targets: list[str]) -> list[Path]:
@@ -282,11 +303,11 @@ def main() -> int:
         print("layout_lint: nothing to check")
         return 0
 
-    grand = [0, 0, 0]
+    grand = [0, 0, 0, 0]
     any_output = False
 
     for f in files:
-        r6, r1, r3, report = check_file(f, args.quiet)
+        r6, r1, r3, r2, report = check_file(f, args.quiet)
         if not report:
             continue
         any_output = True
@@ -295,6 +316,7 @@ def main() -> int:
         grand[0] += r6
         grand[1] += r1
         grand[2] += r3
+        grand[3] += r2
 
     if not any_output:
         print(f"layout_lint: {len(files)} file(s) checked, nothing to report")
@@ -304,6 +326,7 @@ def main() -> int:
     print(f"rule 6  unnamed literals > 2 in resized():   {grand[0]}")
     print(f"rule 1  constants declared inside resized(): {grand[1]}")
     print(f"rule 3  regions divided by an item count:    {grand[2]}")
+    print(f"rule 2  multiple Grids in one resized():     {grand[3]}")
 
     if grand[0] > args.max:
         print(f"\nFAIL: {grand[0]} unnamed literals exceeds --max {args.max}.")

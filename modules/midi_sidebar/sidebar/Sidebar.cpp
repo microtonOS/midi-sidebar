@@ -66,6 +66,7 @@ void Sidebar::setActivePage (Page newPage)
     activePage = newPage;
 
     panel.setVisible (activePage != Page::none);
+    panel.showTuningPage (activePage == Page::tuning);
     panel.setTitle ([this]() -> juce::String
     {
         switch (activePage)
@@ -153,7 +154,7 @@ void Sidebar::parentHierarchyChanged()
 {
     // Both volume strips put their value bubble in the editor rather than in
     // themselves or in the callout, either of which is too small to hold it.
-    volumeStrip.setPopupParent (findPopupHost());
+    volumeStrip.setPopupParent (findPopupHost (*this));
 
     // The icons bake the current colours into their Drawables, so they have to
     // be rebuilt whenever those colours could have changed. Doing it in the
@@ -168,7 +169,7 @@ void Sidebar::showVolumeCallOut()
 {
     // Only reachable in compact density, where the strip has no room in the
     // rail. Elsewhere the button is hidden and the strip is laid out inline.
-    auto* parent = findPopupHost();
+    auto* parent = findPopupHost (*this);
 
     if (parent == nullptr || parent == this)
         return;
@@ -200,26 +201,6 @@ void Sidebar::showVolumeCallOut()
 Sidebar::Density Sidebar::densityFor (int height) noexcept
 {
     return height >= metrics::regularBreakpoint ? Density::regular : Density::compact;
-}
-
-juce::Component* Sidebar::findPopupHost()
-{
-    auto& ours = getLookAndFeel();
-    juce::Component* host = this;
-
-    // Climb while the styling still matches, and stop at the first ancestor
-    // that does not share it — that is the boundary of what will render like
-    // us. If nobody has set a LookAndFeel at all, everything compares equal and
-    // this walks to the top, which is also right.
-    for (auto* c = getParentComponent(); c != nullptr; c = c->getParentComponent())
-    {
-        if (&c->getLookAndFeel() != &ours)
-            break;
-
-        host = c;
-    }
-
-    return host;
 }
 
 bool Sidebar::isRailOnLeft() const noexcept

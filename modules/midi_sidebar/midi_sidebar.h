@@ -25,7 +25,13 @@
 
 #include "sidebar/SidebarLookAndFeel.h"
 #include "sidebar/SidebarIcons.h"
+#include "sidebar/PopupHost.h"
 #include "sidebar/LevelMeter.h"
 #include "sidebar/VolumeStrip.h"
+#include "sidebar/widgets/ChoiceStrip.h"
+#include "sidebar/widgets/ReadOutField.h"
+#include "sidebar/pages/TuningState.h"
+#include "sidebar/pages/ChannelSelector.h"
+#include "sidebar/pages/TuningPage.h"
 #include "sidebar/SidebarPanel.h"
 #include "sidebar/Sidebar.h"

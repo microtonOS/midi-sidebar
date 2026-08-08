@@ -58,7 +58,7 @@ struct Options
     bool            timestamp       { false };
     bool            listParams      { false };
     bool            listComponents  { false };
-    bool            hostWindow      { false };
+    bool            hostWindow      { true };     // --no-host-window to opt out
 
     /** Components to click before rendering, by name, in order. */
     juce::StringArray clicks;
@@ -106,14 +106,19 @@ Renders the plugin editor to a PNG and prints the absolute path on stdout.
                       call-out has to be painted inside that window. Raise it
                       if you are capturing something slower and no call-out is
                       involved — an animation, say.
-  --host-window       Put the editor inside a plain parent component that keeps
-                      the DEFAULT LookAndFeel, the way a standalone build or a
-                      host wraps it in a window. Without this the editor is the
-                      top-level component, which it never is in real use, so
-                      anything that walks up the hierarchy — getTopLevelComponent,
-                      getLookAndFeel on an ancestor, parenting a pop-up — behaves
-                      differently here than it will in a DAW. Render both ways
-                      when a change touches any of that.
+  --host-window       Default, and accepted only for clarity: the editor is put
+                      inside a plain parent component that keeps the DEFAULT
+                      LookAndFeel, the way a standalone build or a host wraps it
+                      in a window.
+  --no-host-window    Snapshot the editor as the top-level component instead.
+                      It never is one in real use, so anything that walks up the
+                      hierarchy — getTopLevelComponent, getLookAndFeel on an
+                      ancestor, parenting a pop-up — then behaves differently
+                      here than it will in a DAW, and differently in a way that
+                      flatters: a pop-up parented to the top level inherits your
+                      LookAndFeel here and the default one in the field. This
+                      was the default once; it hid exactly that bug, which is
+                      why it is now opt-in.
   --list-components   Print the editor's component tree with names, sizes and
                       visibility, then exit. Reflects the state after any
                       --click, so use it to check what you are capturing.
@@ -160,7 +165,10 @@ bool parseArgs (int argc, char* argv[], Options& o, bool& showHelp)
         if (a == "--help" || a == "-h")          { showHelp = true; return true; }
         else if (a == "--list-params")           { o.listParams = true; }
         else if (a == "--list-components")       { o.listComponents = true; }
+        // --host-window is still accepted, and still means what it says; it is
+        // just the default now, so passing it changes nothing.
         else if (a == "--host-window")           { o.hostWindow = true; }
+        else if (a == "--no-host-window")        { o.hostWindow = false; }
         else if (a == "--click")                 { const auto v = needsValue (i, "--click");      if (v.isEmpty()) return false; o.clicks.add (v); }
         else if (a == "--timestamp")             { o.timestamp = true; }
         else if (a == "--out")                   { const auto v = needsValue (i, "--out");        if (v.isEmpty()) return false; o.explicitOut = juce::File::getCurrentWorkingDirectory().getChildFile (v); }

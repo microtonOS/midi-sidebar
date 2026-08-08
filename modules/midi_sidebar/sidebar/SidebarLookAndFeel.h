@@ -95,6 +95,101 @@ namespace metrics
     inline constexpr int panelWidth = 260;
 
     //==========================================================================
+    //  Pages. One set of measurements for all three, so they cannot drift into
+    //  looking like three different plugins.
+
+    /** One row of a page: a read-out, an editable field, or a row of buttons.
+        Everything on a page is one of these tall, which is what makes rows in
+        different sections line up. */
+    inline constexpr int pageRowHeight = 22;
+
+    /** Between rows inside one section. */
+    inline constexpr int pageRowGap = 5;
+
+    /** The band a `GroupComponent` needs above its contents.
+
+        `LookAndFeel_V2::drawGroupComponentOutline`, which V4 inherits, draws the
+        title at a fixed 15px and runs the frame's top line through the middle
+        of it — so the first row inside a group has to start below that or the
+        text lands on top of it. */
+    inline constexpr int pageGroupTitleHeight = 18;
+
+    /** Inset of a group's contents from its frame: at the sides, and below the
+        last row. The same figure both ways, so a group looks equally padded on
+        every side that is not its title. */
+    inline constexpr int pageGroupPadding = 8;
+
+    /** Every page is laid out on this many equal columns, and each thing on it
+        spans a whole number of them.
+
+        Six because that is the finest division the sketches use: a row is
+        halved, or split into thirds, or into a label and its field. One shared
+        template is what makes the halves actually line up down the page —
+        `program`'s field, the period, the scheme box and the scale button all
+        begin at the same column because they are told to, not because their
+        widths happen to add up.
+
+        This is also why the page is one `Grid` and not one per row. A grid per
+        row can only align things within that row; anything that has to line up
+        across rows is then arithmetic, and arithmetic that agrees today is a
+        coincidence, not a constraint. */
+    inline constexpr int pageColumns = 6;
+
+    /** The six content columns plus a gutter at each end.
+
+        The gutters are what let a group's frame be drawn *wider* than the
+        widgets inside it while everything stays in one grid: the frame spans
+        every track, the widgets span only the six between the gutters, and each
+        gutter is exactly `pageGroupPadding`. The alternative — laying the
+        frames out separately from the rows they enclose — would mean computing
+        the same row positions twice. */
+    inline constexpr int pageColumnsWithGutters = pageColumns + 2;
+
+    /** How many of those columns a field's name takes, leaving the rest of the
+        row for the field itself. Every labelled row on a page uses it, which is
+        what puts `program`, `updated`, `scale`, `map` and `update` in one
+        column and starts all five of their values in another. */
+    inline constexpr int pageLabelColumns = 2;
+
+    /** Between two adjacent columns. */
+    inline constexpr int pageColumnGap = 6;
+
+    /** Where a page's content begins, measured from the page's left edge: past
+        the gutter and the gap that follows it.
+
+        This is what a panel title is indented by, so that it starts directly
+        above the fields below it. An earlier version derived the indent from
+        `LookAndFeel_V2::drawGroupComponentOutline` instead — frame inset plus
+        corner radius plus text margin — to sit above a *group's* title. It
+        landed 2px from this, which is no better to the eye, and it made a
+        measurement of ours depend on three private numbers inside JUCE's
+        drawing code that nothing documents and any release may change. */
+    inline constexpr int pageContentIndent = pageGroupPadding + pageColumnGap;
+
+    /** Inset of a read-out's text from its box, and of a call-out's contents
+        from its edges. */
+    inline constexpr int readOutPadding = 5;
+
+    /** The channel selector's grid: a square-ish button per MIDI channel, and a
+        column beside it wide enough for "deselect all". */
+    inline constexpr int channelButton    = 26;
+    inline constexpr int channelSideWidth = 78;
+
+    /** Corner radius shared by read-outs and the boxes drawn around them. */
+    inline constexpr float readOutCorner = 3.0f;
+
+    //==========================================================================
+    //  ChoiceStrip: a label and a row of buttons of which exactly one is on.
+    //  Lives here rather than with the widget because a page laying one out has
+    //  to reserve the same width the strip will use for its label.
+
+    /** Width of the strip's label column, and the space between it and the
+        first button. The default suits a page; the demo's own panel passes a
+        wider one, since it has room and longer names. */
+    inline constexpr int choiceLabelWidth = 54;
+    inline constexpr int choiceLabelGap   = 8;
+
+    //==========================================================================
     //  Derived sizes. These are the numbers the editor should use for its
     //  resize limits — see the Resizing rules in the skill: a minimum size is
     //  derived from the content, never picked by eye.
@@ -137,6 +232,24 @@ namespace metrics
         construction. */
     inline constexpr float titleFontHeight = 15.0f;
     inline constexpr float bodyFontHeight  = 13.0f;
+}
+
+//==============================================================================
+/** Colours shared by the parts of a page that are not a widget of their own.
+
+    A free namespace rather than `ColourIds` on a component, which is where JUCE
+    normally puts them, because the things that need these — the pages — are
+    included *before* the panel that would be their natural owner, and a widget
+    reaching into another widget's header for an id is how the include graph
+    became a cycle the last time.
+*/
+namespace pageColours
+{
+    enum ColourIds
+    {
+        sectionTitleColourId   = 0x1a10500,  ///< A section's name.
+        sectionOutlineColourId = 0x1a10501   ///< The frame drawn around it.
+    };
 }
 
 //==============================================================================

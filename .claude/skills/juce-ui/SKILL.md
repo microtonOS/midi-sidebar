@@ -90,6 +90,29 @@ by inspection, and follow rules that make the invariants structural instead.
    to evaluate to the same number as another expression is a coincidence, not a
    constraint, and it breaks silently when either side changes.
 
+   **One grid per page, not one per row.** This is the same rule and it is where
+   it is usually broken. A grid built for a single row can only align things
+   *within* that row; every alignment between rows is then arithmetic again, and
+   the rule above has been obeyed to the letter and lost. Give the page one
+   `Grid` whose columns are the finest division any row needs, and let each
+   widget span a whole number of them — see [layout](references/layout.md#spans).
+
+   ```cpp
+   // Ragged. Each row divides its own width, so nothing lines up down the page,
+   // and a row "split in half" is only halved by coincidence.
+   layOutRow (rowA, { Px (labelW), Fr (1) },            { &label,  &field  });
+   layOutRow (rowB, { Px (shortW), Fr (1), Px (w), Fr (1) }, { ... });
+
+   // Declared. Six shared columns; a span of 3 is half the page in every row.
+   place (programLabel, row, 1,         labelColumns);
+   place (programField, row, 1 + labelColumns, half - labelColumns);
+   place (bankLabel,    row, rightHalf, labelColumns);
+   ```
+
+   The giveaway that you are about to make this mistake: a `resized()` that
+   constructs more than one `Grid`, or a per-row helper taking a list of track
+   widths. Both mean the columns exist only inside a row.
+
 3. **Never divide a region by an item count.** `int cellW = area.getWidth() / n`
    followed by `n` fixed-width cells truncates: the leftover 0..n-1 pixels are
    abandoned at one edge, and the size of that gap changes as the window
@@ -145,6 +168,15 @@ by inspection, and follow rules that make the invariants structural instead.
    only in their content and not in their geometry count as one. For most GUIs
    that is four or five images rather than a full matrix — cheap enough that
    there is no excuse for skipping it, and it is where the bugs are.
+
+   **Then check alignment, which is a different test from fit.** "Nothing is
+   clipped and everything fits" is what you will naturally look for, and a
+   misalignment of ten or twenty pixels passes it easily — it reads as a design
+   choice rather than as a fault. So look for it deliberately: trace a vertical
+   line down the image at each column edge and confirm the same things start on
+   it in every row. A row that should be halved must split at the page's
+   midpoint, not near it. Where there is a mockup, check against the divisions
+   *it* is drawn on — see [layout](references/layout.md#choosing-the-columns).
 
 ### Resizing
 

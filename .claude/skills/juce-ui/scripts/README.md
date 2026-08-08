@@ -69,6 +69,10 @@ snapshot.sh --target MyPlugin_snapshot -- --list-components
 # Check the layout at an awkward window size
 snapshot.sh --target MyPlugin_snapshot -- --size 640x360 --name narrow
 
+# The editor is wrapped in a host-like window by default; opt out to snapshot
+# it as the top-level component — see The host window, below.
+snapshot.sh --target MyPlugin_snapshot -- --no-host-window
+
 # Keep a series instead of overwriting, to compare before and after
 snapshot.sh --target MyPlugin_snapshot -- --timestamp
 ```
@@ -123,6 +127,39 @@ three days, and Apple states that behaviour is not API.
 
 Use `--dir` or `--out` to write elsewhere. Writing into the repository is
 usually a mistake — the images are build output, not source.
+
+## The host window
+
+**By default the editor is placed inside a plain parent component that keeps the
+DEFAULT LookAndFeel**, the way a standalone build or a DAW wraps it in a window.
+Nothing to pass; `--host-window` is still accepted and means the same thing.
+
+This matters because the editor is never the top-level component in real use, so
+anything walking *up* from it — `getTopLevelComponent`, `getLookAndFeel` on an
+ancestor, parenting a pop-up — behaves differently once there is a window above
+it. The recurring case is pop-up parenting: with the editor as the top level, a
+`CallOutBox` parented to `getTopLevelComponent()` inherits your LookAndFeel and
+looks perfect; in a host the same call returns a window that has never heard of
+it, every custom `ColourId` fails to resolve, and the pop-up comes out styled
+like another application.
+
+That is verified rather than argued: the same editor and the same click, with
+the wrapper and without, differ exactly where such a bug is — and with it, a
+snapshot reproduces what the standalone shows. See
+[popups](../references/popups.md#styling-a-pop-ups-contents) for the fix.
+
+It was opt-in once, which is the failure mode worth remembering: the flag was
+correct, documented in `--help`, and went unused, so the bug it exists to catch
+shipped anyway. A safety net nobody remembers to switch on is not a safety net.
+
+```bash
+# Opt out, if you specifically want the editor as the root
+snapshot.sh --target X -- --no-host-window
+```
+
+What no wrapper can emulate: there is still no window, no peer, and no host. The
+editor is never `isShowing()`, which is why a `CallOutBox` logs a
+`grabKeyboardFocus` assertion in every headless render, harmlessly.
 
 ## Gotchas
 
@@ -208,11 +245,14 @@ statically:
 | rule | what it catches | why it matters |
 |------|-----------------|----------------|
 | 1 | constants declared inside `resized()` | the same measurement ends up defined twice, on two pages, and drifts apart |
+| 2 | more than one `Grid` built in one `resized()` | the columns then exist only inside a row, so anything that must line up *between* rows is arithmetic again — the halves come out ragged |
 | 3 | `getWidth() / n` dividing a region by an item count | integer truncation abandons 0..n-1 px at one edge, and the gap changes as the window resizes |
 | 6 | unnamed numeric literals greater than 2 | an unnamed number cannot be found or reused, and gives no clue whether it was chosen or left over |
 
-Only rule 6 sets the exit status, because rules 1 and 3 have legitimate
-exceptions. Use `--max <n>` to hold an existing codebase at its current count
+Only rule 6 sets the exit status, because rules 1, 2 and 3 have legitimate
+exceptions. Rule 2's is a genuinely independent region — a floating panel laid
+out in the same `resized()` as the page behind it — but "two rows of one page"
+is not one of them. Use `--max <n>` to hold an existing codebase at its current count
 while you bring it down, and `--quiet` for counts without per-line detail.
 
 Suppress a deliberate case with a trailing comment on the same line:

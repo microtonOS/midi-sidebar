@@ -70,6 +70,18 @@ is how a real plugin would apply the workaround. The juce-ui skill's
 [Sliders reference](../.claude/skills/juce-ui/references/widgets.md#sliders) has
 the full mechanism.
 
+## Sample tuning values
+
+The demo also fills the [tuning page](tuning.md) with fixed values — the ones
+from that document's own sketch — so the page can be seen populated rather than
+empty. They are set once in `DemoEditor::showSampleTuning` and nothing changes
+them: there is no simulation behind the clock, and none of the page's callbacks
+are connected to anything yet.
+
+That is the next piece of work, and it belongs with the MIDI side rather than
+here. When it arrives the page takes its values through the same setters, so
+this can simply be deleted.
+
 ## Settings are parameters
 
 Each setting is an `AudioParameterChoice` on the demo processor, mirrored to its

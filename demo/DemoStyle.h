@@ -64,8 +64,11 @@ namespace layout
         same shape also survive the smallest window, which three framed groups
         do not — the sidebar's minimum height leaves 172px here, and the framed
         version needed 214. */
+    /** Wider than the module's default, which is sized for a 248px page: this
+        panel has the room and its settings have longer names. The gap between
+        the label and the buttons is the widget's own, so it is taken from
+        `metrics` rather than defined a second time here. */
     inline constexpr int choiceLabelWidth = 90;
-    inline constexpr int choiceLabelGap   = 8;
 
     /** What one choice button is allowed to shrink to and grow to. The minimum
         is enough for the longest choice, "Midnight", at the button font. The
@@ -79,7 +82,7 @@ namespace layout
     /** Width of a row of `choiceCount` choices with buttons of `buttonWidth`. */
     constexpr int controlsWidthFor (int choiceCount, int buttonWidth) noexcept
     {
-        return choiceLabelWidth + choiceLabelGap + buttonWidth * choiceCount;
+        return choiceLabelWidth + metrics::choiceLabelGap + buttonWidth * choiceCount;
     }
 
     /** Narrowest the content area can be and still show a row of `choiceCount`

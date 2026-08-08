@@ -35,6 +35,10 @@ private:
     void applyTheme (int themeIndex);
     void applyBubbleTextColour (int bubbleTextIndex);
 
+    /** Fills the tuning page with fixed sample values, so it can be looked at
+        populated. Nothing drives it yet; see docs/demo.md. */
+    void showSampleTuning();
+
     /** Two-way binding between a choice parameter and a strip of buttons: the
         parameter drives `apply`, and a click on a button drives the parameter.
         Both settings need exactly this, and doing it twice by hand is how the

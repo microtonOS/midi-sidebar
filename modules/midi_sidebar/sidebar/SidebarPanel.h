@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "SidebarLookAndFeel.h"
+#include "pages/TuningPage.h"
 
 namespace microtonos::sidebar
 {
@@ -9,9 +10,12 @@ namespace microtonos::sidebar
 //==============================================================================
 /** The panel revealed beside the rail when a page button is active.
 
-    A placeholder for now: it shows which page is open and nothing else. The
-    presets, controllers and tuning pages each get their own file when they are
-    built, and this becomes the frame that hosts whichever one is active.
+    The frame that hosts the pages: it draws the title and gives whatever page
+    is showing the rest of its bounds. It owns the pages rather than the sidebar
+    doing so, because the panel is what knows how much room there is.
+
+    The presets and controllers pages are not built yet, so for now their track
+    is simply left empty.
 */
 class SidebarPanel final : public juce::Component
 {
@@ -26,13 +30,30 @@ public:
     {
         title.setJustificationType (juce::Justification::centredLeft);
         title.setFont (SidebarLookAndFeel::font (metrics::titleFontHeight, true));
+
+        // The page's own section titles are what this has to line up with, not
+        // the panel's edge, so the label's own border is taken off and the
+        // indent applied in `resized` instead — where it can use the one number
+        // that says where a GroupComponent draws its title.
+        title.setBorderSize ({});
         addAndMakeVisible (title);
+
+        addChildComponent (tuningPage);
     }
 
     void setTitle (const juce::String& newTitle)
     {
         title.setText (newTitle, juce::dontSendNotification);
     }
+
+    /** Shows one page and hides the others. Passing nothing — which is what a
+        page with no component yet does — leaves the area blank. */
+    void showTuningPage (bool shouldShow)
+    {
+        tuningPage.setVisible (shouldShow);
+    }
+
+    TuningPage& getTuningPage() noexcept { return tuningPage; }
 
     void paint (juce::Graphics& g) override
     {
@@ -53,19 +74,25 @@ public:
         juce::Grid grid;
         using Track = juce::Grid::TrackInfo;
 
-        // Title on its own row at the top; the rest is left for the page
-        // content, which is why it is a flexible track rather than empty space.
+        // Title on its own row at the top; the rest goes to whichever page is
+        // showing. Every page occupies the same track, so only one can be
+        // visible and none of them has to know about the title.
         grid.templateColumns = { Track (juce::Grid::Fr (1)) };
         grid.templateRows    = { Track (juce::Grid::Px (metrics::railButton)),
                                  Track (juce::Grid::Fr (1)) };
 
-        grid.items = { juce::GridItem (title), juce::GridItem() };
+        // Indented to where the page's content starts, so "Tuning" begins
+        // directly above the field below it rather than above the panel's edge.
+        grid.items = { juce::GridItem (title)
+                           .withMargin ({ 0.0f, 0.0f, 0.0f, (float) metrics::pageContentIndent }),
+                       juce::GridItem (tuningPage) };
 
         grid.performLayout (getLocalBounds().reduced (metrics::railPadding));
     }
 
 private:
     juce::Label title;
+    TuningPage tuningPage;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SidebarPanel)
 };
