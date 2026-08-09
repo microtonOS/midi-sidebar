@@ -10,9 +10,9 @@ using juce::GridItem;
 
 namespace
 {
-    /** The scheme names, in the order docs/tuning.md lists them. The ComboBox
-        wants ids from 1, and `Scheme` counts from 0, so the two are converted
-        in one place rather than at every use. */
+    /** The scheme names, in the order docs/tuning.md lists them — which is the
+        order `Scheme` declares them in, so a menu index is the enum's value and
+        nothing has to be converted. */
     const juce::StringArray schemeNames { "MTS ESP", "MTS sysex", "tuning file",
                                           "MPE", "MIDI 2.0", "standard" };
 
@@ -91,7 +91,7 @@ TuningPage::TuningPage()
     for (auto* c : std::initializer_list<juce::Component*> {
              &intervalField, &modResultField, &nameField,
              &programField, &bankField, &updatedField, &periodSourceField,
-             &schemeBox, &channelsButton, &scaleButton, &mapButton,
+             &schemeButton, &channelsButton, &scaleButton, &mapButton,
              &updateStrip, &modEditor, &periodChooser })
         addAndMakeVisible (*c);
 
@@ -133,13 +133,13 @@ TuningPage::TuningPage()
     };
 
     //  Settings ---------------------------------------------------------------
-    schemeBox.addItemList (schemeNames, 1);
-    schemeBox.setSelectedId (1, juce::dontSendNotification);
+    schemeButton.setItems (schemeNames);
+    schemeButton.setSelectedIndex (0);
 
-    schemeBox.onChange = [this]
+    schemeButton.onChoice = [this] (int index)
     {
         if (onSchemeChanged != nullptr)
-            onSchemeChanged (static_cast<tuning::Scheme> (schemeBox.getSelectedId() - 1));
+            onSchemeChanged (static_cast<tuning::Scheme> (index));
     };
 
     channelsButton.onClick = [this] { showChannelSelector(); };
@@ -213,7 +213,7 @@ void TuningPage::setPeriod (const tuning::Period& newPeriod)
 
 void TuningPage::setScheme (tuning::Scheme scheme)
 {
-    schemeBox.setSelectedId (static_cast<int> (scheme) + 1, juce::dontSendNotification);
+    schemeButton.setSelectedIndex (static_cast<int> (scheme));
 }
 
 void TuningPage::setUpdateMode (tuning::UpdateMode mode)
@@ -264,9 +264,11 @@ void TuningPage::refreshPeriod()
     periodSourceField.setValue (period.cents.has_value() ? sourceText (period.source)
                                                          : juce::String());
 
-    // The slider indexes the list, so its range is the list's, and a list of
-    // one leaves nothing to step to.
-    periodChooser.setRange (0.0, juce::jmax (0, choices.size() - 1), 1.0);
+    // The slider indexes the list, so its range is the list's. NormalisableRange
+    // asserts on an empty one — start must be below end — so a list of none or
+    // one is given a single step it cannot leave, and the buttons are disabled
+    // to say so.
+    periodChooser.setRange (0.0, juce::jmax (1, choices.size() - 1), 1.0);
     periodChooser.setEnabled (choices.size() > 1);
 
     const auto index = period.cents.has_value() ? choices.indexOf (*period.cents) : -1;
@@ -494,7 +496,7 @@ void TuningPage::resized()
     {
         const auto row = addRow (metrics::pageRowHeight);
 
-        place (schemeBox,      row, 1, half);
+        place (schemeButton,   row, 1, half);
         place (channelsButton, row, rightHalf, half);
     }
 

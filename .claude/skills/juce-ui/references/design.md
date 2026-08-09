@@ -58,6 +58,34 @@ The same trap fires in reverse during teardown, when an owner's
 longer resolve anything. Guard with `LookAndFeel::isColourSpecified`, which
 answers without asserting.
 
+## Overriding a LookAndFeel
+
+**An override applies to every widget of that type in the whole project, not to
+the one you wrote it for.** This is obvious stated plainly and very easy to miss
+in practice, because an override written while there is only one slider on
+screen is indistinguishable from a correct one until the second slider arrives —
+possibly months later, in a different page, and the symptom is that the new
+widget draws *nothing*.
+
+Scope the override by asking the widget what it is:
+
+```cpp
+juce::Slider::SliderLayout MyLookAndFeel::getSliderLayout (juce::Slider& slider)
+{
+    // Only the vertical fader wants the treatment below.
+    if (slider.getSliderStyle() != juce::Slider::LinearVertical)
+        return LookAndFeel_V4::getSliderLayout (slider);
+    ...
+}
+```
+
+The same applies to `drawLinearSlider`, `getTextButtonFont`, `drawButtonBackground`
+and the rest: branch on the style, or on something the widget carries, and hand
+everything else back to the base class. A real case: a `getSliderLayout` written
+to give a fader its full height also discarded the *text box* of every slider,
+which was invisible until a slider that needed one was added, and then looked
+like a broken widget rather than a look-and-feel bug.
+
 ## Fonts
 
 `juce::Font (float)` is deprecated as of JUCE 8. Use `FontOptions`:

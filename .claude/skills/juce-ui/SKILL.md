@@ -275,6 +275,19 @@ looking at; follow the link once you recognise it.
   pairs, which collide in `LookAndFeel_V4`'s Light scheme.
   See [widgets](references/widgets.md#sliders).
 
+- **A `TextEditor`'s text is invisible after a theme change.** Its colour is
+  baked in when the text is inserted, and `lookAndFeelChanged` does not revisit
+  it. See [widgets](references/widgets.md#text-and-menus).
+
+- **A widget that was fine draws nothing once a second one appears.** A
+  `LookAndFeel` override written for one widget applies to every widget of that
+  type. See [design](references/design.md#overriding-a-lookandfeel).
+
+- **A whole component is missing, and `setVisible` is not the reason.** A `Grid`
+  auto-placed it into an implicit row past the ones you declared — two things
+  sharing a cell need explicit areas.
+  See [layout](references/layout.md#two-ways-a-grid-fails-quietly).
+
 - **Identical knobs come out different sizes.** A rotary slider's radius is
   `jmin (width, height)`, so the cell's aspect ratio decides it, not its area.
   See [widgets](references/widgets.md#sliders).

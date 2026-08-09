@@ -37,11 +37,11 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     // Every colour below is derived from those four, so re-theming means
     // changing the scheme above and nothing else.
     target.setColour (Sidebar::backgroundColourId,      widget);
-    target.setColour (Sidebar::iconColourId,            text.withMultipliedAlpha (0.75f));
+    target.setColour (Sidebar::iconColourId,            text.withMultipliedAlpha (shades::icon));
     target.setColour (Sidebar::iconOverColourId,        text);
     target.setColour (Sidebar::iconActiveColourId,      accent);
     target.setColour (Sidebar::activeIndicatorColourId, accent);
-    target.setColour (Sidebar::separatorColourId,       text.withMultipliedAlpha (0.15f));
+    target.setColour (Sidebar::separatorColourId,       text.withMultipliedAlpha (shades::hairline));
 
     target.setColour (LevelMeter::trackColourId, window);
     target.setColour (LevelMeter::fillColourId,  accent);
@@ -65,7 +65,7 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     // Pages. A section's outline is the same hairline the sidebar draws where
     // it meets the host's content, so the two agree by construction.
     target.setColour (pageColours::sectionTitleColourId,   text);
-    target.setColour (pageColours::sectionOutlineColourId, text.withMultipliedAlpha (0.15f));
+    target.setColour (pageColours::sectionOutlineColourId, text.withMultipliedAlpha (shades::hairline));
 
     // A read-out is recessed into the panel: `window` is darker than `widget`
     // in every scheme that has a dark surface, and lighter in the light one, so
@@ -73,7 +73,7 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     // for its track.
     target.setColour (ReadOutField::backgroundColourId, window);
     target.setColour (ReadOutField::textColourId,       text);
-    target.setColour (ReadOutField::outlineColourId,    text.withMultipliedAlpha (0.15f));
+    target.setColour (ReadOutField::outlineColourId,    text.withMultipliedAlpha (shades::hairline));
 
     // The chosen button of a segmented control takes the accent, the same one
     // the rail gives an active page icon, so "this one is on" means one thing
@@ -136,6 +136,11 @@ void SidebarLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
 }
 
 juce::Font SidebarLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)
+{
+    return buttonFont (buttonHeight);
+}
+
+juce::Font SidebarLookAndFeel::buttonFont (int buttonHeight)
 {
     return font (juce::jmin (metrics::bodyFontHeight, (float) buttonHeight * 0.5f));
 }

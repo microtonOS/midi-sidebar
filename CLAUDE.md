@@ -25,6 +25,8 @@ build succeeds. Filter with `grep -v "cache file"` rather than widening the sand
 
 The agent skills are under construction.
 Give feedback on how they can be improved.
+Suggest when you think a new skill should be created or when an existing should be reorganized.
+After edits to skills, check that they have reasonable token counts.
 Summarize what changes you would recommend before making any edits.
 Exceptions to this rule include:
 - Typos.

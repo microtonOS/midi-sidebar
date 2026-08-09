@@ -2,4 +2,6 @@
 
 #include "sidebar/SidebarLookAndFeel.cpp"
 #include "sidebar/pages/TuningPage.cpp"
+#include "sidebar/pages/ControllersTable.cpp"
+#include "sidebar/pages/ControllersPage.cpp"
 #include "sidebar/Sidebar.cpp"

@@ -13,6 +13,26 @@ Prefer these, and if something doesn't fit, please ask.
 | `ListBox` | Scroll instead of dropdown. |
 | `TableListBox` | A scrollable table |
 
+**`TextEditor` bakes its colour into the text, so a theme change leaves it
+behind.** The colour is taken from `TextEditor::textColourId` *at the moment
+text is inserted* and stored with that run; `TextEditor::lookAndFeelChanged`
+only rebuilds the caret. So an editor whose text was set before it reached a
+styled parent keeps the **default** LookAndFeel's colour for ever — white, which
+is invisible on a light scheme. The value is there, correct, and unreadable.
+
+Re-apply it whenever the look and feel changes:
+
+```cpp
+void lookAndFeelChanged() override
+{
+    editor.applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
+}
+```
+
+The `true` makes later insertions use it too. JUCE's own documentation for
+`textColourId` says as much — "calling this method won't change the colour of
+existing text" — but the failure appears long after the call site.
+
 ## Sliders
 
 A slider control for changing a value.
@@ -72,6 +92,12 @@ Fix it in the layout, never at the widget: give the knob's grid track a fixed
 size, or `GridItem (knob).withSize (kKnob, kKnob)`. Do not hand each knob its
 own literal rectangle.
 
+**An empty range asserts.** `setRange (0, 0)` — which is what you get from
+`setRange (0, jmax (0, items.size() - 1))` when the list is empty or has one
+entry — trips a `jassert` inside `NormalisableRange`, whose start must be below
+its end. A slider used as an index into a list needs a floor of one step that it
+simply cannot leave, with the control disabled to say so.
+
 **The value bubble is invisible in a light theme.** This one is a JUCE bug, not
 a mistake at the call site, and it reproduces in JUCE's own DemoRunner — Widgets
 demo, light scheme. The bubble takes its two colours from two *unrelated* pairs:
@@ -117,6 +143,49 @@ private `PopupDisplayComponent`, which no LookAndFeel method reaches.
 Changing the *background* to `highlightedFill` also works, and restores JUCE's
 contrasting pair for all four schemes — but it is a design decision as much as a
 fix, since the bubble then stops matching the surface it floats over.
+
+## Tables
+
+`TableListBox` gives you a header row that stays put while the rows scroll, and
+`TableListBoxModel::refreshComponentForCell` to put a real widget in a cell. Four
+things about it are not obvious.
+
+**There is no frozen column.** The sticky *header* is `TableHeaderComponent`;
+nothing anywhere pins a column, so "keep the names visible while scrolling
+sideways" has to be built. It is two views of one list side by side — a
+`ListBox` for the pinned column, a `TableListBox` for the rest — with their
+vertical scrolling tied together.
+
+**One class can be both models.** `ListBoxModel` and `TableListBoxModel` are
+unrelated interfaces that happen to declare the same `int getNumRows()`, so a
+single implementation satisfies both. Worth doing for the pair above: it makes
+"the two views agree about how many rows there are" structural rather than
+something to maintain.
+
+**A `Viewport`'s scrollbar is ranged in pixels, not rows.**
+`Viewport::updateVisibleArea` sets the limits from the content's height, so the
+value handed to `ScrollBar::Listener::scrollBarMoved` is a pixel offset that can
+be copied straight to another list of the same row height. Listening to
+`ListBox::getVerticalScrollBar()` is how you tie two lists together; hide the
+follower's scrollbars so only one thing can drive.
+
+**A cell widget swallows the click that would select its row.** Put a component
+in a cell and the row can only be selected by hitting the pixels between the
+widgets — which makes any "act on the selected row" button feel broken. JUCE's
+own WidgetsDemo answers it in the cell:
+
+```cpp
+void mouseDown (const MouseEvent& event) override
+{
+    // single click on the label should simply select the row
+    owner.table.selectRowsBasedOnModifierKeys (row, event.mods, false);
+    Label::mouseDown (event);
+}
+```
+
+If the cell *wraps* its widget rather than being one, register for the child's
+events too — `child.addMouseListener (this, true)` — or the click never reaches
+the wrapper either.
 
 ## Buttons
 
@@ -171,6 +240,26 @@ as on until something rebuilds them. An owner that responds asynchronously (a
 `ParameterAttachment`, for instance, which marshals through an `AsyncUpdater`)
 appears to work, which is why this can hide in one part of a GUI while breaking
 another that is using the identical widget.
+
+**A `DrawableButton` beside a `TextButton` looks like a different control.** Its
+style decides which drawing path it takes, and only one of them is the one every
+other button uses:
+
+```cpp
+// juce_DrawableButton.cpp
+if (shouldDrawButtonBackground())      // the ImageOnButtonBackground styles
+    lf.drawButtonBackground (g, *this, findColour (getToggleState() ? TextButton::buttonOnColourId
+                                                                   : TextButton::buttonColourId), …);
+else
+    lf.drawDrawableButton (g, *this, …);   // a plain filled rectangle
+```
+
+`ImageFitted` and friends take the second branch: square corners, connected
+edges ignored, and colours read from `DrawableButton`'s own ColourIds rather
+than the `TextButton` ones everything else uses. For an icon button that has to
+sit beside text buttons — in a toolbar, or as one half of a toggle — use
+**`ImageOnButtonBackground`**, and it becomes the same control with a picture on
+it. `setEdgeIndent` then controls how much of it the icon takes.
 
 ### Segmented controls
 

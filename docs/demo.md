@@ -72,7 +72,11 @@ the full mechanism.
 
 ## Sample tuning values
 
-The demo also fills the [tuning page](tuning.md) with fixed values, mostly the
+The demo also fills the [controllers page](controllers.md) with the two mappings
+and three monitor lines from that document's figures, and two parameters with
+different units so the editing table's limits can be seen relabelling themselves.
+
+It fills the [tuning page](tuning.md) with fixed values too, mostly the
 ones from that document's own sketch, so the page can be seen populated rather
 than empty. The period is the exception: it is given as *inferred* with the
 12edo candidates, 100c to 1500c, so that the chooser has something to step

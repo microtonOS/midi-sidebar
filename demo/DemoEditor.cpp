@@ -19,6 +19,7 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     sidebar.onPanic = [] { /* CC120 goes here once the processor sends MIDI. */ };
 
     showSampleTuning();
+    showSampleControllers();
 
     // The volume slider is not yet attached to the APVTS parameter: that is a
     // later step, and doing it now would need the sidebar to hand out its
@@ -166,6 +167,64 @@ void DemoEditor::showSampleTuning()
         candidates.add (cents);
 
     page.setPeriod ({ 1200.0, tuning::PeriodSource::inferred, candidates });
+}
+
+void DemoEditor::showSampleControllers()
+{
+    auto& page = sidebar.getControllersPage();
+
+    // Two parameters with different units, so the editing table's limits can be
+    // seen relabelling themselves when a row is pointed at the other one.
+    // Built up rather than braced: juce::Array cannot deduce an element type
+    // from a braced initialiser, so each one is added explicitly.
+    juce::Array<controllers::Parameter> parameters;
+
+    parameters.add ({ "swell",  "%" });
+    parameters.add ({ "rotary", {} });
+
+    page.setParameters (parameters);
+
+    // The two mappings from Figure 2 of docs/controllers.md, including the
+    // second one's empty LSB — which its `toggle` mode ignores anyway.
+    controllers::Mapping swell;
+    swell.parameterIndex = 0;
+    swell.channel = controllers::omniChannel;
+    swell.msb = 11;
+    swell.lsb = 43;
+    swell.mode = controllers::Mode::jump;
+    swell.min = 10.0;
+    swell.max = 100.0;
+
+    controllers::Mapping rotary;
+    rotary.parameterIndex = 1;
+    rotary.channel = 15;
+    rotary.msb = 64;
+    rotary.mode = controllers::Mode::toggle;
+    rotary.min = 1.0;
+    rotary.max = 3.0;
+
+    // A second mapping onto swell, added last. Without it the sample data sorts
+    // the same either way — swell then rotary — and the sort toggle would look
+    // broken when it was merely unexercised.
+    controllers::Mapping swellFine;
+    swellFine.parameterIndex = 0;
+    swellFine.channel = 1;
+    swellFine.msb = 12;
+    swellFine.mode = controllers::Mode::scale;
+    swellFine.min = 0.0;
+    swellFine.max = 50.0;
+
+    page.setMappings ({ swell, rotary, swellFine });
+
+    // Figure 1's three monitor lines, newest first. Nothing generates these
+    // yet; see docs/demo.md.
+    juce::Array<controllers::Message> messages;
+
+    messages.add ({ "note on", "15", "A4", "102" });
+    messages.add ({ "sysex",   {},   {},   {} });
+    messages.add ({ "control", "16", "11", "98" });
+
+    page.setMessages (messages);
 }
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)

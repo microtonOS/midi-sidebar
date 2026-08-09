@@ -89,7 +89,8 @@ public:
         callbacks. Handed out rather than mirrored through the sidebar: the page
         has a wide interface, and forwarding all of it would be a second copy of
         the same API to keep in step. */
-    TuningPage& getTuningPage() noexcept { return panel.getTuningPage(); }
+    TuningPage&      getTuningPage()      noexcept { return panel.getTuningPage(); }
+    ControllersPage& getControllersPage() noexcept { return panel.getControllersPage(); }
 
     //==========================================================================
     void paint (juce::Graphics& g) override;

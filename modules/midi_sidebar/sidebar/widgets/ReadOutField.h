@@ -70,7 +70,7 @@ public:
         // The placeholder is dimmed so that "nothing is known yet" and "the
         // value happens to be this" cannot be confused.
         g.setColour (findColour (textColourId)
-                         .withMultipliedAlpha (value.isNotEmpty() ? 1.0f : placeholderAlpha));
+                         .withMultipliedAlpha (value.isNotEmpty() ? 1.0f : shades::placeholder));
 
         g.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
         g.drawText (text,
@@ -80,8 +80,6 @@ public:
     }
 
 private:
-    static constexpr float placeholderAlpha = 0.5f;
-
     juce::String value, placeholder;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReadOutField)

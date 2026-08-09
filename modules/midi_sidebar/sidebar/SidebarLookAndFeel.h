@@ -18,9 +18,6 @@ namespace microtonos::sidebar
 */
 namespace metrics
 {
-    /** Icon buttons in the rail: presets, controllers, tuning, volume, panic. */
-    inline constexpr int railButtonCount = 5;
-
     /** Side of the square hit area of one rail button. */
     inline constexpr int railButton = 36;
 
@@ -47,9 +44,6 @@ namespace metrics
     inline constexpr int meterBarWidth = 4;
     inline constexpr int meterBarGap   = 2;
     inline constexpr int meterWidth    = meterBarWidth * 2 + meterBarGap;
-
-    /** Space between the volume slider and the meter. */
-    inline constexpr int meterGap = 4;
 
     /** The fader's track is drawn to the same rectangle as a meter bar, so the
         two read as a matched pair on one scale. Its track is wider because it
@@ -175,6 +169,68 @@ namespace metrics
         unit, as in "1200.00 c" — since the buttons take whatever is left. */
     inline constexpr int periodTextBoxWidth = 68;
 
+    //==========================================================================
+    //  Tables. Both of the controllers page's tables use these, so the monitor
+    //  and the editing grid read as the same kind of object.
+
+    /** One row. Taller than `pageRowHeight` because a row holds a control *and*
+        has to be told apart from the row under it, which a page's rows do with
+        the gap between them and a table cannot. */
+    inline constexpr int tableRowHeight = 24;
+
+    /** The editing table's column headers. The monitor has none — see
+        docs/controllers.md. */
+    inline constexpr int tableHeaderHeight = 18;
+
+    /** Inset of a cell's widget from its row, so controls in adjacent rows do
+        not touch. */
+    inline constexpr int tableCellInset = 2;
+
+    /** The frozen parameter column, and the gap between it and the columns that
+        scroll under their own header. Wide enough for a parameter name in a
+        ComboBox, since that is what the column holds. */
+    inline constexpr int tableFrozenColumnWidth = 68;
+
+    /** Editing columns, in the order docs/controllers.md draws them. They add
+        up to more than the panel is wide — that is the point of the frozen
+        column, and what the horizontal scrolling is for. */
+    inline constexpr int tableCcWidth    = 44;
+    inline constexpr int tableLimitWidth = 52;
+
+    /** What a table column needs beyond the width of its widest text.
+
+        Covers the indents `LookAndFeel_V2::drawButtonText` puts either side of
+        a button's label — about six pixels each at this size — plus the cell's
+        own inset. A named number rather than a reconstruction of JUCE's
+        arithmetic, which depends on the font height and the corner radius and
+        is not ours to rely on; if a label ever truncates, this is the number to
+        raise. The columns holding buttons derive their widths from it, so
+        `channel` and `mode` are exactly as wide as their longest entry needs
+        and no wider. */
+    inline constexpr int tableTextPadding = 16;
+
+    /** Monitor columns. Unlike the editing table these are sized to fit, since
+        the monitor does not scroll in either direction. */
+    inline constexpr int monitorTypeWidth  = 74;
+    inline constexpr int monitorChanWidth  = 48;
+
+    /** The same width as the channel's, which is what puts the note or CC
+        midway between the channel and the value.
+
+        Every column is left-aligned, so the three numbers begin at their
+        columns' left edges: equal widths here and for the channel mean equal
+        gaps, and the middle one lands in the middle. Centring the text inside
+        its own column does *not* — the neighbours' text sits at the far left of
+        their columns while a centred one sits half a column further in, which
+        pushed it visibly to the right. */
+    inline constexpr int monitorNoteWidth  = monitorChanWidth;
+    inline constexpr int monitorValueWidth = 78;
+
+    /** Rows the editing table must be able to show before the page has to give
+        up any more height. The table is the page's flexible track, so this is
+        what sets the page's minimum. */
+    inline constexpr int tableMinimumRows = 3;
+
     /** The channel selector's grid: a square-ish button per MIDI channel, and a
         column beside it wide enough for "deselect all". */
     inline constexpr int channelButton    = 26;
@@ -240,6 +296,39 @@ namespace metrics
 }
 
 //==============================================================================
+/** How far something is held back from full strength.
+
+    The same kind of number as `metrics`, and gathered for the same reason: an
+    alpha decides how loud a thing is, and having five of them scattered across
+    five files is how two things that should match stop matching. Alphas rather
+    than colours because every one of these is the *theme's* colour, quietened —
+    which is what lets all four schemes work without a second palette.
+
+    The demo keeps its own `shades` for its own scenery; that one is about the
+    area standing in for a host, not about the sidebar.
+*/
+namespace shades
+{
+    /** A rail icon at rest. Full strength is for the one under the mouse. */
+    inline constexpr float icon = 0.75f;
+
+    /** Hairlines: the seam against the host's content, a section's frame, the
+        rim of a read-out. All three are the same line in different places. */
+    inline constexpr float hairline = 0.15f;
+
+    /** A read-out showing what it would say rather than what it does say. */
+    inline constexpr float placeholder = 0.5f;
+
+    /** A selected table row, tinted behind the widgets sitting on it: enough to
+        find, not enough to fight them. */
+    inline constexpr float selectedRow = 0.25f;
+
+    /** Anything the end-user cannot edit from the GUI — see docs/general.md.
+        Dimming the whole of it says so without a word of explanation. */
+    inline constexpr float readOnly = 0.6f;
+}
+
+//==============================================================================
 /** Colours shared by the parts of a page that are not a widget of their own.
 
     A free namespace rather than `ColourIds` on a component, which is where JUCE
@@ -294,6 +383,11 @@ public:
     /** A TextButton does not shrink its label to fit, so short labels on small
         buttons are clipped to an ellipsis. Scale the font to the button. */
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
+
+    /** The same rule, reachable without a button to ask about. Anything sizing
+        a column to its contents needs the font those contents will actually be
+        drawn in — which on a short button is not `bodyFontHeight`. */
+    static juce::Font buttonFont (int buttonHeight);
 
     /** JUCE insets a vertical slider's drawing area by `getSliderThumbRadius`
         at each end so the thumb has somewhere to overhang. That happens before

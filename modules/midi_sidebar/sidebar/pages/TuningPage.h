@@ -4,6 +4,7 @@
 
 #include "../PopupHost.h"
 #include "../SidebarLookAndFeel.h"
+#include "../widgets/ChoiceButton.h"
 #include "../widgets/ChoiceStrip.h"
 #include "../widgets/ReadOutField.h"
 #include "TuningState.h"
@@ -141,8 +142,9 @@ private:
     juce::Array<double> choices;
     ReadOutField periodSourceField;
 
-    //  Settings section.
-    juce::ComboBox schemeBox;
+    //  Settings section. A ChoiceButton rather than a ComboBox, so the scheme
+    //  menu matches the ones in the controllers table — see ChoiceButton.
+    ChoiceButton schemeButton { "scheme" };
     juce::TextButton channelsButton { "channels" };
     juce::TextButton scaleButton, mapButton;
     ChoiceStrip updateStrip;

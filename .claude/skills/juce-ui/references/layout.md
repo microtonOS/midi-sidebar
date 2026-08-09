@@ -75,6 +75,25 @@ constexpr auto rightHalf = 1 + half;      // the line the right-hand half starts
 worth the few extra characters: they say where a thing is rather than where it
 ended up, and they survive a widget being added in the middle.
 
+### Two ways a Grid fails quietly
+
+**An item you did not place goes into a new row you did not declare.** Grid
+auto-places anything without an explicit area, and when it runs out of declared
+rows it invents implicit ones *after* them. So two components meant to share a
+cell — overlapping pages, a widget behind another — put the second one below the
+grid, outside the visible bounds. It does not warn, and it looks exactly like a
+component that was never made visible, which sends you hunting through
+`setVisible` instead. Anything that must share a cell needs an explicit
+`withArea`.
+
+**A flexible track that cannot fit pulls the rows after it upwards.** Give a
+`Grid` less height than its fixed tracks need and the `Fr` track takes what is
+left, which is negative — so the rows below it are laid out *higher* than the
+ones above, and the content overlaps instead of being clipped. Overlap is the
+signature; if two sections are drawn on top of each other, look for a flexible
+track that has run out of room rather than for a bad rectangle. Lay out at
+`jmax (getHeight(), minimumHeight)` so that overflow is clipped honestly.
+
 ### Choosing the columns
 
 The column count is a decision, and the wrong one forces per-row grids later.

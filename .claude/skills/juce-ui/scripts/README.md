@@ -161,6 +161,19 @@ What no wrapper can emulate: there is still no window, no peer, and no host. The
 editor is never `isShowing()`, which is why a `CallOutBox` logs a
 `grabKeyboardFocus` assertion in every headless render, harmlessly.
 
+**`--click` on anything that opens a `PopupMenu` segfaults.** Not your code:
+`PopupMenu::getParentArea` dereferences the result of
+`Desktop::getDisplays().getDisplayForPoint(...)` without a null check
+(`juce_PopupMenu.cpp:920`), and a headless process has no displays, so the call
+returns null. Any menu, from any control, in any project. `withParentComponent`
+does not avoid it — the dereference happens before the parent is consulted.
+
+So a menu cannot be captured, and clicking the control that opens one takes the
+tool down with it. Snapshot the *closed* state, and check the menu itself by
+running the standalone. `CallOutBox` is unaffected and does render, which is
+worth knowing when choosing between the two for something you will want to look
+at often.
+
 ## Gotchas
 
 - **Build with `JUCE_MODAL_LOOPS_PERMITTED=1`.** The cmake helper sets this. The

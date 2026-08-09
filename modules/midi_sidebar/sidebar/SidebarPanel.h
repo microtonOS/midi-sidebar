@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "SidebarLookAndFeel.h"
+#include "pages/ControllersPage.h"
 #include "pages/TuningPage.h"
 
 namespace microtonos::sidebar
@@ -14,8 +15,7 @@ namespace microtonos::sidebar
     is showing the rest of its bounds. It owns the pages rather than the sidebar
     doing so, because the panel is what knows how much room there is.
 
-    The presets and controllers pages are not built yet, so for now their track
-    is simply left empty.
+    The presets page is not built yet, so selecting it leaves the track empty.
 */
 class SidebarPanel final : public juce::Component
 {
@@ -38,6 +38,7 @@ public:
         title.setBorderSize ({});
         addAndMakeVisible (title);
 
+        addChildComponent (controllersPage);
         addChildComponent (tuningPage);
     }
 
@@ -46,14 +47,13 @@ public:
         title.setText (newTitle, juce::dontSendNotification);
     }
 
-    /** Shows one page and hides the others. Passing nothing — which is what a
-        page with no component yet does — leaves the area blank. */
-    void showTuningPage (bool shouldShow)
-    {
-        tuningPage.setVisible (shouldShow);
-    }
+    /** Shows one page and hides the others. Presets has no component yet, so
+        selecting it leaves the area blank. */
+    void showTuningPage (bool shouldShow)      { tuningPage.setVisible (shouldShow); }
+    void showControllersPage (bool shouldShow) { controllersPage.setVisible (shouldShow); }
 
-    TuningPage& getTuningPage() noexcept { return tuningPage; }
+    TuningPage&      getTuningPage()      noexcept { return tuningPage; }
+    ControllersPage& getControllersPage() noexcept { return controllersPage; }
 
     void paint (juce::Graphics& g) override
     {
@@ -81,18 +81,29 @@ public:
         grid.templateRows    = { Track (juce::Grid::Px (metrics::railButton)),
                                  Track (juce::Grid::Fr (1)) };
 
-        // Indented to where the page's content starts, so "Tuning" begins
-        // directly above the field below it rather than above the panel's edge.
-        grid.items = { juce::GridItem (title)
+        // Every page is placed in the *same* cell, explicitly. Left to
+        // auto-placement, the second one would be given an implicit new row
+        // below the first and laid out off the bottom of the panel — where it
+        // is invisible, and looks exactly like a page that was never shown.
+        // The title is indented to where the page's content starts, so "Tuning"
+        // begins directly above the field below it rather than above the
+        // panel's edge.
+        grid.items = { juce::GridItem (title).withArea (1, 1, 2, 2)
                            .withMargin ({ 0.0f, 0.0f, 0.0f, (float) metrics::pageContentIndent }),
-                       juce::GridItem (tuningPage) };
+                       juce::GridItem (tuningPage)     .withArea (pageRow, 1, pageRow + 1, 2),
+                       juce::GridItem (controllersPage).withArea (pageRow, 1, pageRow + 1, 2) };
 
         grid.performLayout (getLocalBounds().reduced (metrics::railPadding));
     }
 
 private:
+    /** The grid row every page shares, under the title. A line number rather
+        than a measurement, which is why it lives here and not in `metrics`. */
+    static constexpr int pageRow = 2;
+
     juce::Label title;
     TuningPage tuningPage;
+    ControllersPage controllersPage;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SidebarPanel)
 };
