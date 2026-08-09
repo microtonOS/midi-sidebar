@@ -82,13 +82,12 @@ the two titles are indented to the same place, so "Tuning" sits above the "S" of
     </tr>
     <tr>
         <td colspan="3">
-            <input type="text" value="1200 c" style="width: 3cm"/>
+            <input type="number" value="1200 c" style="width: 3cm"/>
         </td>
         <td colspan="3">
             <select style="width: 3cm" readonly>
                 <option>inferred</option>
                 <option>specified</option>
-                <option>edited</option>
             </select>
         </td>
     </tr>
@@ -144,7 +143,10 @@ Here follows comments on the layout, row by row:
 6. Tuning program number and tuning bank number. Empty if unknown/unspecified.
 7. Time stamp of when tuning was last updated. If using MTS ESP queries will happen continuously (maybe several times per second), so this will look like a ticking clock. That way you see that it's active. However, it can also geneeralise to other systems. For sysex it would be when the last mts sysex message was received. for mpe when the last pitchbend was received (or really last pitchbend or note on or cc or aftertouch, ...). For tuning files, it would be when the file was loaded into the plugin.
 8. End of status box, Beginning of tuning period box.
-9. The scale period in cents. It can be specified in MTS ESP or `.scl` files (the last specified pitch basically acts as a specification of the period). the second wisget indicates whether it was inferred, <!-- see tuneBfree for the algorithm to infer the tuning period -->, specified, or edited, i.e. set by the user in the widget to the right.
+9. The scale period in cents. It can be specified in MTS ESP or `.scl` files (the last specified pitch basically acts as a specification of the period). The second widget indicates whether it was inferred <!-- see tuneBfree for the algorithm to infer the tuning period --> or specified, and nothing else — the end-user cannot set a period of their own.
+    - Inference rarely has one answer: any multiple of the repeating interval is a period, so 12edo admits 100c, 200c, and so on past 1200c. The left-hand widget is therefore a number box stepping through the candidates rather than a field to type in, which puts the values that are not periods out of reach instead of merely rejecting them. There are too many for a dropdown.
+    - Stepping through the candidates does **not** change the label: an inferred period stays inferred whichever of its candidates is in force. Picking one of the possibilities the plugin worked out is not the same as stating a period the tuning did not have.
+    - A specified period has nothing to choose between, so the box shows its value with the buttons disabled.
 10. Title marking the beginning of the microtuning settings section.
 11. Two columns.
     - Left. Which of the microtuning encoding schemes used. For each the last state should be saved so that you can toggle back to it.
@@ -284,9 +286,17 @@ which is what puts "note on" beside `load scale` and "always" beside
 `load maps`.
 
 **Two readings of the sketch, now settled.** `updated` is read-only — it stamps
-something that happened. The period source is a read-only indicator, and typing
-in the period field is what flips it to `edited`; anything that knows better
-pushes `inferred` or `specified` back through `setPeriod`.
+something that happened. The period source is a read-only indicator of where the
+number came from, and stays so: the end-user chooses among inferred candidates
+but never states a period, which is why there is no third state.
+
+The chooser holds an *index* into the candidate list rather than a number, so an
+unoffered value is unreachable rather than rejected, and the whole list arrives
+through `setPeriod`. Whatever eventually infers periods therefore decides what
+is offered; the page only presents it. Note that this made
+`SidebarLookAndFeel::getSliderLayout` need scoping to `LinearVertical` — it had
+been discarding the text box of *every* slider, which was invisible while the
+fader was the only one.
 
 ### Not solved: small heights
 

@@ -43,15 +43,18 @@ namespace tuning
         always      ///< A ringing note follows the tuning.
     };
 
-    /** Where the period came from. Read-only to the end-user: typing in the
-        period field is what makes it `edited`, and the two things that can put
-        it back are a tuning that states its period (`specified`) and the
-        plugin working one out (`inferred`). */
+    /** Where the period came from, and nothing else: either the tuning stated
+        it or the plugin worked it out.
+
+        Choosing between inferred candidates does **not** change this. An
+        inferred period stays inferred however many of its candidates the
+        end-user steps past — the plugin is still the one that worked out what
+        the possibilities were, and picking one of them is not the same as
+        stating a period the tuning did not have. */
     enum class PeriodSource
     {
         inferred,
-        specified,
-        edited
+        specified
     };
 
     /** MIDI channels, one bit per channel, bit 0 being channel 1. A mask rather
@@ -114,11 +117,21 @@ namespace tuning
         double modDivisor = defaultModDivisor;
     };
 
-    /** The scale's period, in cents, and where that number came from. */
+    /** The scale's period, in cents, where that number came from, and — when it
+        was inferred — what else it could have been.
+
+        Inference rarely has one answer: any multiple of the repeating interval
+        is a period, so 12edo admits 100c, 200c, and so on past 1200c. The
+        plugin narrows that to a plausible set and the end-user picks from it;
+        `cents` is the one currently in force and should be one of the
+        candidates. A `specified` period needs no candidates — the tuning said
+        what it was — and an empty list means there is nothing to choose.
+    */
     struct Period
     {
         std::optional<double> cents;
         PeriodSource source = PeriodSource::inferred;
+        juce::Array<double> candidates;
     };
 }
 

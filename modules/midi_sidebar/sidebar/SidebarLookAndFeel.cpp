@@ -84,11 +84,18 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
 
 juce::Slider::SliderLayout SidebarLookAndFeel::getSliderLayout (juce::Slider& slider)
 {
+    // Only the vertical fader wants the treatment below. Everything else keeps
+    // JUCE's layout — which matters because this used to apply to every slider,
+    // and a slider that *does* want a text box, such as the period chooser's
+    // inc/dec box, would have had it thrown away and drawn nothing at all.
+    if (slider.getSliderStyle() != juce::Slider::LinearVertical)
+        return LookAndFeel_V4::getSliderLayout (slider);
+
     juce::Slider::SliderLayout layout;
 
     // The whole component, with no thumb indent: the fader must occupy exactly
-    // the rectangle the meter beside it occupies. We use NoTextBox throughout,
-    // so there is nothing else competing for the space.
+    // the rectangle the meter beside it occupies. The fader uses NoTextBox, so
+    // there is nothing else competing for the space.
     layout.sliderBounds = slider.getLocalBounds();
     layout.textBoxBounds = {};
 

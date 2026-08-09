@@ -24,10 +24,6 @@ namespace microtonos::sidebar
     callback. So the page can be built and looked at before any MIDI exists, and
     does not have to change when it does — the only state it keeps is what it
     would otherwise have to ask for back, such as which scheme is selected.
-
-    One exception, and it is deliberate: typing in the period field flips the
-    period's source to `edited` here rather than waiting for the owner to say
-    so. The end-user typed it; that is the whole of what `edited` means.
 */
 class TuningPage final : public juce::Component
 {
@@ -61,9 +57,9 @@ public:
     std::function<void (bool, tuning::ChannelMask)> onChannelsChanged;
     std::function<void (double)> onModDivisorChanged;
 
-    /** The period the end-user typed, in cents. The page has already set its
-        own source to `edited` by the time this is called. */
-    std::function<void (double)> onPeriodEdited;
+    /** The period the end-user stepped to, in cents — always one of the
+        candidates handed in by `setPeriod`, never a value they invented. */
+    std::function<void (double)> onPeriodChosen;
 
     std::function<void()> onScaleFileRequested;
     std::function<void()> onMappingFilesRequested;
@@ -102,11 +98,10 @@ private:
     void refreshInterval();
     void refreshPeriod();
 
-    /** Both editable fields commit on Return and on losing focus, and both
-        reject anything that is not a number, so neither can leave the page
-        showing something the plugin does not have. */
+    /** The modulo divisor commits on Return and on losing focus, and rejects
+        anything that is not a number, so it cannot leave the page showing
+        something the plugin does not have. */
     void applyModDivisor();
-    void applyPeriod();
 
     //==========================================================================
     tuning::Interval interval;
@@ -139,8 +134,11 @@ private:
     ReadOutField nameField { "Unnamed" };
     ReadOutField programField, bankField, updatedField;
 
-    //  Period section.
-    juce::TextEditor periodEditor;
+    //  Period section. The chooser steps through `choices` rather than holding
+    //  a number of its own, so the end-user can only ever land on a period the
+    //  plugin offered; its value is an index into that list.
+    juce::Slider periodChooser;
+    juce::Array<double> choices;
     ReadOutField periodSourceField;
 
     //  Settings section.

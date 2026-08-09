@@ -72,9 +72,12 @@ the full mechanism.
 
 ## Sample tuning values
 
-The demo also fills the [tuning page](tuning.md) with fixed values — the ones
-from that document's own sketch — so the page can be seen populated rather than
-empty. They are set once in `DemoEditor::showSampleTuning` and nothing changes
+The demo also fills the [tuning page](tuning.md) with fixed values, mostly the
+ones from that document's own sketch, so the page can be seen populated rather
+than empty. The period is the exception: it is given as *inferred* with the
+12edo candidates, 100c to 1500c, so that the chooser has something to step
+through — `specified` would show the duller half of that widget, one value with
+the buttons disabled. They are set once in `DemoEditor::showSampleTuning` and nothing changes
 them: there is no simulation behind the clock, and none of the page's callbacks
 are connected to anything yet.
 

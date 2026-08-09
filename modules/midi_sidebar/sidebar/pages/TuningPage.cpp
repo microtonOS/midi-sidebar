@@ -25,14 +25,9 @@ namespace
 
     juce::String sourceText (tuning::PeriodSource source)
     {
-        switch (source)
-        {
-            case tuning::PeriodSource::specified: return "specified";
-            case tuning::PeriodSource::edited:    return "edited";
-            case tuning::PeriodSource::inferred:  break;
-        }
-
-        return "inferred";
+        // Unchanged by the end-user stepping through candidates: an inferred
+        // period is still inferred whichever of them is in force.
+        return source == tuning::PeriodSource::specified ? "specified" : "inferred";
     }
 
     void prepareNumericEditor (juce::TextEditor& editor)
@@ -97,7 +92,7 @@ TuningPage::TuningPage()
              &intervalField, &modResultField, &nameField,
              &programField, &bankField, &updatedField, &periodSourceField,
              &schemeBox, &channelsButton, &scaleButton, &mapButton,
-             &updateStrip, &modEditor, &periodEditor })
+             &updateStrip, &modEditor, &periodChooser })
         addAndMakeVisible (*c);
 
     //  Interval ---------------------------------------------------------------
@@ -107,9 +102,35 @@ TuningPage::TuningPage()
     modEditor.onFocusLost  = [this] { applyModDivisor(); };
 
     //  Period -----------------------------------------------------------------
-    prepareNumericEditor (periodEditor);
-    periodEditor.onReturnKey = [this] { applyPeriod(); };
-    periodEditor.onFocusLost = [this] { applyPeriod(); };
+    // A number box stepping through the offered periods, not a free text field:
+    // inference gives a set of candidates — 12edo admits 100c, 200c, … past
+    // 1200c — and every one of them is a real answer, while anything between
+    // them is not. Inc/dec buttons over an index make the invalid values
+    // unreachable rather than merely rejected, so the read-out is read-only.
+    periodChooser.setSliderStyle (juce::Slider::IncDecButtons);
+    periodChooser.setTextBoxStyle (juce::Slider::TextBoxLeft, true,
+                                   metrics::periodTextBoxWidth, metrics::pageRowHeight);
+    periodChooser.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
+
+    periodChooser.textFromValueFunction = [this] (double value)
+    {
+        const auto index = juce::roundToInt (value);
+        return juce::isPositiveAndBelow (index, choices.size()) ? centsText (choices[index])
+                                                                : juce::String();
+    };
+
+    periodChooser.onValueChange = [this]
+    {
+        const auto index = juce::roundToInt (periodChooser.getValue());
+
+        if (! juce::isPositiveAndBelow (index, choices.size()))
+            return;
+
+        period.cents = choices[index];
+
+        if (onPeriodChosen != nullptr)
+            onPeriodChosen (choices[index]);
+    };
 
     //  Settings ---------------------------------------------------------------
     schemeBox.addItemList (schemeNames, 1);
@@ -178,8 +199,14 @@ void TuningPage::setPeriod (const tuning::Period& newPeriod)
 {
     period = newPeriod;
 
-    periodEditor.setText (period.cents.has_value() ? juce::String (*period.cents, 2) : juce::String(),
-                          juce::dontSendNotification);
+    // What the chooser may step through. A specified period is a single value
+    // with nothing to choose between, and so is an inferred one that came with
+    // no alternatives; either way the box still shows the number, it just
+    // cannot be moved off it.
+    choices = period.source == tuning::PeriodSource::inferred && ! period.candidates.isEmpty()
+                  ? period.candidates
+                  : (period.cents.has_value() ? juce::Array<double> { *period.cents }
+                                              : juce::Array<double>());
 
     refreshPeriod();
 }
@@ -234,7 +261,21 @@ void TuningPage::refreshInterval()
 
 void TuningPage::refreshPeriod()
 {
-    periodSourceField.setValue (sourceText (period.source));
+    periodSourceField.setValue (period.cents.has_value() ? sourceText (period.source)
+                                                         : juce::String());
+
+    // The slider indexes the list, so its range is the list's, and a list of
+    // one leaves nothing to step to.
+    periodChooser.setRange (0.0, juce::jmax (0, choices.size() - 1), 1.0);
+    periodChooser.setEnabled (choices.size() > 1);
+
+    const auto index = period.cents.has_value() ? choices.indexOf (*period.cents) : -1;
+
+    // dontSendNotification: this is the owner telling the page what the period
+    // is, so reporting it straight back through onPeriodChosen would be an echo
+    // — and, if the owner acted on it, a loop.
+    periodChooser.setValue (juce::jmax (0, index), juce::dontSendNotification);
+    periodChooser.updateText();
 }
 
 void TuningPage::applyModDivisor()
@@ -254,30 +295,6 @@ void TuningPage::applyModDivisor()
         onModDivisorChanged (typed);
 }
 
-void TuningPage::applyPeriod()
-{
-    const auto text = periodEditor.getText();
-
-    if (text.isEmpty())
-        return;
-
-    const auto typed = text.getDoubleValue();
-
-    if (period.cents.has_value()
-         && juce::exactlyEqual (*period.cents, typed)
-         && period.source == tuning::PeriodSource::edited)
-        return;
-
-    // The page sets this itself rather than waiting to be told: "edited" means
-    // the end-user typed it, and the end-user just did. Anything else that
-    // knows better pushes a new source in through setPeriod.
-    period.cents = typed;
-    period.source = tuning::PeriodSource::edited;
-    refreshPeriod();
-
-    if (onPeriodEdited != nullptr)
-        onPeriodEdited (typed);
-}
 
 void TuningPage::showChannelSelector()
 {
@@ -346,11 +363,8 @@ void TuningPage::lookAndFeelChanged()
     // the Light scheme's white field: the value is there, correct, and cannot
     // be read. Re-applying it here is the documented fix (see the note on
     // TextEditor::textColourId), and `true` makes later insertions use it too.
-    for (auto* editor : { &modEditor, &periodEditor })
-    {
-        editor->setFont (font);
-        editor->applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
-    }
+    modEditor.setFont (font);
+    modEditor.applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
 }
 
 //==============================================================================
@@ -468,7 +482,7 @@ void TuningPage::resized()
     {
         const auto row = addRow (metrics::pageRowHeight);
 
-        place (periodEditor,      row, 1, half);
+        place (periodChooser,     row, 1, half);
         place (periodSourceField, row, rightHalf, half);
     }
 

@@ -155,7 +155,17 @@ void DemoEditor::showSampleTuning()
     page.setInterval ({ 1902.98, tuning::defaultModDivisor });
 
     page.setStatus ({ "Pythagorean 12", 3, 1, juce::Time::getCurrentTime() });
-    page.setPeriod ({ 1200.0, tuning::PeriodSource::specified });
+
+    // An inferred period with alternatives, so the chooser has something to
+    // step through — the 12edo case from docs/tuning.md, where every multiple
+    // of the repeating interval is a period. `specified` would be the duller
+    // half of the widget: one value and the buttons disabled.
+    juce::Array<double> candidates;
+
+    for (auto cents = 100.0; cents <= 1500.0; cents += 100.0)
+        candidates.add (cents);
+
+    page.setPeriod ({ 1200.0, tuning::PeriodSource::inferred, candidates });
 }
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)

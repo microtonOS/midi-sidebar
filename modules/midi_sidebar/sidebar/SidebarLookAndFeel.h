@@ -170,6 +170,11 @@ namespace metrics
         from its edges. */
     inline constexpr int readOutPadding = 5;
 
+    /** The period chooser's read-out, left of its inc/dec buttons. Wide enough
+        for the longest value it can show — four digits, two decimals and the
+        unit, as in "1200.00 c" — since the buttons take whatever is left. */
+    inline constexpr int periodTextBoxWidth = 68;
+
     /** The channel selector's grid: a square-ish button per MIDI channel, and a
         column beside it wide enough for "deselect all". */
     inline constexpr int channelButton    = 26;
@@ -295,7 +300,10 @@ public:
         drawLinearSlider is called, so a fader laid out beside a meter of the
         same height comes out visibly shorter — 16 px shorter at the sizes used
         here — and no amount of custom drawing can recover it. Give the fader
-        its full bounds and clamp the thumb instead. */
+        its full bounds and clamp the thumb instead.
+
+        Applies to `LinearVertical` only. Everything else keeps JUCE's layout,
+        including its text box, which this would otherwise discard. */
     juce::Slider::SliderLayout getSliderLayout (juce::Slider&) override;
 
     /** Draws the fader to the same rectangle a meter bar occupies, so the pair
