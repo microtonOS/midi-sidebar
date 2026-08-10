@@ -24,9 +24,12 @@ namespace layout
         `contentWidthFor` below, which derives the minimum from them. */
     inline constexpr int defaultContentWidth = 460;
 
-    /** Default height sits well above the breakpoint so the sidebar opens with
-        the volume strip showing and a comfortable gap above it. */
-    inline constexpr int defaultHeight = 420;
+    /** Default height. Above the sidebar's own breakpoint, so it opens with the
+        volume strip showing — and above the tallest page's natural height, so
+        the demo does not open on a page that is already clipped. The tuning
+        page is the tall one; it grew past 420 when its program and bank became
+        stacked steppers. */
+    inline constexpr int defaultHeight = 460;
     inline constexpr int maxWidth      = 1600;
     inline constexpr int maxHeight     = 1200;
 

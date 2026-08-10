@@ -66,7 +66,7 @@ argument, so it is clipped to that component's bounds. Pass something with room
 — usually the editor. Passing the widget itself leaves a sliver of the bubble
 and its tail showing, which reads on screen as a stray `<`.
 
-### Four ways a slider comes out wrong
+### Six ways a slider comes out wrong
 
 **A vertical fader is shorter than a meter of the same height.**
 `LookAndFeel_V2::getSliderLayout` reduces a vertical slider's bounds by
@@ -74,6 +74,27 @@ and its tail showing, which reads on screen as a stray `<`.
 room to overhang. That happens *before* `drawLinearSlider` is called, so no
 amount of custom drawing recovers it. Override `getSliderLayout` to return the
 full bounds and clamp the thumb yourself.
+
+**Scope that override to the style it was written for.** A LookAndFeel is asked
+for the layout of *every* slider it serves, so a hand-built `SliderLayout` hands
+all the others whatever you left out of it — most visibly an empty
+`textBoxBounds`, which silently deletes their text boxes. Branch on
+`slider.getSliderStyle()` and give everything else to the base class:
+
+```cpp
+Slider::SliderLayout getSliderLayout (Slider& slider) override
+{
+    if (slider.getSliderStyle() != Slider::LinearVertical)
+        return LookAndFeel_V4::getSliderLayout (slider);
+
+    ...
+}
+```
+
+This one hides well. With a single slider on screen the override is correct, and
+it breaks on the day someone adds a second one somewhere else in the plugin —
+so the change that reveals the bug has nothing to do with the code that caused
+it.
 
 Note that the layout is cached; see the LookAndFeel caching trap in
 [design](design.md#colours).
@@ -97,6 +118,38 @@ own literal rectangle.
 entry — trips a `jassert` inside `NormalisableRange`, whose start must be below
 its end. A slider used as an index into a list needs a floor of one step that it
 simply cannot leave, with the control disabled to say so.
+
+**An inc/dec slider's internal boundary is not a grid line.** `IncDecButtons`
+reads as two things — a read-out and a pair of buttons — but it is one
+component, so the grid cannot place the join between them. It falls wherever the
+text box's width puts it, and that width is the only number you control:
+
+```cpp
+// juce_LookAndFeel_V2.cpp, getSliderLayout — TextBoxLeft
+textBoxWidth = jmax (0, jmin (slider.getTextBoxWidth(), width - minXSpace));
+layout.sliderBounds.removeFromLeft (textBoxWidth);   // the buttons take the rest
+```
+
+So the width passed to `setTextBoxStyle` *is* the position of that boundary,
+measured from the component's left edge. Aligning it with a column means solving
+for it rather than choosing it. Three things follow:
+
+- **The width is clamped**, to `width - 30` for a box at the left or right and
+  `height - 15` for one above or below. Ask for more and you quietly get less,
+  and the boundary is no longer where you said.
+- **The buttons take the leftover, so they have no fixed size.** The `−|+` seam
+  lands at `(width + textBoxWidth) / 2`, the middle of what remains, which means
+  one `textBoxWidth` used in two cells of different widths gives two visibly
+  different controls. Steppers that must match need cells that match.
+- **They flip from side by side to stacked on their own.**
+  `resizeIncDecButtons` decides by `buttonRect.getWidth() > buttonRect.getHeight()`,
+  so widening the text box inside a narrow cell turns the pair into a `+` above
+  a `−` with nothing said about it.
+
+Flexible tracks have no compile-time width, so the column being aimed at has to
+be measured on a rendered page. Name the resulting number in the look and feel
+file with a comment saying it was measured and how — otherwise the next reader
+takes it for a guess and rounds it.
 
 **The value bubble is invisible in a light theme.** This one is a JUCE bug, not
 a mistake at the call site, and it reproduces in JUCE's own DemoRunner — Widgets

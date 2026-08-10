@@ -123,6 +123,48 @@ the midpoint — and that is the notation telling you what the unit is. The
 rendered widths are a property of the tool the mockup was drawn in, and copying
 them is how a design that specified halves ends up with none.
 
+### Sizing the tracks
+
+A page has a **set of row heights and a set of column widths**, and both start
+with a single element: one height, one width, repeated across the page. Keeping
+them that small is what makes rows in different sections line up, and most of
+what looks accidental in a GUI is a track that was quietly given a size of its
+own.
+
+A one-element set goes further than it sounds, because variety comes from
+**spans** rather than from new sizes. A field covering half a row is three of
+the six equal columns, not a column of its own; a box two rows tall spans two of
+the one height. Neither enlarges either set.
+
+**Adding a second element to either set is the thing to ask about.** That
+judgement belongs to whoever is designing the page. Deviations are cheap to make
+and hard to notice afterwards, and a layout that has drifted into six row
+heights got there one reasonable-looking exception at a time. Exceptions are
+made during fine-tuning, deliberately and one at a time.
+
+**When one is warranted, the test is visual, not functional.** Cells holding
+widgets that *look* alike must be sized alike: the eye reads them as a set, and
+any difference between them reads as a mistake rather than as a distinction. A
+cell whose contents resemble nothing around it — a label between a button above
+and a stepper below — carries no such obligation. What the widgets *do* is not
+the test. Two controls with unrelated jobs still have to match if they look the
+same, and two controls doing related work need not match if they do not.
+
+**Say what belongs together by grouping it, not by sizing it.** That is what
+[`GroupComponent`](#grouping) is for, and a group need not be a titled frame — an
+untitled one, a rule, or simply more space around a block all say "these belong
+together" without disturbing a single track. Reaching for track sizes to express
+structure is what breaks the alignment the uniform grid was buying.
+
+**JUCE can size a track to its content, but it cannot measure a Component.**
+`TrackInfo()` — the default constructor — is an auto track, and `Grid` sizes it
+to the largest item placed in it. The size it uses is `GridItem::withHeight()`
+or `withWidth()`, a number you supplied: those default to `-1`, so an auto track
+holding ordinary items collapses to zero, and items spanning more than one track
+are skipped by auto sizing altogether. A JUCE component has no intrinsic content
+size the way a DOM element does, so "make this row as tall as its font needs"
+means computing that height yourself and handing it over.
+
 ### `juce::FlexBox` Class
 Represents a FlexBox container, which contains and manages the layout of a set of FlexItem objects.
 

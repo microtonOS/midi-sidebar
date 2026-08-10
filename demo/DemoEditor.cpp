@@ -20,6 +20,7 @@ DemoEditor::DemoEditor (DemoProcessor& p)
 
     showSampleTuning();
     showSampleControllers();
+    showSamplePresets();
 
     // The volume slider is not yet attached to the APVTS parameter: that is a
     // later step, and doing it now would need the sidebar to hand out its
@@ -155,6 +156,8 @@ void DemoEditor::showSampleTuning()
 
     page.setInterval ({ 1902.98, tuning::defaultModDivisor });
 
+    // A few tunings for the name menu, so it has something to open.
+    page.setAvailableNames ({ "Pythagorean 12", "Meantone 1/4", "Werckmeister III", "12edo" });
     page.setStatus ({ "Pythagorean 12", 3, 1, juce::Time::getCurrentTime() });
 
     // An inferred period with alternatives, so the chooser has something to
@@ -225,6 +228,25 @@ void DemoEditor::showSampleControllers()
     messages.add ({ "control", "16", "11", "98" });
 
     page.setMessages (messages);
+}
+
+void DemoEditor::showSamplePresets()
+{
+    auto& page = sidebar.getPresetsPage();
+
+    // The sketch's own numbers, and a comment long enough to need more than one
+    // line — which is the point of giving it the page's flexible row.
+    page.setFrequencies ({ 220.0, 440.0 });
+    page.setAvailableNames ({ "Jimmie Smith", "Gospel Chops", "Blue Note" });
+    page.setStatus ({ "Jimmie Smith", 1, {} });
+
+    page.setMeta ({ "Hank Aaslund",
+                    "Drawbar registration for gospel organ. "
+                    "Works best with the rotary on fast. CC-BY-SA 4.0." });
+
+    page.setIncludes ({ true, false });
+    page.setSplitActive (true);
+    page.setLayer (presets::Layer::lower);
 }
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)

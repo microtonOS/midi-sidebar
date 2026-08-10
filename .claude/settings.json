@@ -20,7 +20,9 @@
     ],
     "allow": [
       "Bash(.claude/skills/juce-ui/scripts/snapshot.sh:*)",
-      "Bash(python3 .claude/skills/juce-ui/scripts/layout_lint.py:*)"
+      "Bash(python3 .claude/skills/juce-ui/scripts/layout_lint.py:*)",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)"
     ]
   }
 }

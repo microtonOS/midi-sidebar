@@ -68,6 +68,7 @@ void Sidebar::setActivePage (Page newPage)
     panel.setVisible (activePage != Page::none);
     panel.showTuningPage (activePage == Page::tuning);
     panel.showControllersPage (activePage == Page::controllers);
+    panel.showPresetsPage (activePage == Page::presets);
     panel.setTitle ([this]() -> juce::String
     {
         switch (activePage)

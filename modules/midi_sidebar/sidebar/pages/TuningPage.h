@@ -6,7 +6,9 @@
 #include "../SidebarLookAndFeel.h"
 #include "../widgets/ChoiceButton.h"
 #include "../widgets/ChoiceStrip.h"
+#include "../widgets/NumberStepper.h"
 #include "../widgets/ReadOutField.h"
+#include "PageGrid.h"
 #include "TuningState.h"
 
 namespace microtonos::sidebar
@@ -39,6 +41,11 @@ public:
     void setStatus   (const tuning::Status& newStatus);
     void setPeriod   (const tuning::Period& newPeriod);
 
+    /** The tunings the name menu offers. The current one is added if it is not
+        among them, so the button always shows what is loaded even before
+        anything has supplied a list. */
+    void setAvailableNames (juce::StringArray names);
+
     void setScheme      (tuning::Scheme scheme);
     void setUpdateMode  (tuning::UpdateMode mode);
     void setChannels    (bool omniOn, tuning::ChannelMask mask);
@@ -52,6 +59,13 @@ public:
     //  Intent out. None of these change the page; the owner is expected to act
     //  and push the result back in, so that what is on screen is always what
     //  the plugin actually has.
+
+    /** The end-user picked another tuning from the name menu, or stepped the
+        program or bank. Nothing here changes the page: the owner acts and
+        pushes the result back through `setStatus`. */
+    std::function<void (int)> onNameChosen;
+    std::function<void (std::optional<int>)> onProgramChosen;
+    std::function<void (std::optional<int>)> onBankChosen;
 
     std::function<void (tuning::Scheme)>     onSchemeChanged;
     std::function<void (tuning::UpdateMode)> onUpdateModeChanged;
@@ -78,7 +92,8 @@ public:
         // Counted from the grid `resized` builds: nine rows of content, and for
         // each of the three groups a title band above its rows and a padding
         // track below them.
-        constexpr int contentRows = 9;      // interval, mod, name, program/bank,
+        constexpr int contentRows = 10;     // interval, mod, name, the program
+                                            // and bank labels, their steppers,
                                             // updated, period, scheme, and the
                                             // two rows the load buttons and the
                                             // update choices share
@@ -96,6 +111,7 @@ public:
 private:
     //==========================================================================
     void showChannelSelector();
+    void refreshNames();
     void refreshInterval();
     void refreshPeriod();
 
@@ -112,10 +128,12 @@ private:
     bool omni = false;
     tuning::ChannelMask channelMask = tuning::allChannels;
 
-    /** The labels naming a field beside it. Collected so that the one thing
-        they share — font, colour, alignment — is applied in a loop rather than
-        six times. */
+    /** The labels naming a field beside or above it. Collected so that the one
+        thing they share — font, colour, alignment — is applied in a loop rather
+        than six times. */
     juce::Label modLabel, equalsLabel, programLabel, bankLabel, updatedLabel;
+
+    juce::StringArray availableNames;
 
     //  Interval section.
     ReadOutField intervalField;
@@ -131,9 +149,13 @@ private:
         The interval and modulo at the top have no frame, as specified. */
     juce::GroupComponent statusGroup, periodGroup, settingsGroup;
 
-    //  Status section.
-    ReadOutField nameField { "Unnamed" };
-    ReadOutField programField, bankField, updatedField;
+    //  Status section. The name opens a menu of the tunings on offer; program
+    //  and bank are stepped rather than read, with their labels above them —
+    //  inc/dec buttons and a label side by side do not fit half a page.
+    ChoiceButton nameButton { "tuning name" };
+    NumberStepper programStepper { "program", metrics::highestProgram };
+    NumberStepper bankStepper { "bank", metrics::highestBank };
+    ReadOutField updatedField;
 
     //  Period section. The chooser steps through `choices` rather than holding
     //  a number of its own, so the end-user can only ever land on a period the

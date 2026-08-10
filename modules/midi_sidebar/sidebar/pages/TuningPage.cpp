@@ -4,10 +4,6 @@
 namespace microtonos::sidebar
 {
 
-using Track = juce::Grid::TrackInfo;
-using juce::Grid;
-using juce::GridItem;
-
 namespace
 {
     /** The scheme names, in the order docs/tuning.md lists them — which is the
@@ -88,9 +84,16 @@ TuningPage::TuningPage()
     addLabel (bankLabel,    "bank");
     addLabel (updatedLabel, "updated");
 
+    // JUCE's own labelling, for the two that sit above their control:
+    // attachToComponent positions the label directly over its owner and follows
+    // it, so these two are NOT placed in the page's grid — the grid places the
+    // steppers and reserves the row above, and the labels find it themselves.
+    programLabel.attachToComponent (&programStepper, false);
+    bankLabel   .attachToComponent (&bankStepper,    false);
+
     for (auto* c : std::initializer_list<juce::Component*> {
-             &intervalField, &modResultField, &nameField,
-             &programField, &bankField, &updatedField, &periodSourceField,
+             &intervalField, &modResultField, &nameButton,
+             &programStepper, &bankStepper, &updatedField, &periodSourceField,
              &schemeButton, &channelsButton, &scaleButton, &mapButton,
              &updateStrip, &modEditor, &periodChooser })
         addAndMakeVisible (*c);
@@ -109,7 +112,7 @@ TuningPage::TuningPage()
     // unreachable rather than merely rejected, so the read-out is read-only.
     periodChooser.setSliderStyle (juce::Slider::IncDecButtons);
     periodChooser.setTextBoxStyle (juce::Slider::TextBoxLeft, true,
-                                   metrics::periodTextBoxWidth, metrics::pageRowHeight);
+                                   metrics::incDecTextBoxWidth, metrics::pageRowHeight);
     periodChooser.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
 
     periodChooser.textFromValueFunction = [this] (double value)
@@ -130,6 +133,25 @@ TuningPage::TuningPage()
 
         if (onPeriodChosen != nullptr)
             onPeriodChosen (choices[index]);
+    };
+
+    //  Status -----------------------------------------------------------------
+    nameButton.onChoice = [this] (int index)
+    {
+        if (onNameChosen != nullptr)
+            onNameChosen (index);
+    };
+
+    programStepper.onNumberChosen = [this] (std::optional<int> program)
+    {
+        if (onProgramChosen != nullptr)
+            onProgramChosen (program);
+    };
+
+    bankStepper.onNumberChosen = [this] (std::optional<int> bank)
+    {
+        if (onBankChosen != nullptr)
+            onBankChosen (bank);
     };
 
     //  Settings ---------------------------------------------------------------
@@ -175,17 +197,20 @@ void TuningPage::setInterval (const tuning::Interval& newInterval)
     refreshInterval();
 }
 
+void TuningPage::setAvailableNames (juce::StringArray names)
+{
+    availableNames = std::move (names);
+    refreshNames();
+}
+
 void TuningPage::setStatus (const tuning::Status& newStatus)
 {
     status = newStatus;
 
-    // An empty name leaves the field showing its "Unnamed" placeholder, which
-    // is dimmed — so a tuning actually called "Unnamed" still looks different
-    // from one with no name at all.
-    nameField.setValue (status.name);
+    refreshNames();
 
-    programField.setValue (status.program.has_value() ? juce::String (*status.program) : juce::String());
-    bankField   .setValue (status.bank   .has_value() ? juce::String (*status.bank)    : juce::String());
+    programStepper.setNumber (status.program);
+    bankStepper   .setNumber (status.bank);
 
     // Seconds included and a 24-hour clock, as the sketch shows: under MTS ESP
     // this is re-stamped several times a second, and a clock whose smallest
@@ -193,6 +218,22 @@ void TuningPage::setStatus (const tuning::Status& newStatus)
     updatedField.setValue (status.updated.has_value()
                                ? status.updated->toString (false, true, true, true)
                                : juce::String());
+}
+
+void TuningPage::refreshNames()
+{
+    // The menu offers whatever it was given, plus the current tuning if that is
+    // not among them — otherwise the button would show nothing at all before
+    // anything has supplied a list, which is most of the time so far. An unnamed
+    // tuning falls back to the word the spec asks for.
+    auto items = availableNames;
+    const auto current = status.name.isNotEmpty() ? status.name : juce::String ("Unnamed");
+
+    if (! items.contains (current))
+        items.insert (0, current);
+
+    nameButton.setItems (items);
+    nameButton.setSelectedIndex (items.indexOf (current));
 }
 
 void TuningPage::setPeriod (const tuning::Period& newPeriod)
@@ -372,62 +413,10 @@ void TuningPage::lookAndFeelChanged()
 //==============================================================================
 void TuningPage::resized()
 {
-    // ONE grid for the whole page, on the six equal columns the sketch in
-    // docs/tuning.md is drawn on — see metrics::pageColumns. Every widget spans
-    // a whole number of them, so a row split in half really is halved, and
-    // things in different rows that begin at the same column line up because
-    // the layout holds them there.
-    //
-    // A grid per row cannot do this. It aligns only within its own row, and
-    // every alignment down the page then rests on fixed widths adding up to the
-    // same number by accident — which is how this page was first written, and
-    // the halves came out ragged.
-    Grid grid;
-
-    grid.columnGap = Grid::Px (metrics::pageColumnGap);
-    grid.rowGap    = Grid::Px (metrics::pageRowGap);
-
-    // A gutter, the six content columns, a gutter. The group frames span all
-    // eight; everything else spans only the six between them, which is what
-    // insets a group's contents from its own outline without taking them out of
-    // this grid.
-    grid.templateColumns.add (Track (Grid::Px (metrics::pageGroupPadding)));
-
-    for (int i = 0; i < metrics::pageColumns; ++i)
-        grid.templateColumns.add (Track (Grid::Fr (1)));
-
-    grid.templateColumns.add (Track (Grid::Px (metrics::pageGroupPadding)));
-
-    // Rows are numbered as they are declared rather than written out, so
-    // inserting one does not renumber everything below it. Grid lines are
-    // 1-based and a row's end line is the next row's start.
-    int nextRow = 1;
-
-    const auto addRow = [&grid, &nextRow] (int height)
-    {
-        grid.templateRows.add (Track (Grid::Px (height)));
-        return nextRow++;
-    };
-
-    /** @param firstColumn  1-based within the six *content* columns
-        @param columnSpan   how many of them to cover
-
-        The +1s step over the leading gutter, so callers count content columns
-        and never have to know the gutters are there. */
-    const auto place = [&grid] (juce::Component& component, int row, int firstColumn, int columnSpan)
-    {
-        grid.items.add (GridItem (component).withArea (row, firstColumn + 1,
-                                                       row + 1, firstColumn + columnSpan + 1));
-    };
-
-    /** Frames a section, from its title band down to the padding row below its
-        last row, and out to both gutters. */
-    const auto frame = [&grid] (juce::GroupComponent& group, int titleRow, int paddingRow)
-    {
-        grid.items.add (GridItem (group).withArea (titleRow, 1,
-                                                   paddingRow + 1,
-                                                   metrics::pageColumnsWithGutters + 1));
-    };
+    // One PageGrid for the whole page, on the six columns the sketch in
+    // docs/tuning.md is drawn on. See PageGrid for why it is one grid and not
+    // one per row, and why `place` counts content columns.
+    PageGrid grid;
 
     // Named spans, so a row says what it means: "the left half", "a label".
     constexpr auto full = metrics::pageColumns;
@@ -440,64 +429,66 @@ void TuningPage::resized()
     constexpr auto rightHalf = 1 + half;
 
     //  Interval ---------------------------------------------------------------
-    place (intervalField, addRow (metrics::pageRowHeight), 1, full);
+    grid.place (intervalField, grid.addRow (metrics::pageRowHeight), 1, full);
 
     {
         // mod | divisor | = | remainder, which puts the "=" on the half-way
         // line and the remainder in the right-hand third.
-        const auto row = addRow (metrics::pageRowHeight);
+        const auto row = grid.addRow (metrics::pageRowHeight);
 
-        place (modLabel,       row, 1, 1);
-        place (modEditor,      row, 2, half - 1);
-        place (equalsLabel,    row, rightHalf, 1);
-        place (modResultField, row, rightHalf + 1, half - 1);
+        grid.place (modLabel,       row, 1, 1);
+        grid.place (modEditor,      row, 2, half - 1);
+        grid.place (equalsLabel,    row, rightHalf, 1);
+        grid.place (modResultField, row, rightHalf + 1, half - 1);
     }
 
     //  Status -----------------------------------------------------------------
-    const auto statusTitle = addRow (metrics::pageGroupTitleHeight);
+    const auto statusTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
-    place (nameField, addRow (metrics::pageRowHeight), 1, full);
+    grid.place (nameButton, grid.addRow (metrics::pageRowHeight), 1, full);
 
     {
-        // Program takes the left half, bank the right, each a label and a
-        // narrow field.
-        const auto row = addRow (metrics::pageRowHeight);
+        // Labels above rather than beside: a stepper is a read-out plus two
+        // buttons, and with a label next to it none of the three has room in
+        // half a page. Stacked, each stepper gets the whole half.
+        const auto labelRow   = grid.addRow (metrics::pageRowHeight);
+        const auto stepperRow = grid.addRow (metrics::pageRowHeight);
 
-        place (programLabel, row, 1, pair);
-        place (programField, row, 1 + pair, half - pair);
-        place (bankLabel,    row, rightHalf, pair);
-        place (bankField,    row, rightHalf + pair, half - pair);
+        juce::ignoreUnused (labelRow);   // the attached labels place themselves
+
+        grid.place (programStepper, stepperRow, 1, half);
+        grid.place (bankStepper,    stepperRow, rightHalf, half);
     }
 
     {
-        const auto row = addRow (metrics::pageRowHeight);
+        const auto row = grid.addRow (metrics::pageRowHeight);
 
-        place (updatedLabel, row, 1, pair);
-        place (updatedField, row, 1 + pair, full - pair);
+        grid.place (updatedLabel, row, 1, pair);
+        grid.place (updatedField, row, 1 + pair, full - pair);
     }
 
-    frame (statusGroup, statusTitle, addRow (metrics::pageGroupPadding));
+    grid.frame (statusGroup, statusTitle, grid.addRow (metrics::pageGroupPadding));
 
     //  Period -----------------------------------------------------------------
-    const auto periodTitle = addRow (metrics::pageGroupTitleHeight);
+    const auto periodTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     {
-        const auto row = addRow (metrics::pageRowHeight);
+        const auto row = grid.addRow (metrics::pageRowHeight);
 
-        place (periodChooser,     row, 1, half);
-        place (periodSourceField, row, rightHalf, half);
+        grid.place (periodChooser,     row, 1, half);
+        grid.place (periodSourceField, row, rightHalf, half);
     }
 
-    frame (periodGroup, periodTitle, addRow (metrics::pageGroupPadding));
+    grid.frame (periodGroup, periodTitle, grid.addRow (metrics::pageGroupPadding));
 
     //  Settings ---------------------------------------------------------------
-    const auto settingsTitle = addRow (metrics::pageGroupTitleHeight);
+    const auto settingsTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     {
-        const auto row = addRow (metrics::pageRowHeight);
+        const auto row = grid.addRow (metrics::pageRowHeight);
 
-        place (schemeButton,   row, 1, half);
-        place (channelsButton, row, rightHalf, half);
+        grid.place (schemeButton,   row, 1, half);
+        grid.place (channelsButton, row, rightHalf, half);
     }
 
     {
@@ -507,19 +498,20 @@ void TuningPage::resized()
         // the same gap between its choices as there is between the rows, which
         // is what lands "note on" beside the scale button and "always" beside
         // the map button.
-        const auto firstRow  = addRow (metrics::pageRowHeight);
-        const auto secondRow = addRow (metrics::pageRowHeight);
+        const auto firstRow  = grid.addRow (metrics::pageRowHeight);
+        const auto secondRow = grid.addRow (metrics::pageRowHeight);
 
-        place (scaleButton, firstRow,  1, half);
-        place (mapButton,   secondRow, 1, half);
+        grid.place (scaleButton, firstRow,  1, half);
+        grid.place (mapButton,   secondRow, 1, half);
 
-        grid.items.add (GridItem (updateStrip).withArea (firstRow, rightHalf + 1,
-                                                         secondRow + 1, rightHalf + half + 1));
+        grid.placeSpanning (updateStrip, firstRow, secondRow, rightHalf, half);
     }
 
-    frame (settingsGroup, settingsTitle, addRow (metrics::pageGroupPadding));
+    grid.frame (settingsGroup, settingsTitle, grid.addRow (metrics::pageGroupPadding));
 
-    grid.performLayout (getLocalBounds());
+    // The page has no flexible track, so it needs its natural height or it is
+    // clipped; see docs/tuning.md on small heights.
+    grid.performLayout (getLocalBounds(), getNaturalHeight());
 }
 
 } // namespace microtonos::sidebar

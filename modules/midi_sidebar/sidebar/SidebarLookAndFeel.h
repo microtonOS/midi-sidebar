@@ -139,6 +139,12 @@ namespace metrics
         the same row positions twice. */
     inline constexpr int pageColumnsWithGutters = pageColumns + 2;
 
+    /** A third of a row. The presets page's split/lower/upper row is drawn on
+        thirds in docs/presets.md, and six columns divide into them exactly.
+        Numerically the same as `pageLabelColumns` today, and named separately
+        because the two mean different things and either could move. */
+    inline constexpr int pageThirdColumns = pageColumns / 3;
+
     /** How many of those columns a field's name takes, leaving the rest of the
         row for the field itself. Every labelled row on a page uses it, which is
         what puts `program`, `updated`, `scale`, `map` and `update` in one
@@ -164,10 +170,32 @@ namespace metrics
         from its edges. */
     inline constexpr int readOutPadding = 5;
 
-    /** The period chooser's read-out, left of its inc/dec buttons. Wide enough
-        for the longest value it can show — four digits, two decimals and the
-        unit, as in "1200.00 c" — since the buttons take whatever is left. */
-    inline constexpr int periodTextBoxWidth = 68;
+    /** The read-out of any inc/dec control, left of its buttons.
+
+        One number for all of them, because the buttons take whatever the
+        read-out does not — so a second value here would give the period chooser
+        and the program stepper visibly different buttons in the same panel.
+
+        Chosen so the seam between the read-out and the buttons lands on the
+        **third content column**, which is where every field below it starts:
+        `updated` on the tuning page, `author` and `comment` on presets. An
+        inc/dec control is one component, so that seam is not a grid line and
+        cannot be placed by the grid — it has to be arranged from this end. At
+        68 it fell at x=84 against the column's 89, and five pixels of
+        disagreement down a narrow panel is visible.
+
+        Measured rather than derived: the six columns are flexible tracks, so
+        their width is not a compile-time number. If a column measurement moves,
+        re-measure with `--list-components` — the seam is where the `-` button
+        begins. */
+    inline constexpr int incDecTextBoxWidth = 73;
+
+    /** The largest program and bank a stepper offers. Programs are 1..128 in
+        MIDI; banks are addressed by two 7-bit controllers, but nothing here has
+        a use for more than 128 of them either, and a stepper is the wrong
+        control for stepping through sixteen thousand. */
+    inline constexpr int highestProgram = 128;
+    inline constexpr int highestBank    = 128;
 
     //==========================================================================
     //  Tables. Both of the controllers page's tables use these, so the monitor
@@ -225,6 +253,15 @@ namespace metrics
         pushed it visibly to the right. */
     inline constexpr int monitorNoteWidth  = monitorChanWidth;
     inline constexpr int monitorValueWidth = 78;
+
+    /** Rows of text the comment box must be able to show before the presets
+        page has to give up any more height.
+
+        Only what it falls back to when the panel is short: it is the page's
+        flexible row, so at the default size it takes whatever the fixed rows
+        leave, which is more than this. Kept low deliberately, since it is what
+        sets the page's minimum height. */
+    inline constexpr int commentMinimumRows = 2;
 
     /** Rows the editing table must be able to show before the page has to give
         up any more height. The table is the page's flexible track, so this is

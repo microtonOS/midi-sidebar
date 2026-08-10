@@ -5,6 +5,7 @@
 #include "../SidebarLookAndFeel.h"
 #include "ControllersState.h"
 #include "ControllersTable.h"
+#include "PageGrid.h"
 
 namespace microtonos::sidebar
 {

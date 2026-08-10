@@ -91,6 +91,7 @@ public:
         the same API to keep in step. */
     TuningPage&      getTuningPage()      noexcept { return panel.getTuningPage(); }
     ControllersPage& getControllersPage() noexcept { return panel.getControllersPage(); }
+    PresetsPage&     getPresetsPage()     noexcept { return panel.getPresetsPage(); }
 
     //==========================================================================
     void paint (juce::Graphics& g) override;

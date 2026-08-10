@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "SidebarLookAndFeel.h"
 #include "pages/ControllersPage.h"
+#include "pages/PresetsPage.h"
 #include "pages/TuningPage.h"
 
 namespace microtonos::sidebar
@@ -15,7 +16,7 @@ namespace microtonos::sidebar
     is showing the rest of its bounds. It owns the pages rather than the sidebar
     doing so, because the panel is what knows how much room there is.
 
-    The presets page is not built yet, so selecting it leaves the track empty.
+    All three pages live in the same track; only one is visible at a time.
 */
 class SidebarPanel final : public juce::Component
 {
@@ -38,6 +39,7 @@ public:
         title.setBorderSize ({});
         addAndMakeVisible (title);
 
+        addChildComponent (presetsPage);
         addChildComponent (controllersPage);
         addChildComponent (tuningPage);
     }
@@ -47,13 +49,14 @@ public:
         title.setText (newTitle, juce::dontSendNotification);
     }
 
-    /** Shows one page and hides the others. Presets has no component yet, so
-        selecting it leaves the area blank. */
+    /** Shows one page and hides the others. */
     void showTuningPage (bool shouldShow)      { tuningPage.setVisible (shouldShow); }
     void showControllersPage (bool shouldShow) { controllersPage.setVisible (shouldShow); }
+    void showPresetsPage (bool shouldShow)     { presetsPage.setVisible (shouldShow); }
 
     TuningPage&      getTuningPage()      noexcept { return tuningPage; }
     ControllersPage& getControllersPage() noexcept { return controllersPage; }
+    PresetsPage&     getPresetsPage()     noexcept { return presetsPage; }
 
     void paint (juce::Graphics& g) override
     {
@@ -91,7 +94,8 @@ public:
         grid.items = { juce::GridItem (title).withArea (1, 1, 2, 2)
                            .withMargin ({ 0.0f, 0.0f, 0.0f, (float) metrics::pageContentIndent }),
                        juce::GridItem (tuningPage)     .withArea (pageRow, 1, pageRow + 1, 2),
-                       juce::GridItem (controllersPage).withArea (pageRow, 1, pageRow + 1, 2) };
+                       juce::GridItem (controllersPage).withArea (pageRow, 1, pageRow + 1, 2),
+                       juce::GridItem (presetsPage)    .withArea (pageRow, 1, pageRow + 1, 2) };
 
         grid.performLayout (getLocalBounds().reduced (metrics::railPadding));
     }
@@ -104,6 +108,7 @@ private:
     juce::Label title;
     TuningPage tuningPage;
     ControllersPage controllersPage;
+    PresetsPage presetsPage;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SidebarPanel)
 };

@@ -3,9 +3,6 @@
 namespace microtonos::sidebar
 {
 
-using Track = juce::Grid::TrackInfo;
-using juce::Grid;
-using juce::GridItem;
 using namespace controllers;
 
 //==============================================================================
@@ -176,85 +173,46 @@ void ControllersPage::lookAndFeelChanged()
 //==============================================================================
 void ControllersPage::resized()
 {
-    // The same six columns and gutters as the tuning page, so the two read as
-    // one plugin; see metrics::pageColumns for why the page is a single grid.
-    Grid grid;
-
-    grid.columnGap = Grid::Px (metrics::pageColumnGap);
-    grid.rowGap    = Grid::Px (metrics::pageRowGap);
-
-    grid.templateColumns.add (Track (Grid::Px (metrics::pageGroupPadding)));
-
-    for (int i = 0; i < metrics::pageColumns; ++i)
-        grid.templateColumns.add (Track (Grid::Fr (1)));
-
-    grid.templateColumns.add (Track (Grid::Px (metrics::pageGroupPadding)));
-
-    int nextRow = 1;
-
-    const auto addRow = [&grid, &nextRow] (Track track)
-    {
-        grid.templateRows.add (track);
-        return nextRow++;
-    };
-
-    const auto fixedRow = [&addRow] (int height) { return addRow (Track (Grid::Px (height))); };
-
-    const auto place = [&grid] (juce::Component& c, int row, int firstColumn, int columnSpan)
-    {
-        grid.items.add (GridItem (c).withArea (row, firstColumn + 1,
-                                               row + 1, firstColumn + columnSpan + 1));
-    };
-
-    const auto frame = [&grid] (juce::GroupComponent& group, int titleRow, int paddingRow)
-    {
-        grid.items.add (GridItem (group).withArea (titleRow, 1,
-                                                   paddingRow + 1,
-                                                   metrics::pageColumnsWithGutters + 1));
-    };
+    // The same six columns as the other pages, so all three read as one plugin;
+    // see PageGrid.
+    PageGrid grid;
 
     constexpr auto full = metrics::pageColumns;
     constexpr auto half = metrics::pageColumns / 2;
     constexpr auto rightHalf = 1 + half;
 
     //  Monitor, unframed at the top like the tuning page's interval block.
-    place (*monitor, fixedRow (monitorHeight()), 1, full);
+    grid.place (*monitor, grid.addRow (monitorHeight()), 1, full);
 
     //  Files ------------------------------------------------------------------
-    const auto filesTitle = fixedRow (metrics::pageGroupTitleHeight);
+    const auto filesTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     {
-        const auto row = fixedRow (metrics::pageRowHeight);
+        const auto row = grid.addRow (metrics::pageRowHeight);
 
-        place (loadButton, row, 1, half);
-        place (saveButton, row, rightHalf, half);
+        grid.place (loadButton, row, 1, half);
+        grid.place (saveButton, row, rightHalf, half);
     }
 
-    frame (filesGroup, filesTitle, fixedRow (metrics::pageGroupPadding));
+    grid.frame (filesGroup, filesTitle, grid.addRow (metrics::pageGroupPadding));
 
     //  Editing ----------------------------------------------------------------
-    const auto editingTitle = fixedRow (metrics::pageGroupTitleHeight);
+    const auto editingTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     // The one flexible track on the page: the table takes whatever height is
     // left, which is what lets the page fit a short panel and fill a tall one.
-    place (table, addRow (Track (Grid::Fr (1))), 1, full);
+    grid.place (table, grid.addFlexibleRow(), 1, full);
 
     {
-        const auto row = fixedRow (metrics::pageRowHeight);
+        const auto row = grid.addRow (metrics::pageRowHeight);
 
-        place (addButton,    row, 1, half);
-        place (removeButton, row, rightHalf, half);
+        grid.place (addButton,    row, 1, half);
+        grid.place (removeButton, row, rightHalf, half);
     }
 
-    frame (editingGroup, editingTitle, fixedRow (metrics::pageGroupPadding));
+    grid.frame (editingGroup, editingTitle, grid.addRow (metrics::pageGroupPadding));
 
-    // Never laid out shorter than the page's own minimum. Below it the flexible
-    // track would have to take a negative height, and a `Grid` answers that by
-    // pulling the rows *after* it upwards — so `add` and `remove` land on top of
-    // the FILES frame and the EDITING title is drawn over the buttons above it.
-    // Clipped at the bottom is the honest failure and matches the tuning page;
-    // what to do about it for real is the open item in TODO.md.
-    grid.performLayout (getLocalBounds().withHeight (juce::jmax (getHeight(), getMinimumHeight())));
+    grid.performLayout (getLocalBounds(), getMinimumHeight());
 }
 
 } // namespace microtonos::sidebar
