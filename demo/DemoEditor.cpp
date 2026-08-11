@@ -6,14 +6,26 @@ namespace microtonos::sidebar::demo
 
 //==============================================================================
 DemoEditor::DemoEditor (DemoProcessor& p)
-    : juce::AudioProcessorEditor (&p), processor (p)
+    : juce::AudioProcessorEditor (&p), processor (p), content (p.apvts)
 {
     setLookAndFeel (&lookAndFeel);
 
-    // Controls first so the sidebar is added later and therefore draws on top
-    // of them, which is what an overlaying sidebar needs.
-    addAndMakeVisible (controls);
+    // Content first so the sidebar is added later and therefore draws on top
+    // of it, which is what an overlaying sidebar needs.
+    addAndMakeVisible (content);
     addAndMakeVisible (sidebar);
+
+    // Every synth knob and switch gets the parameter menu, by the index it was
+    // built from — which is the index the sidebar's parameter list uses and the
+    // one a mapping stores. This is the whole point of the synth panel: the
+    // developer settings in the other tab are not parameters anyone would
+    // assign a controller to.
+    content.getSynthPanel().attachMenu (parameterMenu);
+
+    // Left unconnected on purpose. Assigning the next controller to arrive
+    // needs a controller to arrive, and nothing here reads MIDI yet; the rule
+    // for what to do when it does is in docs/right-click.md.
+    parameterMenu.onMidiLearnRequested = [] (int) {};
 
     sidebar.onPreferredWidthChanged = [this] { layOutSidebar (true); };
     sidebar.onPanic = [] { /* CC120 goes here once the processor sends MIDI. */ };
@@ -47,10 +59,10 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     // The two developer settings, bound the same way. Their initial update is
     // what puts the sidebar on the saved edge and the saved theme on screen,
     // so neither is applied twice — once here and once from a default.
-    themeAttachment = attachChoice ("theme", controls.getThemeStrip(),
+    themeAttachment = attachChoice ("theme", content.getControls().getThemeStrip(),
                                     [this] (int index) { applyTheme (index); });
 
-    edgeAttachment = attachChoice ("edge", controls.getEdgeStrip(),
+    edgeAttachment = attachChoice ("edge", content.getControls().getEdgeStrip(),
                                    [this] (int index)
                                    {
                                        sidebar.setEdge (settings::edgeFor (index));
@@ -63,8 +75,27 @@ DemoEditor::DemoEditor (DemoProcessor& p)
                                        layOutSidebar (false);
                                    });
 
-    bubbleTextAttachment = attachChoice ("bubbleText", controls.getBubbleTextStrip(),
+    bubbleTextAttachment = attachChoice ("bubbleText", content.getControls().getBubbleTextStrip(),
                                          [this] (int index) { applyBubbleTextColour (index); });
+
+    // The open tab, mirrored both ways like the sidebar's page. Not through
+    // `attachChoice`, which binds a ChoiceStrip; a tab bar is its own kind of
+    // control.
+    if (auto* viewParam = processor.apvts.getParameter ("view"))
+    {
+        viewAttachment = std::make_unique<juce::ParameterAttachment> (
+            *viewParam,
+            [this] (float value) { content.setView (juce::roundToInt (value)); },
+            nullptr);
+
+        content.onViewChanged = [this] (int index)
+        {
+            if (viewAttachment != nullptr)
+                viewAttachment->setValueAsCompleteGesture ((float) index);
+        };
+
+        viewAttachment->sendInitialUpdate();
+    }
 
     // Minimum size is derived, not chosen: the sidebar reports the height below
     // which its rail cannot be drawn, and the content area is as narrow as the
@@ -176,50 +207,47 @@ void DemoEditor::showSampleControllers()
 {
     auto& page = sidebar.getControllersPage();
 
-    // Two parameters with different units, so the editing table's limits can be
-    // seen relabelling themselves when a row is pointed at the other one.
-    // Built up rather than braced: juce::Array cannot deduce an element type
-    // from a braced initialiser, so each one is added explicitly.
-    juce::Array<controllers::Parameter> parameters;
+    // The stand-in plugin's own parameters, from the one list that also
+    // declares them and builds their widgets — so an index here, an index in
+    // the panel and the index a mapping stores are the same number. They carry
+    // different units, which is what lets the editing table's limits be seen
+    // relabelling themselves when a row is pointed at another parameter.
+    page.setParameters (synth::parametersForSidebar());
 
-    parameters.add ({ "swell",   "%" });
-    parameters.add ({ "rotary",  {} });
-    parameters.add ({ "vibrato", {} });
+    // Figure 2 of docs/controllers.md, keeping its shape — one omni-off CC pair,
+    // one channel-specific CC, one polytouch row — with the synth's parameters
+    // in place of the clonewheel names the sketch still uses. The second one's
+    // LSB is left empty, which its `toggle` mode ignores anyway.
+    controllers::Mapping cutoff;
+    cutoff.parameterIndex = synth::Index::cutoff;
+    cutoff.channel = controllers::omniOffChannel;
+    cutoff.msb = 11;
+    cutoff.lsb = 43;
+    cutoff.mode = controllers::Mode::jump;
+    cutoff.min = 200.0;
+    cutoff.max = 8000.0;
 
-    page.setParameters (parameters);
-
-    // The three mappings from Figure 2 of docs/controllers.md, including the
-    // second one's empty LSB — which its `toggle` mode ignores anyway.
-    controllers::Mapping swell;
-    swell.parameterIndex = 0;
-    swell.channel = controllers::omniOffChannel;
-    swell.msb = 11;
-    swell.lsb = 43;
-    swell.mode = controllers::Mode::jump;
-    swell.min = 10.0;
-    swell.max = 100.0;
-
-    controllers::Mapping rotary;
-    rotary.parameterIndex = 1;
-    rotary.channel = 15;
-    rotary.msb = 64;
-    rotary.mode = controllers::Mode::toggle;
-    rotary.min = 1.0;
-    rotary.max = 3.0;
+    controllers::Mapping resonance;
+    resonance.parameterIndex = synth::Index::resonance;
+    resonance.channel = 15;
+    resonance.msb = 64;
+    resonance.mode = controllers::Mode::toggle;
+    resonance.min = 1.0;
+    resonance.max = 3.0;
 
     // Figure 2's third row. A polytouch mapping, which is what shows the word
-    // drawn across the two controller-number columns — and, being a second
+    // drawn across the two controller-number columns — and, being a third
     // mapping that sorts differently from the first two, it is also what keeps
     // the sort toggle from looking broken when it is merely unexercised.
     controllers::Mapping vibrato;
-    vibrato.parameterIndex = 2;
+    vibrato.parameterIndex = synth::Index::pitchLfoDepth;
     vibrato.channel = 15;
     vibrato.source = controllers::Source::polytouch;
     vibrato.mode = controllers::Mode::toggle;
     vibrato.min = 1.0;
     vibrato.max = 3.0;
 
-    page.setMappings ({ swell, rotary, vibrato });
+    page.setMappings ({ cutoff, resonance, vibrato });
 
     // Figure 1's line, as one string. The page does not compose these — see the
     // note in ControllersState.h — so the phrasing is the *host's*, and this is
@@ -316,11 +344,11 @@ void DemoEditor::layOutSidebar (bool animated)
     // other people drop into their own plugin: their layout does not have to
     // respond to this one. Only the rail is permanently reserved, so nothing of
     // theirs is hidden while the sidebar is collapsed.
-    auto content = getLocalBounds();
-    content = onLeft ? content.withTrimmedLeft (Sidebar::getRailWidth())
-                     : content.withTrimmedRight (Sidebar::getRailWidth());
+    auto hostArea = getLocalBounds();
+    hostArea = onLeft ? hostArea.withTrimmedLeft (Sidebar::getRailWidth())
+                      : hostArea.withTrimmedRight (Sidebar::getRailWidth());
 
-    controls.setBounds (content.reduced (layout::placeholderInset));
+    content.setBounds (hostArea.reduced (layout::placeholderInset));
 
     auto bounds = getLocalBounds();
     const auto width = sidebar.getPreferredWidth();

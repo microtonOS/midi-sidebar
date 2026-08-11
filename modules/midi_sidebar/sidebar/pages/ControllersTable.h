@@ -47,9 +47,20 @@ public:
     /** The parameters a mapping may target, named and given a unit by the
         developer. Rebuilding this re-labels every row. */
     void setParameters (juce::Array<controllers::Parameter> newParameters);
+    const juce::Array<controllers::Parameter>& getParameters() const noexcept { return parameters; }
 
     void setMappings (juce::Array<controllers::Mapping> newMappings);
     const juce::Array<controllers::Mapping>& getMappings() const noexcept { return mappings; }
+
+    /** Selects every row mapped to `parameterIndex` and scrolls the first into
+        view, which is what the right-click menu's "view in sidebar" does. */
+    void selectMappingsFor (int parameterIndex);
+
+    /** Removes the most recently added mapping for `parameterIndex`, or does
+        nothing if it has none. "Latest" is by insertion, not by what is on top:
+        the display order is a view, and unlearning should undo the last thing
+        that was learned however the table happens to be sorted. */
+    void removeLatestMappingFor (int parameterIndex);
 
     /** How the rows are ordered. The mappings themselves are always held in the
         order they were added; this only decides how they are shown. */

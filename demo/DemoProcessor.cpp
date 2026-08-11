@@ -1,6 +1,7 @@
 #include "DemoProcessor.h"
 #include "DemoEditor.h"
 #include "DemoSettings.h"
+#include "DemoSynth.h"
 
 namespace microtonos::sidebar::demo
 {
@@ -12,6 +13,7 @@ namespace ids
     const juce::String theme      { "theme" };
     const juce::String edge       { "edge" };
     const juce::String bubbleText { "bubbleText" };
+    const juce::String view       { "view" };
 }
 
 //==============================================================================
@@ -75,6 +77,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout DemoProcessor::createParamet
         "Bubble text",
         settings::bubbleTextNames,
         0));
+
+    // Which of the two things the host's area shows. A parameter for the same
+    // reason as the page: `--param view=Synth` renders the synth panel without
+    // anyone having to click a tab.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ids::view, 1 },
+        "View",
+        settings::viewNames,
+        0));
+
+    // The stand-in plugin's own parameters — the ones the right-click menu maps
+    // to controllers. Declared from `synth::controls()`, so the parameter, the
+    // widget and the index a mapping stores all come from one list. Nothing
+    // reads them on the audio thread: this plugin makes no sound. See
+    // docs/demo.md.
+    synth::addParametersTo (layout);
 
     return layout;
 }

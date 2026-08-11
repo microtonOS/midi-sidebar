@@ -241,6 +241,16 @@ namespace metrics
         and no wider. */
     inline constexpr int tableTextPadding = 16;
 
+    //==========================================================================
+    /** Width of the right-click menu's `info` text.
+
+        A menu is normally as wide as its widest item, which for a sentence
+        would be the whole screen — so the one item that wraps has to be told
+        how wide to be. Chosen for reading rather than for the menu: a line of
+        prose is comfortable at roughly this many characters, and a submenu
+        wider than the panel it explains looks like a mistake. */
+    inline constexpr int menuInfoWidth = 240;
+
     /** Rows of text the comment box must be able to show before the presets
         page has to give up any more height.
 

@@ -87,6 +87,41 @@ namespace layout
     inline constexpr int choiceButtonMinWidth = 64;
     inline constexpr int choiceButtonMaxWidth = 96;
 
+    //==========================================================================
+    //  The synth panel — the demo's stand-in for a host plugin's own UI, and
+    //  the thing the right-click menu is demonstrated on.
+
+    /** Depth of the tab bar over the two views. JUCE's default is 30, which is
+        what the DemoRunner and the Widgets demo both leave it at; named here
+        because the content below it is laid out around it. */
+    inline constexpr int tabBarDepth = 30;
+
+    /** A knob's cell.
+
+        **Fixed, not whatever the cell gives it.** A rotary slider's drawn radius
+        is `jmin (width, height)` of what is left over, so two cells of equal
+        *area* but different aspect ratio produce visibly different knobs. The
+        fix belongs in the layout, never at the widget — see the juce-ui skill's
+        Sliders reference. */
+    inline constexpr int knobSize = 62;
+
+    /** The name above a knob. One line, because inside a group titled FILTER a
+        knob only has to say "cutoff" — the group carries the rest of the name,
+        which is most of what grouping is for. */
+    inline constexpr int knobLabelHeight = 18;
+
+    inline constexpr int knobCellHeight = knobLabelHeight + knobSize;
+
+    /** The column holding a group's mode switch — the waveform, the LFO target.
+        One width for both, so the two switches line up down the left of the
+        panel rather than each being as wide as its own longest word. */
+    inline constexpr int switchColumnWidth = 88;
+
+    /** One button of a vertical switch. Fixed, so that a three-choice switch and
+        a two-choice one have buttons the same size instead of each dividing
+        whatever height its group happens to have. */
+    inline constexpr int switchButtonHeight = 28;
+
     /** Width of a row of `choiceCount` choices with buttons of `buttonWidth`. */
     constexpr int controlsWidthFor (int choiceCount, int buttonWidth) noexcept
     {

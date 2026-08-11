@@ -60,5 +60,6 @@ Five steps from empty folder to distributable plugin. Do each step in order; ski
 | Not resetting state on `prepareToPlay` re-entry | Always reset unconditionally |
 | Storing editor pointer in processor | Use `createEditor()` factory; processor owns no editor reference |
 | Missing `JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR` | Add to every `AudioProcessor` and `AudioProcessorEditor` subclass |
+| A `juce::String` or `StringArray` table at namespace scope | Return it from a function holding a `static` local — a namespace-scope one is built during static initialisation and can crash before `main`, showing only JUCE's version banner |
 
 Use the `juce-review` skill to audit finished processor code for thread-safety violations.

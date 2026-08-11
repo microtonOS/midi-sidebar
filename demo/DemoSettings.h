@@ -58,6 +58,18 @@ namespace settings
     }
 
     //==========================================================================
+    /** Which of the two things the host's area shows: the developer settings, or
+        the stand-in plugin whose knobs the right-click menu is demonstrated on.
+
+        A parameter like the rest, for the same three reasons — it survives the
+        editor closing, a host can automate it, and the snapshot tool can render
+        either view with `--param view=Synth` rather than clicking a tab. */
+    inline const juce::StringArray viewNames { "Settings", "Synth" };
+
+    inline constexpr int settingsView = 0;
+    inline constexpr int synthView    = 1;
+
+    //==========================================================================
     /** Text colour for slider value bubbles, working around a JUCE bug.
 
         A bubble takes its background from `BubbleComponent::backgroundColourId`

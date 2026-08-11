@@ -3,7 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <midi_sidebar/midi_sidebar.h>
 
-#include "DemoControls.h"
+#include "DemoContent.h"
 #include "DemoProcessor.h"
 #include "DemoStyle.h"
 
@@ -57,8 +57,14 @@ private:
     DemoProcessor& processor;
 
     SidebarLookAndFeel lookAndFeel;
-    DemoControls controls;
+    DemoContent content;
     Sidebar sidebar;
+
+    /** The right-click menu on the synth panel's widgets. Declared after the
+        sidebar because it holds a reference to it, and it is what a real plugin
+        would own too: one of these beside the sidebar, attached to whichever of
+        its own widgets stand for parameters. */
+    ParameterMenu parameterMenu { sidebar };
 
     // Must outlive the editor: setConstrainer keeps a pointer and does not take
     // ownership, so a local would dangle.
@@ -68,6 +74,7 @@ private:
     std::unique_ptr<juce::ParameterAttachment> themeAttachment;
     std::unique_ptr<juce::ParameterAttachment> edgeAttachment;
     std::unique_ptr<juce::ParameterAttachment> bubbleTextAttachment;
+    std::unique_ptr<juce::ParameterAttachment> viewAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DemoEditor)
 };

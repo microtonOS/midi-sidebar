@@ -191,9 +191,24 @@ void ControllersPage::setMappings (juce::Array<controllers::Mapping> mappings)
     table.setMappings (std::move (mappings));
 }
 
+const juce::Array<controllers::Parameter>& ControllersPage::getParameters() const noexcept
+{
+    return table.getParameters();
+}
+
 const juce::Array<controllers::Mapping>& ControllersPage::getMappings() const noexcept
 {
     return table.getMappings();
+}
+
+void ControllersPage::showMappingsFor (int parameterIndex)
+{
+    table.selectMappingsFor (parameterIndex);
+}
+
+void ControllersPage::removeLatestMappingFor (int parameterIndex)
+{
+    table.removeLatestMappingFor (parameterIndex);
 }
 
 void ControllersPage::setMessage (const juce::String& message)
@@ -252,18 +267,6 @@ void ControllersPage::resized()
         grid.place (pitchBendEditor, row, rightHalf, half);
     }
 
-    //  Files ------------------------------------------------------------------
-    const auto filesTitle = grid.addRow (metrics::pageGroupTitleHeight);
-
-    {
-        const auto row = grid.addRow (metrics::pageRowHeight);
-
-        grid.place (loadButton, row, 1, half);
-        grid.place (saveButton, row, rightHalf, half);
-    }
-
-    grid.frame (filesGroup, filesTitle, grid.addRow (metrics::pageGroupPadding));
-
     //  MPE --------------------------------------------------------------------
     const auto mpeTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
@@ -289,6 +292,18 @@ void ControllersPage::resized()
     }
 
     grid.frame (mpeGroup, mpeTitle, grid.addRow (metrics::pageGroupPadding));
+
+    //  Files ------------------------------------------------------------------
+    const auto filesTitle = grid.addRow (metrics::pageGroupTitleHeight);
+
+    {
+        const auto row = grid.addRow (metrics::pageRowHeight);
+
+        grid.place (loadButton, row, 1, half);
+        grid.place (saveButton, row, rightHalf, half);
+    }
+
+    grid.frame (filesGroup, filesTitle, grid.addRow (metrics::pageGroupPadding));
 
     //  Editing ----------------------------------------------------------------
     const auto editingTitle = grid.addRow (metrics::pageGroupTitleHeight);

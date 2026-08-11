@@ -10,14 +10,12 @@ namespace microtonos::sidebar::demo
 {
 
 //==============================================================================
-/** The area a host plugin's own UI would occupy, holding the demo's controls.
+/** The developer settings, as one tab of the host's area.
 
-    Two jobs in one component, and they are the same job: the outline marks
-    where the host's UI would be — which is how the sidebar's overlaying can be
-    seen at all — and the settings that only a demo needs are put inside it,
-    because that rectangle is precisely the space this project does not own.
     Nothing here is part of the sidebar; a plugin embedding it makes these
-    choices once, in code.
+    choices once, in code. The rectangle they sit in — and the caption naming it
+    — belong to `DemoContent`, which holds this and the synth panel as its two
+    tabs: the outline marks the whole of the host's area, not this half of it.
 
     Height is the scarce direction here, not width: the editor has to go down to
     the sidebar's own minimum height so that the rail can be tested there, and
@@ -44,9 +42,6 @@ public:
         // children are the point, so they still get them.
         setInterceptsMouseClicks (false, true);
 
-        caption.setJustificationType (juce::Justification::centred);
-
-        addAndMakeVisible (caption);
         addAndMakeVisible (themeStrip);
         addAndMakeVisible (bubbleTextStrip);
         addAndMakeVisible (edgeStrip);
@@ -56,23 +51,13 @@ public:
     ChoiceStrip& getBubbleTextStrip() noexcept { return bubbleTextStrip; }
     ChoiceStrip& getEdgeStrip()       noexcept { return edgeStrip; }
 
-    void paint (juce::Graphics& g) override
-    {
-        g.setColour (dimmedText());
-        g.drawRect (getLocalBounds(), 1);
-    }
-
     void resized() override
     {
         auto area = getLocalBounds().reduced (layout::controlsPadding);
 
-        // The caption keeps the full width — it names the whole placeholder,
-        // not the controls — while the settings are capped and centred under
-        // it. Without the cap a wide window stretches a row of four buttons
-        // across the entire editor, which stops reading as a control.
-        caption.setBounds (area.removeFromTop (layout::captionHeight));
-        area.removeFromTop (layout::controlsGap);
-
+        // Capped and centred. Without the cap a wide window stretches a row of
+        // four buttons across the entire editor, which stops reading as a
+        // control.
         const auto widest = juce::jmax (themeStrip.getChoiceCount(),
                                         edgeStrip.getChoiceCount(),
                                         bubbleTextStrip.getChoiceCount());
@@ -111,25 +96,7 @@ public:
         grid.performLayout (area.withSizeKeepingCentre (capped, area.getHeight()));
     }
 
-    void lookAndFeelChanged() override
-    {
-        // Label caches nothing, but its colour is an override rather than a
-        // lookup, so it has to be re-applied whenever the theme changes.
-        caption.setColour (juce::Label::textColourId, dimmedText());
-        caption.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
-    }
-
 private:
-    /** The outline and the caption are both scenery: present enough to read,
-        quiet enough not to compete with the sidebar. */
-    juce::Colour dimmedText() const
-    {
-        return getLookAndFeel().findColour (juce::Label::textColourId)
-                               .withMultipliedAlpha (shades::scenery);
-    }
-
-    juce::Label caption { "Caption", "host plugin content" };
-
     // Declared in the order they appear; `resized` is what actually decides it.
     // The widget is the module's; only the label column is the demo's own, and
     // it is wider than a page's because there is room here and the names are

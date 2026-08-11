@@ -49,6 +49,47 @@ void processBlock(...) override {
 **GOOD**
 Remove `DBG()` entirely from audio-thread code. If you need diagnostics, write a scalar into an atomic and read it from the editor or a timer.
 
+### juce::String at namespace scope
+
+A `juce::String`, `StringArray`, `Identifier`, or anything containing one,
+defined at namespace scope is constructed during **static initialisation** —
+before `main`, in an order that is unspecified between translation units. JUCE's
+own statics obey the same rule, so the object can be built before the string
+pool it depends on exists, and the program dies before it starts.
+
+**BAD**
+```cpp
+// A parameter table in a header, included by several .cpp files.
+struct Control { juce::String id, name; };
+
+inline const std::vector<Control> controls
+{
+    { "cutoff", "Filter cutoff" },
+    // …
+};
+```
+
+**GOOD**
+```cpp
+inline const std::vector<Control>& controls()
+{
+    static const std::vector<Control> list { { "cutoff", "Filter cutoff" } /* … */ };
+    return list;   // built on first use, when everything it needs exists
+}
+```
+
+**The symptom is what makes this expensive.** The crash is before `main`, so no
+logging you added has run. In a debug build the only output is JUCE's version
+banner — and that is printed by a static initialiser too (`JuceVersionPrinter`
+in `juce_SystemStats.cpp`), not by anything in `main`. So a banner followed by
+silence does **not** mean the program started and stopped; it means static
+initialisation reached JUCE's and went no further. A `std::cerr` on the first
+line of `main` never printing confirms it.
+
+Worse, it is order-dependent: the same code can work for years and break when a
+file is added to the build. Where a table has to be shared, initialise it on
+first use.
+
 ---
 
 ## 2. Parameter Access Patterns

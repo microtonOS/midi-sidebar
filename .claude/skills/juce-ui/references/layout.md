@@ -94,6 +94,36 @@ signature; if two sections are drawn on top of each other, look for a flexible
 track that has run out of room rather than for a bad rectangle. Lay out at
 `jmax (getHeight(), minimumHeight)` so that overflow is clipped honestly.
 
+### Group before you place
+
+Before any widget is placed, write down what the panel is *made of* — the
+oscillator, the filter, the LFO; the status, the period, the settings. Those are
+the groups, and they are the order the panel is read in: left to right, then
+down. Only then choose the columns.
+
+Laying out by widget *kind* instead — all the switches, then all the knobs — is
+the failure this prevents, and it looks reasonable while you are doing it. It
+produced a panel whose LFO had its target switch in one row and its rate and
+intensity in another, with the filter's knobs in between: three controls that
+are one thing, drawn as though they were two.
+
+**A group's cells must form a connected rectangle.** Running down several rows
+is fine and often right — a tall block of stacked knobs is a group. What is not
+fine is a group whose members have another group's members between them. If the
+cells will not make a rectangle, either the columns are wrong or the grouping
+is; work out which before placing anything, because no amount of tuning the
+spans fixes it afterwards.
+
+### The silhouette is part of the layout
+
+Blocks that are each internally aligned can still assemble into an L or a T,
+and the eye reads the outline before it reads anything inside it. Give a later
+row the same columns as the row above it — a group spanning the full width
+under two groups that divide it — so the whole comes out rectangular.
+
+This is the check that a panel passes or fails at a glance and that no
+individual block can pass on its own.
+
 ### Choosing the columns
 
 The column count is a decision, and the wrong one forces per-row grids later.
@@ -185,8 +215,16 @@ label with a rule or a bare gap. The frame carries the grouping at small sizes
 where a heading alone does not, and the title lands inside the border so it
 costs no extra row. Two conditions, both from experience rather than taste:
 
-- **Only where it groups more than one control.** A frame around a single widget
-  is a label with a box drawn round it — noise that reads as structure.
+- **Not around a single control — by default.** A frame around one widget is a
+  label with a box drawn round it: noise that reads as structure. Treat this the
+  way you treat the uniform grid — a constraint to satisfy on the first pass,
+  and if a group of one still seems right, **ask** rather than justify it.
+
+  The justification to distrust is "consistency with the framed groups beside
+  it". That is the decoration arguing for itself, and it is what put a frame
+  round a three-way waveform switch that named itself perfectly well without
+  one. Where the word is worth keeping but the box is not, a plain label in the
+  title's row says the same thing and adds nothing.
 - **A group is a frame, not a container.** Keep the section's widgets as
   children of the *page* so they stay in the page's one grid; put the
   `GroupComponent` behind them as an item spanning the section's rows, and give
@@ -239,10 +277,29 @@ See also
 ToolbarItemFactory, ToolbarItemComponent, ToolbarItemPalette
 
 
-### juce::TabbedComponent Class Reference
-A component with a TabbedButtonBar along one of its sides.
+### `juce::TabbedComponent`
 
-This makes it easy to create a set of tabbed pages, just add a bunch of tabs with addTab(), and this will take care of showing the pages for you when the user clicks on a different tab.
+A `TabbedButtonBar` along one side and one content component showing at a time.
+`addTab (name, backgroundColour, content, deleteComponentWhenNotNeeded)` — pass
+`false` for the last argument to keep ownership of the content yourself.
+
+**The conventional answer rather than a found one.** JUCE's own DemoRunner uses
+it for its Demo/Code tabs (`DemoContentComponent`) and the Widgets demo uses it
+for its pages (`DemoTabbedComponent`) — the same class, `TabsAtTop`, in both
+places. If a design calls for tabs there is nothing to build.
+
+Three things to know before using one:
+
+- **`currentTabChanged` is a virtual, not a callback.** Mirroring the open tab
+  to a parameter or a saved setting needs a subclass that overrides it. Three
+  lines, but a subclass rather than a lambda.
+- **`setTabBarDepth`** is the bar's thickness — 30 by default, which is what
+  both JUCE demos leave it at. `setOutline` draws a border around the *content*
+  and `setIndent` insets it; a container that already draws its own frame wants
+  `setOutline (0)`, or you get two rectangles a pixel apart.
+- **A transparent tab background makes the label invisible on a light scheme.**
+  Give the tab bar its text colours rather than a background; the mechanism is
+  in [design](design.md#an-override-the-lookandfeel-has-to-own).
 
 See also
 TabbedButtonBar

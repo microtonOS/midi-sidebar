@@ -6,3 +6,4 @@
 #include "sidebar/pages/ControllersPage.cpp"
 #include "sidebar/pages/PresetsPage.cpp"
 #include "sidebar/Sidebar.cpp"
+#include "sidebar/ParameterMenu.cpp"

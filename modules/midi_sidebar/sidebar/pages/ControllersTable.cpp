@@ -165,6 +165,13 @@ ControllersTable::ControllersTable()
 
     recentButton.setToggleState (true, juce::dontSendNotification);
 
+    // One parameter can be mapped several times, and "view in sidebar" points
+    // at all of them at once — so the selection has to be able to hold more
+    // than one row. A plain click still selects exactly one; only the modifier
+    // keys add, which is what `selectRowsBasedOnModifierKeys` already does.
+    table       .setMultipleSelectionEnabled (true);
+    frozenColumn.setMultipleSelectionEnabled (true);
+
     frozenColumn.setRowHeight (metrics::tableRowHeight);
 
     // The frozen column follows the table; it is never scrolled directly, so it
@@ -212,6 +219,46 @@ void ControllersTable::addMapping (controllers::Source source)
     // under `alphabetical` is wherever its parameter's name puts it.
     table.selectRow (displayOrder.indexOf (mappings.size() - 1));
     changed();
+}
+
+void ControllersTable::selectMappingsFor (int parameterIndex)
+{
+    // Display rows, not indices into `mappings` — everything the table shows
+    // goes through `mappingIndexFor`, and this is what the end-user is being
+    // pointed at.
+    juce::SparseSet<int> rows;
+
+    for (int row = 0; row < displayOrder.size(); ++row)
+    {
+        const auto index = mappingIndexFor (row);
+
+        if (index >= 0 && mappings[index].parameterIndex == parameterIndex)
+            rows.addRange ({ row, row + 1 });
+    }
+
+    table.setSelectedRows (rows, juce::dontSendNotification);
+
+    if (! rows.isEmpty())
+        table.scrollToEnsureRowIsOnscreen (rows[0]);
+
+    // setSelectedRows was silent, so the frozen column has not been told; it
+    // follows the table's selection through `selectedRowsChanged` otherwise.
+    frozenColumn.setSelectedRows (rows, juce::dontSendNotification);
+    frozenColumn.scrollToEnsureRowIsOnscreen (rows.isEmpty() ? 0 : rows[0]);
+}
+
+void ControllersTable::removeLatestMappingFor (int parameterIndex)
+{
+    for (int i = mappings.size(); --i >= 0;)
+    {
+        if (mappings[i].parameterIndex != parameterIndex)
+            continue;
+
+        mappings.remove (i);
+        refreshRows();
+        changed();
+        return;
+    }
 }
 
 void ControllersTable::removeSelectedMapping()

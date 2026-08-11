@@ -60,7 +60,7 @@ public:
 
         for (int i = 0; i < choices.size(); ++i)
         {
-            auto* button = buttons.add (new juce::TextButton (choices[i]));
+            auto* button = buttons.add (new SegmentButton (choices[i]));
 
             button->setClickingTogglesState (true);
 
@@ -114,6 +114,19 @@ public:
     /** How many choices this strip offers, so an owner can size a column from
         its widest row rather than from a number written down twice. */
     int getChoiceCount() const noexcept { return buttons.size(); }
+
+    /** Which choice is showing, or -1 before there is one. Read from the
+        buttons rather than kept alongside them: a radio group already holds
+        exactly one selection, and a copy of it is a second answer that can
+        disagree. */
+    int getSelectedIndex() const noexcept
+    {
+        for (int i = 0; i < buttons.size(); ++i)
+            if (buttons[i]->getToggleState())
+                return i;
+
+        return -1;
+    }
 
     /** Shows a selection without announcing it, so that a value arriving from
         wherever this strip mirrors cannot bounce straight back out through
@@ -217,6 +230,31 @@ private:
                                            | (atEnd ? 0 : towardsEnd));
         }
     }
+
+    /** One segment, which ignores a right-click.
+
+        `Button::mouseDown` does not look at *which* mouse button was pressed —
+        it calls `updateState (true, true)` for any of them — so a right-click
+        on a plain `TextButton` selects it. On a strip carrying a context menu
+        that means the setting changes on the way to opening the menu, which is
+        the one thing a menu must not do.
+
+        Dropping the event rather than consuming it: the click still travels to
+        anything listening, which is how `ParameterMenu` sees it. Guarding
+        `mouseDown` alone is enough — `Button::mouseUp` only fires the click
+        when the button was already down. */
+    struct SegmentButton final : public juce::TextButton
+    {
+        using juce::TextButton::TextButton;
+
+        void mouseDown (const juce::MouseEvent& event) override
+        {
+            if (event.mods.isPopupMenu())
+                return;
+
+            juce::TextButton::mouseDown (event);
+        }
+    };
 
     /** Any non-zero value; see the comment where it is used. */
     static constexpr int radioGroupId = 1;

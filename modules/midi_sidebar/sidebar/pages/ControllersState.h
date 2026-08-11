@@ -126,6 +126,12 @@ namespace controllers
     {
         juce::String name;
         juce::String unit;     ///< "%", "st", or empty for a bare count.
+
+        /** A sentence saying what the parameter does, shown by the right-click
+            menu's `info` item — see docs/right-click.md. The developer's words:
+            this module knows a name and a unit, and nothing about what turning
+            the thing actually does. Empty is allowed and disables the item. */
+        juce::String info;
     };
 
     /** What kind of message drives a mapping.
@@ -168,6 +174,63 @@ namespace controllers
         double min = 0.0;
         double max = 100.0;
     };
+
+    //==========================================================================
+    /** The channel as the menus and summaries say it. */
+    inline juce::String channelName (int channel)
+    {
+        return channel == omniOnChannel  ? juce::String ("omni on")
+             : channel == omniOffChannel ? juce::String ("omni off")
+                                         : "channel " + juce::String (channel);
+    }
+
+    /** What a parameter's assignment says in one line, for the right-click
+        menu — docs/right-click.md gives the wording and every case below is one
+        of its examples.
+
+        Nothing about how many mappings there are is worth spelling out beyond
+        two: past that the line would be a list rather than a summary, and the
+        thing to do with more than one is open the table. */
+    inline juce::String assignmentSummary (const juce::Array<Mapping>& mappings, int parameterIndex)
+    {
+        const Mapping* only = nullptr;
+
+        for (const auto& mapping : mappings)
+        {
+            if (mapping.parameterIndex != parameterIndex)
+                continue;
+
+            if (only != nullptr)
+                return "multiple assignments";
+
+            only = &mapping;
+        }
+
+        if (only == nullptr)
+            return "not assigned";
+
+        auto text = channelName (only->channel);
+
+        if (only->source != Source::control)
+            return text + " " + sourceNames[static_cast<int> (only->source)];
+
+        // An incomplete row says so rather than showing "MSB" with nothing
+        // after it. `add` leaves one in exactly this state.
+        if (! only->msb.has_value())
+            return text + " no MSB";
+
+        text << " MSB " << *only->msb;
+
+        // The LSB is only part of the assignment where the mode reads one; the
+        // two threshold modes ignore it, and saying otherwise would describe a
+        // number that has no effect.
+        const auto readsLsb = only->mode != Mode::toggle && only->mode != Mode::increment;
+
+        if (readsLsb && only->lsb.has_value())
+            text << " LSB " << *only->lsb;
+
+        return text;
+    }
 
     //==========================================================================
     //  The monitor is one line of text: the newest message to arrive, and

@@ -58,6 +58,34 @@ The same trap fires in reverse during teardown, when an owner's
 longer resolve anything. Guard with `LookAndFeel::isColourSpecified`, which
 answers without asserting.
 
+### An override the LookAndFeel has to own
+
+Some `LookAndFeel` methods ask whether a colour is specified and then read it
+from somewhere else. `LookAndFeel_V2::drawTabButtonText` is the clearest case:
+
+```cpp
+if (button.isFrontTab() && (button.isColourSpecified (frontTextColourId)
+                                || isColourSpecified (frontTextColourId)))
+    col = findColour (frontTextColourId);          // ← the LookAndFeel's, either way
+else if (…)
+else
+    col = button.getTabBackgroundColour().contrasting();
+```
+
+`isColourSpecified` and `findColour` there are unqualified, so both are the
+**LookAndFeel's**. Setting the id on the button satisfies the condition and then
+fetches a colour the LookAndFeel never had. The override belongs on the
+LookAndFeel and nowhere else.
+
+The fallback is the other half of it. With nothing specified anywhere the text
+is `getTabBackgroundColour().contrasting()` — and a tab given
+`Colours::transparentBlack`, the natural choice when the panel behind should
+show through, contrasts as though it were black. The label comes out white and
+vanishes on a light scheme.
+
+Before relying on a `drawX` default, read its fallback. `contrasting()` applied
+to a colour that was never meant to be seen is a common way to get one.
+
 ## Overriding a LookAndFeel
 
 **An override applies to every widget of that type in the whole project, not to

@@ -80,6 +80,24 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     // across the whole sidebar.
     target.setColour (ChoiceStrip::selectedColourId,     accent);
     target.setColour (ChoiceStrip::selectedTextColourId, accent.contrasting());
+
+    // Tabs. Not a sidebar widget — nothing in the module uses one — but this
+    // LookAndFeel dresses the whole plugin, and JUCE's default here is a trap:
+    // with none of these ids specified, `LookAndFeel_V2::drawTabButtonText`
+    // falls back to `button.getTabBackgroundColour().contrasting()`, and a tab
+    // given a transparent background is treated as black, so the label comes
+    // out white — invisible on the Light scheme. The demo's tabs did exactly
+    // that.
+    //
+    // Note also *where* the override has to go. That method asks whether the
+    // button OR the LookAndFeel specifies the id, then reads the value from the
+    // **LookAndFeel** either way — so setting these on the tab bar makes the
+    // condition true and then fetches a colour that was never set. They belong
+    // here and nowhere else.
+    target.setColour (juce::TabbedButtonBar::tabTextColourId,      text.withMultipliedAlpha (shades::readOnly));
+    target.setColour (juce::TabbedButtonBar::frontTextColourId,    text);
+    target.setColour (juce::TabbedButtonBar::tabOutlineColourId,   text.withMultipliedAlpha (shades::hairline));
+    target.setColour (juce::TabbedButtonBar::frontOutlineColourId, text.withMultipliedAlpha (shades::icon));
 }
 
 juce::Slider::SliderLayout SidebarLookAndFeel::getSliderLayout (juce::Slider& slider)

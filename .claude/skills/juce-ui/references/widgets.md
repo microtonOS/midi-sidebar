@@ -57,9 +57,18 @@ You can register `Slider::Listener` objects with a slider, and they'll be called
 | `Slider::TwoValueHorizontal` and `Slider::TwoValueVertical` | The same as above but with the nubbin removed so there is only a range. |
 
 
-`setPopupDisplayEnabled` adds a speech bubble. A common usage is to display the value and append the relevant unit if any.
-A less elegant way is to display the value in an associated textbox by using `setTextBoxStyle`.
-The linear bars interestingly display text inside the rectangle.
+**A value belongs in a bubble, not in a box.** `setPopupDisplayEnabled` shows the
+number while the control is being turned, which is when it matters, and shows
+nothing the rest of the time. `setTextBoxStyle` shows it always: a second thing
+to read on a panel whose knob positions already say roughly where everything is,
+and a row of height under every knob. Default to the bubble.
+
+The exception is a value that has to be *compared* across controls, or read
+without being touched — a set of ratios, a tuning table. Then the box earns its
+row, because a bubble can only ever show one of them at a time.
+
+The bubble appends the suffix, so `setTextValueSuffix` carries the unit either
+way. The linear bars are a third case: they display text inside the rectangle.
 
 The bubble is added as a **child** of the component passed as the third
 argument, so it is clipped to that component's bounds. Pass something with room
@@ -98,6 +107,26 @@ it.
 
 Note that the layout is cached; see the LookAndFeel caching trap in
 [design](design.md#colours).
+
+**An attached slider ignores `setNumDecimalPlacesToDisplay`.**
+`SliderParameterAttachment`, and so
+`AudioProcessorValueTreeState::SliderAttachment`, installs its own
+`textFromValueFunction` built from the parameter's `getText`.
+`Slider::getTextFromValue` consults that function first and only falls back to
+the decimal-place count when there is none — so the call is silently ignored on
+any attached slider. In a narrow text box the result is `1999.99…`: a value
+elided by its own precision.
+
+Set the function instead, after the attachment exists:
+
+```cpp
+slider.textFromValueFunction = [] (double value) { return juce::String (value, 0); };
+slider.updateText();
+```
+
+The suffix is not part of it. `getTextFromValue` appends
+`getTextValueSuffix()` to whatever the function returns, so returning the bare
+number is correct and returning `"2000 Hz"` prints the unit twice.
 
 **An inverted fader drags the wrong way.** For a fader whose maximum sits at the
 *bottom* — a Hammond drawbar pulled out, a control that reads top-down —
@@ -252,8 +281,11 @@ the wrapper either.
 Note that although `Slider::IncDecButtons` behaves like a slider, its graphical appearance is that of a pair of buttons, which is why it is placed in this section.
 
 A `TextButton` does not shrink its label to fit, so a narrow button clips
-"FAST" to "F...". Override `getTextButtonFont` in the LookAndFeel to scale the
-font to the button height, e.g.
+"FAST" to "F...". If the button is one of a row of choices, try turning the row
+vertical first — see [Segmented controls](#segmented-controls) — since that
+usually gives the label the width it was missing. Otherwise override
+`getTextButtonFont` in the LookAndFeel to scale the font to the button height,
+e.g.
 `font (jmin (12.0f, (float) buttonHeight * 0.5f))`. Re-check every short-label
 button after a layout change: the clipping only appears below a threshold
 width, so it can be introduced by a change that had nothing to do with the
@@ -294,6 +326,30 @@ as on until something rebuilds them. An owner that responds asynchronously (a
 appears to work, which is why this can hide in one part of a GUI while breaking
 another that is using the identical widget.
 
+**A right-click works a button.** `Button::mouseDown` calls
+`updateState (true, true)` without ever looking at which mouse button was
+pressed, and `mouseUp` fires the click if the button was down. So a right-click
+selects a `TextButton`, toggles a `ToggleButton`, and picks a segment of a radio
+group.
+
+Harmless until the button also carries a context menu, at which point
+right-clicking to open the menu *also* changes the setting — the one thing a
+menu must not do on the way to opening. Drop the event in a subclass:
+
+```cpp
+void mouseDown (const juce::MouseEvent& event) override
+{
+    if (event.mods.isPopupMenu())
+        return;
+
+    juce::TextButton::mouseDown (event);
+}
+```
+
+Dropping rather than consuming: the click still reaches anything registered as a
+`MouseListener`, which is how the menu sees it. Guarding `mouseDown` alone is
+enough — `mouseUp` only fires a click when the button was already down.
+
 **A `DrawableButton` beside a `TextButton` looks like a different control.** Its
 style decides which drawing path it takes, and only one of them is the one every
 other button uses:
@@ -331,7 +387,17 @@ button.setConnectedEdges ((first ? 0 : juce::Button::ConnectedOnLeft)
 // works horizontally — it does not.
 ```
 
-Two things follow from it in practice:
+**Stack word choices vertically.** Latin script runs along the horizontal axis,
+so a vertical strip gives every choice a full-width line of its own, while a
+horizontal one divides that width between them — three choices in an 88px
+column leave 29px each, and "triangle" does not survive it. Reach for
+horizontal only where the choices are short and of similar length (`on`/`off`,
+`L`/`R`), or where the strip has a whole row to spread across.
+
+This is also the first thing to check when a button label has turned into
+`F...`: it is usually the orientation rather than the font.
+
+Two things follow from the connected edges in practice:
 
 - **The buttons must touch.** Joined edges mean nothing across a gap, and a
   rounded end on one side only looks like damage. So a segmented control cannot

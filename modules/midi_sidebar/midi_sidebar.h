@@ -43,3 +43,4 @@
 #include "sidebar/pages/TuningPage.h"
 #include "sidebar/SidebarPanel.h"
 #include "sidebar/Sidebar.h"
+#include "sidebar/ParameterMenu.h"

@@ -42,8 +42,19 @@ public:
         are displayed in. */
     void setParameters (juce::Array<controllers::Parameter> parameters);
 
+    const juce::Array<controllers::Parameter>& getParameters() const noexcept;
+
     void setMappings (juce::Array<controllers::Mapping> mappings);
     const juce::Array<controllers::Mapping>& getMappings() const noexcept;
+
+    /** Selects every row mapped to `parameterIndex`, scrolling the first into
+        view. What the right-click menu's "view in sidebar" does once the
+        sidebar has opened this page; see ParameterMenu. */
+    void showMappingsFor (int parameterIndex);
+
+    /** Removes the most recently added mapping for `parameterIndex` — the
+        right-click menu's "unlearn". */
+    void removeLatestMappingFor (int parameterIndex);
 
     /** The line the monitor shows, replacing whatever was there. Already
         formatted — see the note in ControllersState.h about why this module
