@@ -214,6 +214,12 @@ namespace metrics
         not touch. */
     inline constexpr int tableCellInset = 2;
 
+    /** A `juce::Label`'s own left margin — `BorderSize<int> { 1, 5, 1, 5 }`,
+        declared in juce_Label.h and applied by `getLabelBorderSize`. Needed
+        wherever text is *painted* next to labels and has to line up with them,
+        which on this page is the cell the touch sources span. */
+    inline constexpr int labelTextInset = 5;
+
     /** The frozen parameter column, and the gap between it and the columns that
         scroll under their own header. Wide enough for a parameter name in a
         ComboBox, since that is what the column holds. */
@@ -267,6 +273,13 @@ namespace metrics
         up any more height. The table is the page's flexible track, so this is
         what sets the page's minimum. */
     inline constexpr int tableMinimumRows = 3;
+
+    /** `LookAndFeel_V4::getDefaultScrollbarWidth()`, which is not exposed as a
+        constant anywhere in JUCE. The editing table's columns are always wider
+        than the panel, so its horizontal scrollbar is always there and always
+        eats a strip of the last row — which is why any height reserved for a
+        number of rows has to allow for it. */
+    inline constexpr int scrollbarThickness = 8;
 
     /** The channel selector's grid: a square-ish button per MIDI channel, and a
         column beside it wide enough for "deselect all". */

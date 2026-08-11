@@ -1,8 +1,12 @@
 #pragma once
 
+#include <optional>
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../SidebarLookAndFeel.h"
+#include "../widgets/ChoiceButton.h"
+#include "../widgets/ChoiceStrip.h"
 #include "ControllersState.h"
 #include "ControllersTable.h"
 #include "PageGrid.h"
@@ -48,6 +52,15 @@ public:
         session does. Anything past `controllers::monitorRows` is ignored. */
     void setMessages (juce::Array<controllers::Message> messages);
 
+    /** Pitch-bend range in cents, clamped to
+        `controllers::highestPitchBendCents`. */
+    void setPitchBendCents (int cents);
+
+    /** Whether the plugin is reading an MPE zone, and which channels it
+        covers. */
+    void setMpe (controllers::Mpe mpe);
+    const controllers::Mpe& getMpe() const noexcept { return mpe; }
+
     //==========================================================================
     //  Intent out.
 
@@ -59,14 +72,31 @@ public:
     std::function<void()> onLoadRequested;
     std::function<void()> onSaveRequested;
 
+    std::function<void (int)> onPitchBendCentsChosen;
+
+    /** The MPE zone changed. The owner is expected to hand the channels it
+        covers — `controllers::channelsCoveredBy` — to the tuning page, which
+        cannot tune them separately; see docs/controllers.md. */
+    std::function<void (controllers::Mpe)> onMpeChanged;
+
     //==========================================================================
-    /** The height below which the page cannot show its own minimum: the monitor,
-        both frames, both button rows, and `tableMinimumRows` of table. */
+    /** The height below which the page cannot show its own minimum: the
+        monitor, the pitch-bend row, all three frames, every button row, and
+        `tableMinimumRows` of table.
+
+        Each `section` is given its whole content block, internal gaps included.
+        The `add | remove` row used to be left out of it, which made this about
+        a row short — harmless, since the flexible track only shrank, but it
+        meant the number did not mean what it says. */
     static constexpr int getMinimumHeight() noexcept
     {
         return monitorHeight()
-             + section (ControllersTable::getHeightForRows (metrics::tableMinimumRows))
-             + section (metrics::pageRowHeight);
+             + metrics::pageRowGap + metrics::pageRowHeight   // PB sensitivity
+             + section (metrics::pageRowHeight)               // load | save
+             + section (metrics::pageRowHeight)               // the MPE zone
+             + section (ControllersTable::getHeightForRows (metrics::tableMinimumRows)
+                            + 2 * (metrics::pageRowGap + metrics::pageRowHeight));
+                                                              // table, add | remove, aftertouch | polytouch
     }
 
     void resized() override;
@@ -74,12 +104,15 @@ public:
 
 private:
     //==========================================================================
-    /** Three rows, no header, and it never scrolls — so its height is simply
-        its rows. */
+    /** One row, no header, and it never scrolls — so its height is simply that
+        row. */
     static constexpr int monitorHeight() noexcept
     {
         return controllers::monitorRows * metrics::tableRowHeight;
     }
+
+    /** Opens the call-out holding the rest of the history. */
+    void showHistory();
 
     /** A framed section: its title band, its content, the padding under it, and
         the row gaps that separate all three. */
@@ -97,12 +130,39 @@ private:
 
     std::unique_ptr<Monitor> monitor;
 
-    juce::GroupComponent filesGroup, editingGroup;
+    /** Commits the typed range on Return and on losing focus, rejecting
+        anything the plugin could not act on — the tuning page's modulo divisor
+        works the same way. */
+    void applyPitchBendCents();
+
+    /** Sends the zone out and refreshes what the two menus offer. */
+    void mpeChanged();
+
+    juce::GroupComponent filesGroup, mpeGroup, editingGroup;
+
+    //  Pitch bend, at the top with the monitor and unframed: the sketch gives
+    //  it no title, and on these pages a GroupComponent is what a *named*
+    //  section looks like.
+    juce::Label pitchBendLabel;
+    juce::TextEditor pitchBendEditor;
 
     juce::TextButton loadButton { "load" }, saveButton { "save" };
-    juce::TextButton addButton  { "add" },  removeButton { "remove" };
+
+    //  The MPE zone: on or off, and the channels it spans.
+    ChoiceStrip mpeStrip;
+    juce::Label fromLabel, toLabel;
+    ChoiceButton masterButton { "mpe master" }, lastButton { "mpe last" };
+
+    juce::TextButton addButton { "add" }, removeButton { "remove" };
+
+    /** The two message types that cannot be described by a controller number,
+        so they are added as rows of their own rather than typed into one. */
+    juce::TextButton aftertouchButton { "aftertouch" }, polytouchButton { "polytouch" };
 
     ControllersTable table;
+
+    int pitchBendCents = controllers::defaultPitchBendCents;
+    controllers::Mpe mpe;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ControllersPage)
 };

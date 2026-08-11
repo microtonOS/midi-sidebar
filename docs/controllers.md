@@ -9,12 +9,12 @@ The inner tables are actual JUCE tables.
 
 <table>
     <tr>
-        <td colspan="2">
+        <td colspan="6">
             <b>CONTROLLERS</b>
         </td>
     </tr>
     <tr>
-        <td colspan="2">
+        <td colspan="6">
             <table>
                 <!--
                 <tr>
@@ -30,6 +30,7 @@ The inner tables are actual JUCE tables.
                     <td>11</td>
                     <td>98</td>
                 </tr>
+                <!--
                 <tr>
                     <td>sysex</td>
                     <td></td>
@@ -42,27 +43,67 @@ The inner tables are actual JUCE tables.
                     <td>A4</td>
                     <td>102</td>
                 </tr>
+                -->
             </table>
         </td>
     </tr>
     <tr>
-        <td colspan="2">FILES</td>
+        <td colspan="3">PB sensitivity</td>
+        <td colspan="3"><input type="text" value="200 c" style="width:1cm"/></td>
     </tr>
     <tr>
-        <td><button>load</button></td>
-        <td><button>save</button><td>
+        <td colspan="6">FILES</td>
     </tr>
     <tr>
-        <td colspan="2">EDITING</td>
+        <td colspan="3"><button>load</button></td>
+        <td colspan="3"><button>save</button><td>
     </tr>
     <tr>
-        <td colspan="2">
+        <td colspan="6">MPE</td>
+    </tr>
+    <tr>
+        <td><input type="radio" name="mpe">on</input></td>
+        <td><input type="radio" name="mpe">off</input></td>
+        <td>ch</td>
+        <td><select>
+            <option>1</option>
+            <option>16</option>
+        </select></td>
+        <td>to</td>
+        <td><select>
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+            <option>4</option>
+            <option>5</option>
+            <option>6</option>
+            <option>7</option>
+            <option>8</option>
+            <option>9</option>
+            <option>10</option>
+            <option>11</option>
+            <option>12</option>
+            <option>13</option>
+            <option>14</option>
+            <option>15</option>
+            <option>16</option>
+        </select></td>
+    </tr>
+    <tr>
+        <td colspan="6">EDITING</td>
+    </tr>
+    <tr>
+        <td colspan="6">
             another table goes here,<br />see Figure 2 below
         </td>
     </tr>
     <tr>
-        <td><button>add</button></td>
-        <td><button>remove</button><td>
+        <td colspan="3"><button>add</button></td>
+        <td colspan="3"><button>remove</button><td>
+    </tr>
+    <tr>
+        <td colspan="3"><button>aftertouch</button></td>
+        <td colspan="3"><button>polytouch</button><td>
     </tr>
 </table>
 
@@ -86,12 +127,16 @@ For recent messages at the top, only the last 3 messages are shown.
             <select>
                 <option selected>swell</option>
                 <option>rotary</option>
+                <option>vibrato</option>
             </select>
         </th>
         <td><select>
-            <option selected>omni</option>
+            <option>omni on</option>
+            <option selected>omni off</option>
+            <hr />
             <option>1</option>
             <option>2</option>
+            <option>3</option>
             <option>4</option>
             <option>5</option>
             <option>6</option>
@@ -131,12 +176,16 @@ For recent messages at the top, only the last 3 messages are shown.
             <select>
                 <option>swell</option>
                 <option selected>rotary</option>
+                <option>vibrato</option>
             </select>
         </th>
         <td><select>
-            <option>omni</option>
+            <option>omni on</option>
+            <option>omni off</option>
+            <hr />
             <option>1</option>
             <option>2</option>
+            <option>3</option>
             <option>4</option>
             <option>5</option>
             <option>6</option>
@@ -170,6 +219,54 @@ For recent messages at the top, only the last 3 messages are shown.
             <input type="text" value="3" style="width:1cm"/>
         </td>
     </tr>
+    <!--------------------------->
+    <tr>
+        <th>
+            <select>
+                <option>swell</option>
+                <option>rotary</option>
+                <option selected>vibrato</option>
+            </select>
+        </th>
+        <td><select>
+            <option>omni on</option>
+            <option>omni off</option>
+            <hr />
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+            <option>4</option>
+            <option>5</option>
+            <option>6</option>
+            <option>7</option>
+            <option>8</option>
+            <option>9</option>
+            <option>10</option>
+            <option>11</option>
+            <option>12</option>
+            <option>13</option>
+            <option>14</option>
+            <option selected>15</option>
+            <option>16</option>
+        </select></td>
+        <td colspan=2>polytouch</td>
+        <td>
+            <select>
+                <option>jump</option>
+                <option>catch</option>
+                <option>scale</option>
+                <hr />
+                <option selected>toggle</option>
+                <option>inc</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" value="1" style="width:1cm"/>
+        </td>
+        <td>
+            <input type="text" value="3" style="width:1cm"/>
+        </td>
+    </tr>
 </table>
 
 **Figure 2**.
@@ -177,6 +274,9 @@ For recent messages at the top, only the last 3 messages are shown.
 In the editing table, the leftmost header cells—the parameter names—should always be visible as you scroll in the left–right directions.
 Likewise, the topmost headers should always be visible when you scroll in the up–down directions.
 This does not mean that all header cells are always visible. An up–down scroll may change the visible parameter names and vice versa.
+
+
+When MPE is on, the selected channels are unavailable for multichannel tuning. In e.g. MTS ESP, tuning is read from "-1".
 
 
 The front panel knobs can operate in one of three modes:[^korg]

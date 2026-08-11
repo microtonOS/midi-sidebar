@@ -119,3 +119,15 @@ the animation speed (Sidebar::setAnimationMilliseconds, currently only settable
 in code, and 0 is a legitimate value worth being able to try), and a level
 generator so the meter has something to show without routing audio in. Neither
 is needed to look at the layout, which is what the demo is for now. -->
+
+
+MUCH OF THE ABOVE IS AI GENERATED WITHOUT AN APPROPRIATE DOCS EDITING SKILL.
+
+## Demo plugin
+
+A demo plugin is an alternative page to the above.
+It is a simple combo organ/subtractive synthesizer.
+It has:
+- One oscillator with a 3-way switch between saw, triangle, and square.
+- One filter with cutoff (frequency) and resonance (Q-value).
+- One LFO with target 2-way switch for filter and pitch. One rate control and one intensity control. Filter LFO rate, filter LFO intensity, pitch LFO rate, pitch LFO intensity, and LFO target are all different parameters.

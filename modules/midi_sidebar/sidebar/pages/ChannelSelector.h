@@ -20,12 +20,18 @@ namespace microtonos::sidebar
 
     Selecting no channels at all is legal and is what the spec calls
     unadvisable, so nothing here prevents it.
+
+    A third mask marks channels that cannot be tuned separately at all — MPE's,
+    which carry one voice each and take their tuning from the generic channel.
+    Those are disabled for the same reason omni disables all sixteen: the
+    selection underneath is still what comes back when MPE is switched off.
 */
 class ChannelSelector final : public juce::Component
 {
 public:
-    ChannelSelector (bool startOmni, tuning::ChannelMask startMask)
-        : omni (startOmni), mask (startMask)
+    ChannelSelector (bool startOmni, tuning::ChannelMask startMask,
+                     tuning::ChannelMask unavailableMask = tuning::noChannels)
+        : omni (startOmni), mask (startMask), unavailable (unavailableMask)
     {
         // The same connected pair the tuning page uses for note on / always:
         // omni is one either-or setting, and it should not look like two
@@ -52,7 +58,9 @@ public:
             addAndMakeVisible (toggle);
         }
 
-        selectAll  .onClick = [this] { setMask (tuning::allChannels); };
+        // "All" means all the ones that are available: ticking a channel MPE has
+        // taken would put the mask somewhere no click could have put it.
+        selectAll  .onClick = [this] { setMask ((tuning::ChannelMask) (tuning::allChannels & ~unavailable)); };
         deselectAll.onClick = [this] { setMask (tuning::noChannels); };
 
         addAndMakeVisible (selectAll);
@@ -172,10 +180,11 @@ private:
         {
             channels[i]->setToggleState (tuning::isChannelSet (mask, i), juce::dontSendNotification);
 
-            // Disabled rather than hidden under omni: the selection still
-            // exists and is what comes back when omni is switched off, so
-            // removing it from view would misrepresent the state.
-            channels[i]->setEnabled (! omni);
+            // Disabled rather than hidden, under omni and under MPE alike: the
+            // selection still exists and is what comes back when either is
+            // switched off, so removing it from view would misrepresent the
+            // state.
+            channels[i]->setEnabled (! omni && ! tuning::isChannelSet (unavailable, i));
         }
 
         selectAll  .setEnabled (! omni);
@@ -202,6 +211,7 @@ private:
 
     bool omni;
     tuning::ChannelMask mask;
+    tuning::ChannelMask unavailable;
 
     ChoiceStrip omniStrip { {}, { "omni on", "omni off" } };
     juce::TextButton selectAll { "select all" }, deselectAll { "deselect all" };

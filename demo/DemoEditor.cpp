@@ -182,16 +182,17 @@ void DemoEditor::showSampleControllers()
     // from a braced initialiser, so each one is added explicitly.
     juce::Array<controllers::Parameter> parameters;
 
-    parameters.add ({ "swell",  "%" });
-    parameters.add ({ "rotary", {} });
+    parameters.add ({ "swell",   "%" });
+    parameters.add ({ "rotary",  {} });
+    parameters.add ({ "vibrato", {} });
 
     page.setParameters (parameters);
 
-    // The two mappings from Figure 2 of docs/controllers.md, including the
+    // The three mappings from Figure 2 of docs/controllers.md, including the
     // second one's empty LSB — which its `toggle` mode ignores anyway.
     controllers::Mapping swell;
     swell.parameterIndex = 0;
-    swell.channel = controllers::omniChannel;
+    swell.channel = controllers::omniOffChannel;
     swell.msb = 11;
     swell.lsb = 43;
     swell.mode = controllers::Mode::jump;
@@ -206,28 +207,46 @@ void DemoEditor::showSampleControllers()
     rotary.min = 1.0;
     rotary.max = 3.0;
 
-    // A second mapping onto swell, added last. Without it the sample data sorts
-    // the same either way — swell then rotary — and the sort toggle would look
-    // broken when it was merely unexercised.
-    controllers::Mapping swellFine;
-    swellFine.parameterIndex = 0;
-    swellFine.channel = 1;
-    swellFine.msb = 12;
-    swellFine.mode = controllers::Mode::scale;
-    swellFine.min = 0.0;
-    swellFine.max = 50.0;
+    // Figure 2's third row. A polytouch mapping, which is what shows the word
+    // drawn across the two controller-number columns — and, being a second
+    // mapping that sorts differently from the first two, it is also what keeps
+    // the sort toggle from looking broken when it is merely unexercised.
+    controllers::Mapping vibrato;
+    vibrato.parameterIndex = 2;
+    vibrato.channel = 15;
+    vibrato.source = controllers::Source::polytouch;
+    vibrato.mode = controllers::Mode::toggle;
+    vibrato.min = 1.0;
+    vibrato.max = 3.0;
 
-    page.setMappings ({ swell, rotary, swellFine });
+    page.setMappings ({ swell, rotary, vibrato });
 
-    // Figure 1's three monitor lines, newest first. Nothing generates these
+    // Newest first, so the page's single row shows Figure 1's live line and the
+    // rest are what its call-out opens onto — which is why there are five of
+    // them rather than the one the sketch now draws. Nothing generates these
     // yet; see docs/demo.md.
     juce::Array<controllers::Message> messages;
 
+    messages.add ({ "control", "16", "11", "98" });
     messages.add ({ "note on", "15", "A4", "102" });
     messages.add ({ "sysex",   {},   {},   {} });
-    messages.add ({ "control", "16", "11", "98" });
+    messages.add ({ "note off","15", "A4", "0"  });
+    messages.add ({ "control", "16", "11", "64" });
 
     page.setMessages (messages);
+
+    // The sketch's own value, which is MIDI's default range of two semitones.
+    page.setPitchBendCents (controllers::defaultPitchBendCents);
+
+    // A lower zone, on, so the tuning page's multichannel call-out has
+    // something to draw as unavailable — which is the whole point of the link
+    // between the two pages. Half the channels rather than all sixteen: a zone
+    // covering everything greys out the entire call-out, which demonstrates
+    // the rule by making it indistinguishable from a broken control.
+    page.setMpe ({ true, 1, 8 });
+    applyMpeToTuning (page.getMpe());
+
+    page.onMpeChanged = [this] (controllers::Mpe mpe) { applyMpeToTuning (mpe); };
 }
 
 void DemoEditor::showSamplePresets()
@@ -247,6 +266,16 @@ void DemoEditor::showSamplePresets()
     page.setIncludes ({ true, false });
     page.setSplitActive (true);
     page.setLayer (presets::Layer::lower);
+}
+
+void DemoEditor::applyMpeToTuning (controllers::Mpe mpe)
+{
+    // The link docs/controllers.md describes: a channel carrying one MPE voice
+    // cannot be tuned in its own right, so the tuning page draws those channels
+    // as unavailable. The owner does this rather than the pages doing it
+    // between themselves — neither knows the other exists, which is what lets
+    // either be dropped into a plugin alone.
+    sidebar.getTuningPage().setUnavailableChannels (controllers::channelsCoveredBy (mpe));
 }
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)

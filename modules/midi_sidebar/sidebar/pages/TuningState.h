@@ -24,14 +24,21 @@ namespace tuning
     //==========================================================================
     /** How the plugin is being told what to play. One at a time; the page
         remembers nothing else about the others, but the owner is expected to,
-        so that toggling back restores what was set up. */
+        so that toggling back restores what was set up.
+
+        **MPE is not one of them.** It was, until it became its own section on
+        the controllers page: MPE is not a way of being told what to play but a
+        way of laying voices across channels, and it applies whichever of these
+        is in force. See docs/controllers.md.
+
+        The order is the sketch's, and a menu index is the enum's value — so
+        this list and `schemeNames` in TuningPage.cpp have to move together. */
     enum class Scheme
     {
         mtsEsp,
         mtsSysex,
-        tuningFile,
-        mpe,
         midi2,
+        tuningFile,
         standard
     };
 

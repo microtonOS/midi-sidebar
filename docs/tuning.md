@@ -101,14 +101,14 @@ the two titles are indented to the same place, so "Tuning" sits above the "S" of
             <select style="width: 3cm">
                 <option>MTS ESP</option>
                 <option>MTS sysex</option>
-                <option>tuning file</option>
-                <option>MPE</option>
                 <option>MIDI 2.0</option>
+                <option>tuning file</option>
+                <!--<option>MPE</option>-->
                 <option>standard</option>
             </select>
         </td>
         <td colspan="3">
-            <button>channels</button>
+            <button>multichannel</button>
         </td>
     </tr>
     <tr>

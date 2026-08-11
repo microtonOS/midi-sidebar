@@ -26,10 +26,15 @@ namespace layout
 
     /** Default height. Above the sidebar's own breakpoint, so it opens with the
         volume strip showing — and above the tallest page's natural height, so
-        the demo does not open on a page that is already clipped. The tuning
-        page is the tall one; it grew past 420 when its program and bank became
-        stacked steppers. */
-    inline constexpr int defaultHeight = 460;
+        the demo does not open on a page that is already clipped.
+
+        The controllers page is the one to clear. It has no natural height —
+        its table is a flexible track — so what this clears is its *minimum*
+        plus a few rows of table, which is what makes the demo open on a table
+        with room in it rather than on one at its floor. That minimum grew when
+        MPE became a section of its own and shrank again when the monitor came
+        down to a single row. */
+    inline constexpr int defaultHeight = 470;
     inline constexpr int maxWidth      = 1600;
     inline constexpr int maxHeight     = 1200;
 

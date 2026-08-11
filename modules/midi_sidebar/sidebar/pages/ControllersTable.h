@@ -61,8 +61,14 @@ public:
 
     /** Appends a blank mapping and selects it, which is what `add` does. Under
         `Order::recent` it appears at the top, since that is where the newest
-        row belongs. */
-    void addMapping();
+        row belongs.
+
+        The source is an argument rather than a column because it decides what
+        the rest of the row means: an aftertouch or polytouch row has no
+        controller number, so its MSB and LSB are replaced by the word itself.
+        That is why docs/controllers.md gives those two their own buttons beside
+        `add` instead of a menu inside the table. */
+    void addMapping (controllers::Source source = controllers::Source::control);
 
     /** Removes the selected row, or the last one when nothing is selected, so
         the button is never dead while there is something to remove. */
@@ -73,10 +79,18 @@ public:
     std::function<void()> onMappingsChanged;
 
     /** Height that shows `rows` rows under the header — what the page reserves
-        when it has the room, and its minimum when it does not. */
+        when it has the room, and its minimum when it does not.
+
+        The horizontal scrollbar is counted because it is always present: the
+        columns are wider than the panel by design, which is the whole reason
+        the parameter names are frozen beside them. Leaving it out cost the last
+        row its bottom few pixels, and only at the minimum height, where there
+        was nothing spare to hide it. */
     static constexpr int getHeightForRows (int rows) noexcept
     {
-        return metrics::tableHeaderHeight + rows * metrics::tableRowHeight;
+        return metrics::tableHeaderHeight
+             + rows * metrics::tableRowHeight
+             + metrics::scrollbarThickness;
     }
 
     //==========================================================================
@@ -136,6 +150,10 @@ private:
         do. The cell is disabled rather than hidden: the number is still part of
         the mapping, it just has no effect. */
     bool ignoresLsb (int row) const;
+
+    /** What drives the row. `control` for anything out of range, so a caller
+        never has to check the row first. */
+    controllers::Source sourceFor (int row) const;
 
     const controllers::Parameter* parameterFor (int row) const;
 

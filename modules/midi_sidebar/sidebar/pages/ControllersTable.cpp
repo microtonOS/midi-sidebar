@@ -200,9 +200,12 @@ void ControllersTable::setMappings (juce::Array<controllers::Mapping> newMapping
     refreshRows();
 }
 
-void ControllersTable::addMapping()
+void ControllersTable::addMapping (controllers::Source source)
 {
-    mappings.add ({});
+    Mapping mapping;
+    mapping.source = source;
+
+    mappings.add (mapping);
     refreshRows();
 
     // Selected wherever it landed, which under `recent` is the top row and
@@ -329,6 +332,12 @@ const controllers::Parameter* ControllersTable::parameterFor (int row) const
                                                                : nullptr;
 }
 
+controllers::Source ControllersTable::sourceFor (int row) const
+{
+    const auto index = mappingIndexFor (row);
+    return index >= 0 ? mappings[index].source : Source::control;
+}
+
 bool ControllersTable::ignoresLsb (int row) const
 {
     const auto mapping = mappingIndexFor (row);
@@ -451,9 +460,10 @@ juce::StringArray ControllersTable::itemsFor (int columnId) const
 
     if (columnId == channel)
     {
-        // Index 0 is omni, so the list's indices are already the channel values
-        // `controllers::omniChannel`, 1, 2 … and nothing has to be converted.
-        juce::StringArray channels { "omni" };
+        // The order the sketch draws: the two answers that are not a channel
+        // number first, then the sixteen that are. `channelForIndex` is what
+        // turns a position in this list back into a value.
+        juce::StringArray channels { "omni on", "omni off" };
 
         for (int c = firstChannel; c <= lastChannel; ++c)
             channels.add (juce::String (c));
@@ -466,9 +476,12 @@ juce::StringArray ControllersTable::itemsFor (int columnId) const
 
 int ControllersTable::separatorFor (int columnId) const
 {
-    // The rule the sketch draws in the mode menu: everything below it ignores
-    // the LSB.
-    return columnId == mode ? modesBeforeSeparator : -1;
+    // The two rules the sketch draws. In the mode menu everything below it
+    // ignores the LSB; in the channel menu everything below it is a channel
+    // number.
+    return columnId == mode    ? modesBeforeSeparator
+         : columnId == channel ? channelsBeforeSeparator
+                               : -1;
 }
 
 int ControllersTable::choiceFor (int row, int columnId) const
@@ -483,7 +496,7 @@ int ControllersTable::choiceFor (int row, int columnId) const
     switch (columnId)
     {
         case param:   return mapping.parameterIndex;
-        case channel: return mapping.channel;
+        case channel: return indexForChannel (mapping.channel);
         case mode:    return static_cast<int> (mapping.mode);
         default:      break;
     }
@@ -503,7 +516,7 @@ void ControllersTable::commitChoice (int row, int columnId, int index)
     switch (columnId)
     {
         case param:   mapping.parameterIndex = index; break;
-        case channel: mapping.channel        = index; break;
+        case channel: mapping.channel        = channelForIndex (index); break;
         case mode:    mapping.mode           = static_cast<Mode> (index); break;
         default:      return;
     }
@@ -526,9 +539,38 @@ void ControllersTable::paintRowBackground (juce::Graphics& g, int, int, int, boo
         g.fillAll (findColour (ChoiceStrip::selectedColourId).withAlpha (shades::selectedRow));
 }
 
-void ControllersTable::paintCell (juce::Graphics&, int, int, int, int, bool)
+void ControllersTable::paintCell (juce::Graphics& g, int row, int columnId, int, int height, bool)
 {
-    // Every cell holds a widget, so there is nothing left to draw.
+    // Every cell holds a widget, except the two that a touch row replaces with
+    // one word — those are left empty by `refreshComponentForCell` so that this
+    // can draw into them.
+    if (columnId != msb && columnId != lsb)
+        return;
+
+    const auto source = sourceFor (row);
+
+    if (source == Source::control)
+        return;
+
+    // **One word across two columns**, which is what the sketch draws and what
+    // a TableListBox has no way of expressing: it does not span columns, and a
+    // cell's component is clipped to its own cell. So the same string is drawn
+    // into both cells, shifted left by the MSB column's width in the second,
+    // and each cell's own clip keeps its half. The halves meet exactly, because
+    // the columns are adjacent and the shift is that column's width.
+    auto& header = table.getHeader();
+
+    const auto msbWidth = header.getColumnWidth (msb);
+    const auto span     = msbWidth + header.getColumnWidth (lsb);
+    const auto inset    = metrics::tableCellInset + metrics::labelTextInset;
+
+    // Read-only, and drawn like the monitor's read-outs rather than like an
+    // editable cell: there is nothing here to type into.
+    g.setColour (findColour (ReadOutField::textColourId).withMultipliedAlpha (shades::readOnly));
+    g.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
+    g.drawText (sourceNames[static_cast<int> (source)],
+                (columnId == msb ? 0 : -msbWidth) + inset, 0, span - inset * 2, height,
+                juce::Justification::centredLeft, true);
 }
 
 juce::Component* ControllersTable::refreshComponentForRow (int row, bool, juce::Component* existing)
@@ -555,6 +597,14 @@ juce::Component* ControllersTable::refreshComponentForCell (int row, int columnI
                                                            juce::Component* existing)
 {
     if (mappingIndexFor (row) < 0)
+    {
+        delete existing;
+        return nullptr;
+    }
+
+    // A touch row has no controller numbers, so those two cells hold nothing —
+    // `paintCell` draws the source's name across the pair instead.
+    if ((columnId == msb || columnId == lsb) && sourceFor (row) != Source::control)
     {
         delete existing;
         return nullptr;

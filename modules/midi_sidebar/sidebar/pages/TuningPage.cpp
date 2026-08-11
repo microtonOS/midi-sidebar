@@ -9,8 +9,8 @@ namespace
     /** The scheme names, in the order docs/tuning.md lists them — which is the
         order `Scheme` declares them in, so a menu index is the enum's value and
         nothing has to be converted. */
-    const juce::StringArray schemeNames { "MTS ESP", "MTS sysex", "tuning file",
-                                          "MPE", "MIDI 2.0", "standard" };
+    const juce::StringArray schemeNames { "MTS ESP", "MTS sysex", "MIDI 2.0",
+                                          "tuning file", "standard" };
 
     juce::String centsText (double cents)
     {
@@ -268,6 +268,13 @@ void TuningPage::setChannels (bool omniOn, tuning::ChannelMask mask)
     channelMask = mask;
 }
 
+void TuningPage::setUnavailableChannels (tuning::ChannelMask mask)
+{
+    // Nothing to redraw here: the channels are only ever shown inside the
+    // call-out, which is built fresh each time it opens.
+    unavailableChannels = mask;
+}
+
 void TuningPage::setScaleFileName (const juce::String& name)
 {
     scaleButton.setButtonText (name.isNotEmpty() ? name : juce::String ("load scale"));
@@ -341,7 +348,7 @@ void TuningPage::applyModDivisor()
 
 void TuningPage::showChannelSelector()
 {
-    auto content = std::make_unique<ChannelSelector> (omni, channelMask);
+    auto content = std::make_unique<ChannelSelector> (omni, channelMask, unavailableChannels);
     const auto size = ChannelSelector::getPreferredSize();
 
     content->setSize (size.x, size.y);

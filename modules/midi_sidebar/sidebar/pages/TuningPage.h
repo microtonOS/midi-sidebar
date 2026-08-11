@@ -50,6 +50,19 @@ public:
     void setUpdateMode  (tuning::UpdateMode mode);
     void setChannels    (bool omniOn, tuning::ChannelMask mask);
 
+    /** Channels that cannot be tuned separately, drawn as unavailable in the
+        multichannel call-out.
+
+        MPE is what puts channels here: its member channels carry one voice
+        each, so a per-channel tuning has nothing to attach to and the tuning is
+        read from the generic channel instead — MTS ESP's "-1". See
+        docs/controllers.md, which is where the range is chosen.
+
+        Only the display is affected. Whatever the end-user had selected stays
+        selected underneath, the same way it does under omni, so switching MPE
+        off gives it back rather than making them set it up again. */
+    void setUnavailableChannels (tuning::ChannelMask mask);
+
     /** Shown on the two file buttons. Empty means nothing is loaded, which the
         buttons draw as a prompt rather than as a filename. */
     void setScaleFileName   (const juce::String& name);
@@ -127,6 +140,7 @@ private:
 
     bool omni = false;
     tuning::ChannelMask channelMask = tuning::allChannels;
+    tuning::ChannelMask unavailableChannels = tuning::noChannels;
 
     /** The labels naming a field beside or above it. Collected so that the one
         thing they share — font, colour, alignment — is applied in a loop rather
@@ -167,7 +181,7 @@ private:
     //  Settings section. A ChoiceButton rather than a ComboBox, so the scheme
     //  menu matches the ones in the controllers table — see ChoiceButton.
     ChoiceButton schemeButton { "scheme" };
-    juce::TextButton channelsButton { "channels" };
+    juce::TextButton channelsButton { "multichannel" };
     juce::TextButton scaleButton, mapButton;
     ChoiceStrip updateStrip;
 
