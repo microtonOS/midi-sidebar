@@ -7,6 +7,7 @@
 #include "../SidebarLookAndFeel.h"
 #include "../widgets/ChoiceButton.h"
 #include "../widgets/ChoiceStrip.h"
+#include "../widgets/ReadOutField.h"
 #include "ControllersState.h"
 #include "ControllersTable.h"
 #include "PageGrid.h"
@@ -17,16 +18,16 @@ namespace microtonos::sidebar
 //==============================================================================
 /** The controllers page: what is arriving, and what it is mapped to.
 
-    Implements docs/controllers.md. A monitor of the last few MIDI messages at
-    the top, then `FILES` and `EDITING` as framed sections, the same shape the
-    tuning page uses.
+    Implements docs/controllers.md. The newest message and the pitch-bend range
+    at the top, then `FILES`, `MPE` and `EDITING` as framed sections, the same
+    shape the tuning page uses.
 
     **Its height works the other way round from the tuning page.** There every
     row was fixed and a short panel cut the bottom off. Here everything but the
-    editing table is fixed — three monitor rows, two rows of buttons, two frames
-    — and the table is the single flexible track, so the page has a genuine
-    minimum and simply grows into anything above it. That is the pattern the
-    presets page should follow.
+    editing table is fixed — two rows at the top, three rows of buttons, three
+    frames — and the table is the single flexible track, so the page has a
+    genuine minimum and simply grows into anything above it. That is the pattern
+    the presets page should follow.
 */
 class ControllersPage final : public juce::Component
 {
@@ -44,13 +45,10 @@ public:
     void setMappings (juce::Array<controllers::Mapping> mappings);
     const juce::Array<controllers::Mapping>& getMappings() const noexcept;
 
-    /** Pushes one message onto the monitor, dropping the oldest. This is the
-        call an owner watching a MIDI stream actually wants. */
-    void addMessage (controllers::Message message);
-
-    /** Replaces the whole monitor at once, which is what a demo or a restored
-        session does. Anything past `controllers::monitorRows` is ignored. */
-    void setMessages (juce::Array<controllers::Message> messages);
+    /** The line the monitor shows, replacing whatever was there. Already
+        formatted — see the note in ControllersState.h about why this module
+        does not compose it. An empty string shows the placeholder. */
+    void setMessage (const juce::String& message);
 
     /** Pitch-bend range in cents, clamped to
         `controllers::highestPitchBendCents`. */
@@ -90,7 +88,7 @@ public:
         meant the number did not mean what it says. */
     static constexpr int getMinimumHeight() noexcept
     {
-        return monitorHeight()
+        return metrics::pageRowHeight                         // the monitor
              + metrics::pageRowGap + metrics::pageRowHeight   // PB sensitivity
              + section (metrics::pageRowHeight)               // load | save
              + section (metrics::pageRowHeight)               // the MPE zone
@@ -104,16 +102,6 @@ public:
 
 private:
     //==========================================================================
-    /** One row, no header, and it never scrolls — so its height is simply that
-        row. */
-    static constexpr int monitorHeight() noexcept
-    {
-        return controllers::monitorRows * metrics::tableRowHeight;
-    }
-
-    /** Opens the call-out holding the rest of the history. */
-    void showHistory();
-
     /** A framed section: its title band, its content, the padding under it, and
         the row gaps that separate all three. */
     static constexpr int section (int contentHeight) noexcept
@@ -124,12 +112,6 @@ private:
              + metrics::pageRowGap * 3;
     }
 
-    /** The monitor. A `TableListBox` because docs/controllers.md says the inner
-        tables are real tables, even though this one neither scrolls nor sorts. */
-    class Monitor;
-
-    std::unique_ptr<Monitor> monitor;
-
     /** Commits the typed range on Return and on losing focus, rejecting
         anything the plugin could not act on — the tuning page's modulo divisor
         works the same way. */
@@ -139,6 +121,12 @@ private:
     void mpeChanged();
 
     juce::GroupComponent filesGroup, mpeGroup, editingGroup;
+
+    /** The monitor: the newest message, as one line of text. A `ReadOutField`
+        like every other read-only value in the module, rather than a table —
+        one that never scrolls and never sorts is four columns of furniture
+        around a single sentence. */
+    ReadOutField monitor { "nothing yet" };
 
     //  Pitch bend, at the top with the monitor and unframed: the sketch gives
     //  it no title, and on these pages a GroupComponent is what a *named*

@@ -170,30 +170,13 @@ namespace controllers
     };
 
     //==========================================================================
-    /** A line of the monitor: what arrived, already formatted.
-
-        Four strings rather than a decoded message, because the page's whole job
-        is to show what came in. Turning note 69 into "A4" needs to know how the
-        instrument names notes, which is exactly the knowledge this module does
-        not have and should not acquire. Fields are blank where they do not
-        apply — a sysex message has no channel.
-    */
-    struct Message
-    {
-        juce::String type;
-        juce::String channel;
-        juce::String noteOrCc;
-        juce::String value;
-    };
-
-    /** How many the page shows: the newest, and only that. The monitor is a
-        glance — "something is arriving, and it looks like this" — and a glance
-        does not need three rows of a page that is 260px wide. */
-    inline constexpr int monitorRows = 1;
-
-    /** How many are kept, and how many the monitor shows when it is clicked.
-        A tail: the oldest is pushed out rather than the newest dropped. */
-    inline constexpr int monitorHistoryRows = 5;
+    //  The monitor is one line of text: the newest message to arrive, and
+    //  nothing else. It is a glance — "something is coming in, and it looks
+    //  like this" — which a page 260px wide can afford and a table of columns
+    //  it never scrolls could not. The line is composed by whoever is reading
+    //  the MIDI, since turning note 69 into "A4" needs to know how the
+    //  instrument names its notes, and that is exactly the knowledge this
+    //  module does not have and should not acquire.
 
     //==========================================================================
     /** Pitch-bend sensitivity, in cents.

@@ -1,145 +1,9 @@
 #include "ControllersPage.h"
-#include "../PopupHost.h"
 
 namespace microtonos::sidebar
 {
 
 using namespace controllers;
-
-//==============================================================================
-/** The messages to arrive, newest at the top.
-
-    Read-only, headerless and a fixed number of rows, so none of
-    `TableListBox`'s scrolling, sorting or selection is wanted — only its
-    columns. It stays a table anyway because docs/controllers.md says the inner
-    tables are real tables, and because the alternative is hand-drawing four
-    columns that would then drift from the ones below.
-
-    **Two of these exist.** The page holds one showing a single row — the newest
-    message — and clicking it opens a call-out holding another, showing the rest
-    of the history. One class rather than two because they are the same thing at
-    two sizes, and because the columns then cannot disagree between them.
-*/
-class ControllersPage::Monitor final : public juce::TableListBox,
-                                       private juce::TableListBoxModel
-{
-public:
-    explicit Monitor (int rowsToShow) : rowsShown (rowsToShow)
-    {
-        setModel (this);
-        setRowHeight (metrics::tableRowHeight);
-
-        // No header: the sketch draws none, and with four columns of obvious
-        // content it earns its row back.
-        setHeaderHeight (0);
-
-        const auto fixed = juce::TableHeaderComponent::visible;
-
-        getHeader().addColumn ("type",    Column::type,  metrics::monitorTypeWidth,  0, -1, fixed);
-        getHeader().addColumn ("chan",    Column::chan,  metrics::monitorChanWidth,  0, -1, fixed);
-        getHeader().addColumn ("note/cc", Column::note,  metrics::monitorNoteWidth,  0, -1, fixed);
-        getHeader().addColumn ("value",   Column::value, metrics::monitorValueWidth, 0, -1, fixed);
-
-        // Nothing here is selectable or scrollable; it is a read-out that
-        // happens to have columns.
-        setClickingTogglesRowSelection (false);
-        getViewport()->setScrollBarsShown (false, false);
-    }
-
-    ~Monitor() override { setModel (nullptr); }
-
-    void setMessages (juce::Array<Message> newMessages)
-    {
-        messages = std::move (newMessages);
-
-        // Keeping the newest is the point of a tail; dropping from the end
-        // would keep the first few messages of the session for ever.
-        while (messages.size() > monitorHistoryRows)
-            messages.remove (messages.size() - 1);
-
-        updateContent();
-        repaint();
-    }
-
-    void addMessage (Message message)
-    {
-        messages.insert (0, std::move (message));
-        setMessages (messages);
-    }
-
-    /** All of them, however few are shown — which is what the call-out is
-        built from. */
-    const juce::Array<Message>& getMessages() const noexcept { return messages; }
-
-    /** Called when the monitor is clicked anywhere. Left unset on the copy
-        inside the call-out: opening a second call-out from the first is not a
-        thing to offer. */
-    std::function<void()> onClick;
-
-    static constexpr int heightForRows (int rows) noexcept
-    {
-        return rows * metrics::tableRowHeight;
-    }
-
-    /** Built parentless inside a call-out, where being attached is the only
-        moment the real LookAndFeel becomes reachable — and that moment sends
-        `parentHierarchyChanged`, not `lookAndFeelChanged`. See ChannelSelector,
-        which has the same problem for the same reason. */
-    void parentHierarchyChanged() override { lookAndFeelChanged(); }
-
-    void lookAndFeelChanged() override
-    {
-        if (! getLookAndFeel().isColourSpecified (ReadOutField::backgroundColourId))
-            return;
-
-        // The monitor sits on the panel like a read-out does — recessed, same
-        // hairline — rather than introducing another surface to the page.
-        setColour (juce::ListBox::backgroundColourId, findColour (ReadOutField::backgroundColourId));
-        setColour (juce::ListBox::outlineColourId,    findColour (ReadOutField::outlineColourId));
-        setOutlineThickness (1);
-    }
-
-private:
-    enum Column { type = 1, chan, note, value };
-
-    int getNumRows() override { return rowsShown; }
-
-    void cellClicked (int, int, const juce::MouseEvent&) override { clicked(); }
-    void backgroundClicked (const juce::MouseEvent&) override     { clicked(); }
-
-    void clicked()
-    {
-        if (onClick != nullptr)
-            onClick();
-    }
-
-    void paintRowBackground (juce::Graphics&, int, int, int, bool) override {}
-
-    void paintCell (juce::Graphics& g, int row, int columnId, int width, int height, bool) override
-    {
-        if (! juce::isPositiveAndBelow (row, messages.size()))
-            return;
-
-        const auto& message = messages[row];
-
-        const auto text = columnId == Column::type ? message.type
-                        : columnId == Column::chan ? message.channel
-                        : columnId == Column::note ? message.noteOrCc
-                                                   : message.value;
-
-        // All four columns are left-aligned. The note or CC still reads as
-        // sitting midway between the channel and the value, because its column
-        // is the same width as the channel's — see `metrics::monitorNoteWidth`,
-        // which is where that is arranged.
-        g.setColour (findColour (ReadOutField::textColourId).withMultipliedAlpha (shades::readOnly));
-        g.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
-        g.drawText (text, juce::Rectangle<int> (width, height).reduced (metrics::readOutPadding, 0),
-                    juce::Justification::centredLeft, true);
-    }
-
-    juce::Array<Message> messages;
-    const int rowsShown;
-};
 
 //==============================================================================
 namespace
@@ -151,10 +15,9 @@ namespace
 }
 
 ControllersPage::ControllersPage()
-    : monitor (std::make_unique<Monitor> (controllers::monitorRows)),
-      // No title: the frame around the section is already called MPE, and a
-      // strip titled "on / off" inside a group titled "MPE" says it twice.
-      mpeStrip ({}, { "on", "off" })
+    // No title: the frame around the section is already called MPE, and a
+    // strip titled "on / off" inside a group titled "MPE" says it twice.
+    : mpeStrip ({}, { "on", "off" })
 {
     // Frames first, so everything else draws over them — the arrangement the
     // tuning page uses and for the same reason.
@@ -169,15 +32,7 @@ ControllersPage::ControllersPage()
     mpeGroup    .setText ("MPE");
     editingGroup.setText ("EDITING");
 
-    addAndMakeVisible (*monitor);
-
-    // One row is a glance; the rest of the history is a click away. The cursor
-    // is the only affordance, since the monitor keeps the recessed look of a
-    // read-out — it is showing what arrived, and a button background would make
-    // the newest message read as something to press rather than as data.
-    monitor->onClick = [this] { showHistory(); };
-    monitor->setMouseCursor (juce::MouseCursor::PointingHandCursor);
-    monitor->setName ("monitor");
+    addAndMakeVisible (monitor);
 
     for (auto* b : { &loadButton, &saveButton, &addButton, &removeButton,
                      &aftertouchButton, &polytouchButton })
@@ -341,34 +196,9 @@ const juce::Array<controllers::Mapping>& ControllersPage::getMappings() const no
     return table.getMappings();
 }
 
-void ControllersPage::addMessage (controllers::Message message)
+void ControllersPage::setMessage (const juce::String& message)
 {
-    monitor->addMessage (std::move (message));
-}
-
-void ControllersPage::showHistory()
-{
-    // Sized to what there is to show, so a session three messages old does not
-    // open a call-out with two empty rows in it.
-    const auto rows = juce::jmax (1, juce::jmin (controllers::monitorHistoryRows,
-                                                 monitor->getMessages().size()));
-
-    auto content = std::make_unique<Monitor> (rows);
-
-    content->setMessages (monitor->getMessages());
-    content->setSize (monitor->getWidth(), Monitor::heightForRows (rows));
-
-    // findPopupHost, never getTopLevelComponent — see the same call on the
-    // tuning page, and PopupHost.h for why.
-    if (auto* host = findPopupHost (*this))
-        juce::CallOutBox::launchAsynchronously (std::move (content),
-                                                host->getLocalArea (monitor.get(), monitor->getLocalBounds()),
-                                                host);
-}
-
-void ControllersPage::setMessages (juce::Array<controllers::Message> messages)
-{
-    monitor->setMessages (std::move (messages));
+    monitor.setValue (message);
 }
 
 //==============================================================================
@@ -398,10 +228,6 @@ void ControllersPage::lookAndFeelChanged()
     // tuning page's modulo editor.
     pitchBendEditor.setFont (font);
     pitchBendEditor.applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
-
-    // The monitor colours itself: the copy inside the call-out has no page to
-    // do it for it, and one of them styled from here would be the one that
-    // came out wrong.
 }
 
 //==============================================================================
@@ -417,7 +243,7 @@ void ControllersPage::resized()
 
     //  Monitor and pitch bend, unframed at the top like the tuning page's
     //  interval block: the sketch gives neither a title.
-    grid.place (*monitor, grid.addRow (monitorHeight()), 1, full);
+    grid.place (monitor, grid.addRow (metrics::pageRowHeight), 1, full);
 
     {
         const auto row = grid.addRow (metrics::pageRowHeight);

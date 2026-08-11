@@ -12,12 +12,17 @@
 #  Everything after `--` is passed straight through to SnapshotTool; run
 #  `snapshot.sh --target X -- --help` to see those options.
 #
+#  PNGs are written to ./tmp inside the project, created if it is missing,
+#  unless the caller passes --dir or --out. Delete them once you have looked
+#  at them; they are working files, not output.
+#
 #  On success the last line of stdout is the absolute path of the PNG.
 # =============================================================================
 
 set -euo pipefail
 
 build_dir="build"
+default_dir="tmp"
 target=""
 bin=""
 config=""
@@ -73,6 +78,29 @@ fi
 if [[ ! -x "$bin" ]]; then
     echo "snapshot.sh: '$bin' is not executable" >&2
     exit 1
+fi
+
+# Inside the project rather than the system temp directory. A path outside the
+# project is gated separately from the permission rules, so an agent that has
+# just rendered its own GUI then has to ask before it may look at it — which is
+# not a feedback loop. `tmp/` is the conventional place for working files and is
+# usually already gitignored.
+#
+# Only when the caller has said nothing about where the file goes: an explicit
+# --dir or --out still wins.
+use_default_dir=true
+
+if [[ ${#tool_args[@]} -gt 0 ]]; then
+    for arg in "${tool_args[@]}"; do
+        case "$arg" in
+            --dir|--out) use_default_dir=false ;;
+        esac
+    done
+fi
+
+if [[ "$use_default_dir" == true ]]; then
+    mkdir -p "$default_dir"
+    tool_args+=(--dir "$default_dir")
 fi
 
 exec "$bin" "${tool_args[@]}"

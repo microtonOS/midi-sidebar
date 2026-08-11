@@ -115,18 +115,29 @@ rather than yours. Pass the editor instead.
 
 ## Where the files go
 
-By default `<system temp>/juce-ui-snapshots/`, via
-`juce::File::getSpecialLocation (juce::File::tempDirectory)`. Under Claude Code
-that resolves to the session temp directory, which is writable inside the
-sandbox by default and is discarded with the session. On Linux and the RPi it
-resolves to `$TMPDIR` or `/tmp`.
+`snapshot.sh` writes to **`tmp/` inside the project**, creating it if it is
+missing, unless you pass `--dir` or `--out` yourself.
 
-The tool prunes its own directory to the 20 most recent PNGs (`--keep`). It does
-not rely on the OS sweeping temp files: macOS only removes files untouched for
-three days, and Apple states that behaviour is not API.
+Inside the project rather than the system temp directory, because a path outside
+it is gated separately from the permission rules: an agent that has just
+rendered its own GUI is then asked whether it may look at the file, on every
+render. That is not a feedback loop. `tmp/` is the conventional place for
+working files and is usually already in `.gitignore` — check that it is, because
+these images are working files and must never be committed.
 
-Use `--dir` or `--out` to write elsewhere. Writing into the repository is
-usually a mistake — the images are build output, not source.
+**Delete a snapshot once you have looked at it.** It has done its job the moment
+you have read it; what is left otherwise is a directory of near-identical PNGs
+that nobody can tell apart, in which the one that matters is not obvious. Keep
+only images someone else has been asked to look at, and only until they have.
+The tool also prunes its own directory to the 20 most recent (`--keep`), but
+that is a backstop against filling a disk, not a substitute: it cannot know
+which of the twenty were still wanted.
+
+`SnapshotTool` on its own — run directly rather than through `snapshot.sh` —
+still defaults to `<system temp>/juce-ui-snapshots/`, via
+`juce::File::getSpecialLocation (juce::File::tempDirectory)`. It does not rely
+on the OS sweeping that directory: macOS only removes files untouched for three
+days, and Apple states that behaviour is not API.
 
 ## The host window
 

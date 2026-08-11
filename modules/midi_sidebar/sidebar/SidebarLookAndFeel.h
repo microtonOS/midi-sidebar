@@ -198,16 +198,14 @@ namespace metrics
     inline constexpr int highestBank    = 128;
 
     //==========================================================================
-    //  Tables. Both of the controllers page's tables use these, so the monitor
-    //  and the editing grid read as the same kind of object.
+    //  The editing table.
 
     /** One row. Taller than `pageRowHeight` because a row holds a control *and*
         has to be told apart from the row under it, which a page's rows do with
         the gap between them and a table cannot. */
     inline constexpr int tableRowHeight = 24;
 
-    /** The editing table's column headers. The monitor has none — see
-        docs/controllers.md. */
+    /** The editing table's column headers. */
     inline constexpr int tableHeaderHeight = 18;
 
     /** Inset of a cell's widget from its row, so controls in adjacent rows do
@@ -242,23 +240,6 @@ namespace metrics
         `channel` and `mode` are exactly as wide as their longest entry needs
         and no wider. */
     inline constexpr int tableTextPadding = 16;
-
-    /** Monitor columns. Unlike the editing table these are sized to fit, since
-        the monitor does not scroll in either direction. */
-    inline constexpr int monitorTypeWidth  = 74;
-    inline constexpr int monitorChanWidth  = 48;
-
-    /** The same width as the channel's, which is what puts the note or CC
-        midway between the channel and the value.
-
-        Every column is left-aligned, so the three numbers begin at their
-        columns' left edges: equal widths here and for the channel mean equal
-        gaps, and the middle one lands in the middle. Centring the text inside
-        its own column does *not* — the neighbours' text sits at the far left of
-        their columns while a centred one sits half a column further in, which
-        pushed it visibly to the right. */
-    inline constexpr int monitorNoteWidth  = monitorChanWidth;
-    inline constexpr int monitorValueWidth = 78;
 
     /** Rows of text the comment box must be able to show before the presets
         page has to give up any more height.

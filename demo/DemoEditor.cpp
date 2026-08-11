@@ -221,19 +221,14 @@ void DemoEditor::showSampleControllers()
 
     page.setMappings ({ swell, rotary, vibrato });
 
-    // Newest first, so the page's single row shows Figure 1's live line and the
-    // rest are what its call-out opens onto — which is why there are five of
-    // them rather than the one the sketch now draws. Nothing generates these
-    // yet; see docs/demo.md.
-    juce::Array<controllers::Message> messages;
-
-    messages.add ({ "control", "16", "11", "98" });
-    messages.add ({ "note on", "15", "A4", "102" });
-    messages.add ({ "sysex",   {},   {},   {} });
-    messages.add ({ "note off","15", "A4", "0"  });
-    messages.add ({ "control", "16", "11", "64" });
-
-    page.setMessages (messages);
+    // Figure 1's line, as one string. The page does not compose these — see the
+    // note in ControllersState.h — so the phrasing is the *host's*, and this is
+    // the demo standing in for it: every number said with what it is, since the
+    // columns that used to explain them are gone. "cc 11" already says the
+    // message is a control change, so the word itself would only repeat the
+    // column heading that was removed with it. Nothing generates this yet; see
+    // docs/demo.md.
+    page.setMessage ("ch 16  cc 11  value 98");
 
     // The sketch's own value, which is MIDI's default range of two semitones.
     page.setPitchBendCents (controllers::defaultPitchBendCents);

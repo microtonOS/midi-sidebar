@@ -271,6 +271,15 @@ For recent messages at the top, only the last 3 messages are shown.
 
 **Figure 2**.
 
+The monitor shows the last MIDI message, e.g.:
+- ch 1 CC 80 value 101
+- ch 3 pitchbend 2003
+- sysex bulk tuning dump
+- ch 2 note on 60 velocity 127
+- ch 16 polytouch 69 value 50
+- ch 15 PC 19
+- ch 14 aftertouch 120
+
 In the editing table, the leftmost header cells—the parameter names—should always be visible as you scroll in the left–right directions.
 Likewise, the topmost headers should always be visible when you scroll in the up–down directions.
 This does not mean that all header cells are always visible. An up–down scroll may change the visible parameter names and vice versa.
