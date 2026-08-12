@@ -100,6 +100,27 @@ namespace metrics
     /** Between rows inside one section. */
     inline constexpr int pageRowGap = 5;
 
+    /** The whole of that opening block, gaps included — what a page reserves
+        when it fills it with one tall widget rather than with rows. */
+    inline constexpr int pageTopHeight (int rows) noexcept
+    {
+        return rows * pageRowHeight + (rows - 1) * pageRowGap;
+    }
+
+    /** The unframed block every page opens with, above its first group.
+
+        **One height for all four pages, not four heights that happen to agree.**
+        The tuning page has its interval and modulo, presets its frequencies and
+        split, channels its two rows of modes, controllers its monitor — and the
+        eye reads the first group's title as a horizontal line across the whole
+        sidebar, so a page whose block is a few pixels taller looks misaligned
+        against the others when you switch to it.
+
+        Two rows is what the other three need, so it is what the monitor is
+        given rather than the other way round: a block sized to the largest and
+        padded elsewhere would leave slack on three pages to suit one. */
+    inline constexpr int pageTopRows = 2;
+
     /** The band a `GroupComponent` needs above its contents.
 
         `LookAndFeel_V2::drawGroupComponentOutline`, which V4 inherits, draws the
@@ -212,6 +233,15 @@ namespace metrics
         not touch. */
     inline constexpr int tableCellInset = 2;
 
+    /** A column title against a cell's text. Bold and a little smaller, which
+        is what JUCE's own header does and what keeps a title from being read as
+        one of the values under it. */
+    inline constexpr float headerFontScale = 0.9f;
+
+    /** How far a hover is knocked back from a press. JUCE's own header uses
+        0.625; kept so the two agree while the colour comes from the scheme. */
+    inline constexpr float hoverAlpha = 0.625f;
+
     /** A `juce::Label`'s own left margin — `BorderSize<int> { 1, 5, 1, 5 }`,
         declared in juce_Label.h and applied by `getLabelBorderSize`. Needed
         wherever text is *painted* next to labels and has to line up with them,
@@ -222,6 +252,18 @@ namespace metrics
         scroll under their own header. Wide enough for a parameter name in a
         ComboBox, since that is what the column holds. */
     inline constexpr int tableFrozenColumnWidth = 68;
+
+    /** The clock half of the frozen column's header strip. Fixed rather than
+        half, because the two halves want different room: an icon and an arrow
+        on one side, a word and an arrow on the other, and `abc` is the wider
+        of the two. Split evenly, the icon loses. */
+    inline constexpr int orderIconWidth = 30;
+
+    /** The largest a continuous controller number can be, 7 bits. Named because
+        sorting needs somewhere to put the rows that have none, and "one past
+        the largest real one" is the only answer that keeps them out of the way
+        without inventing a value. */
+    inline constexpr int highestCc = 127;
 
     /** Editing columns, in the order docs/controllers.md draws them. They add
         up to more than the panel is wide — that is the point of the frozen
@@ -272,10 +314,17 @@ namespace metrics
         number of rows has to allow for it. */
     inline constexpr int scrollbarThickness = 8;
 
-    /** The channel selector's grid: a square-ish button per MIDI channel, and a
-        column beside it wide enough for "deselect all". */
-    inline constexpr int channelButton    = 26;
-    inline constexpr int channelSideWidth = 78;
+    /** The channels page's grid: one button per MIDI channel, four across as
+        the sketch draws them. Height only — the width comes from the page's own
+        columns, so the block fills the panel rather than sitting in the middle
+        of it at a width of its own. */
+    inline constexpr int channelButton  = 26;
+    inline constexpr int channelColumns = 4;
+    inline constexpr int channelRows    = 16 / channelColumns;
+
+    /** The whole grid, gaps included, which is what the page reserves for it. */
+    inline constexpr int channelGridHeight = channelButton * channelRows
+                                               + pageRowGap * (channelRows - 1);
 
     /** Corner radius shared by read-outs and the boxes drawn around them. */
     inline constexpr float readOutCorner = 3.0f;
@@ -305,7 +354,7 @@ namespace metrics
         Six tracks means five gaps — including the one either side of the
         flexible track, which is easy to forget and leaves the rail a few pixels
         too tall for its stated minimum. */
-    inline constexpr int railPageButtons = 3;
+    inline constexpr int railPageButtons = 4;
     inline constexpr int railTrackCount  = railPageButtons + 2 + 1;   // + panic + slack
 
     constexpr int railFixedHeight (int volumeExtent) noexcept
@@ -446,6 +495,37 @@ public:
     void drawLinearSlider (juce::Graphics&, int x, int y, int width, int height,
                            float sliderPos, float minSliderPos, float maxSliderPos,
                            juce::Slider::SliderStyle, juce::Slider&) override;
+
+    /** Reimplemented for one line of it: the sort arrow.
+
+        `LookAndFeel_V2::drawTableHeaderColumn` fills the arrow with a hardcoded
+        `Colour (0x99000000)` — black at 60% — while everything else in the
+        method comes from a ColourId. Against JUCE's own pale header that is
+        fine, which is presumably why nobody noticed; against a header taking
+        its colour from a dark scheme the arrow disappears, and the arrow is the
+        only thing saying which way the table is sorted. There is no smaller
+        hook than the whole method. */
+    void drawTableHeaderColumn (juce::Graphics&, juce::TableHeaderComponent&,
+                                const juce::String& columnName, int columnId,
+                                int width, int height,
+                                bool isMouseOver, bool isMouseDown, int columnFlags) override;
+
+    /** And the band behind them, for the same reason and worse.
+
+        `LookAndFeel_V2::drawTableHeaderBackground` opens with
+        `g.fillAll (Colours::white)` and then gradient-fills only the *bottom
+        half* from `backgroundColourId` — so however a header is themed, the top
+        half of it stays white. Against JUCE's own pale header that is invisible;
+        against a dark one it is a white band across the table. */
+    void drawTableHeaderBackground (juce::Graphics&, juce::TableHeaderComponent&) override;
+
+    /** The sort arrow, drawn into `area`, pointing up when `forwards`. Public
+        because the controllers page marks its two ordering buttons with it —
+        they sit in the header row without being columns of one, and the mark
+        has to be the same mark. */
+    static void drawSortArrow (juce::Graphics&, juce::Rectangle<int> area,
+                               bool forwards, juce::Colour);
+
 
     // Call-outs are left to LookAndFeel_V4, which fills them with
     // `widgetBackground` at 0.8 alpha over a drop shadow and rims them with a

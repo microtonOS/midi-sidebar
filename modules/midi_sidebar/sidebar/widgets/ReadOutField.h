@@ -72,11 +72,20 @@ public:
         g.setColour (findColour (textColourId)
                          .withMultipliedAlpha (value.isNotEmpty() ? 1.0f : shades::placeholder));
 
-        g.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
-        g.drawText (text,
-                    getLocalBounds().reduced (metrics::readOutPadding, 0),
-                    juce::Justification::centredLeft,
-                    true);
+        const auto font = SidebarLookAndFeel::font (metrics::bodyFontHeight);
+        g.setFont (font);
+
+        // As many lines as the box is tall, which for the one-row fields this
+        // started as is one — so nothing about them changes. The controllers
+        // monitor is the field that is taller than a row, and it holds a line
+        // per message. `drawFittedText` centres the block of lines vertically,
+        // so a single line still sits where `drawText` put it.
+        const auto lines = juce::jmax (1, (int) ((float) getHeight() / font.getHeight()));
+
+        g.drawFittedText (text,
+                          getLocalBounds().reduced (metrics::readOutPadding, 0),
+                          juce::Justification::centredLeft,
+                          lines);
     }
 
 private:

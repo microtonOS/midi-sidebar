@@ -132,33 +132,42 @@ ControllersTable::ControllersTable()
     auto& header = table.getHeader();
     const auto fixed = juce::TableHeaderComponent::visible;
 
+    // Sortable where an order means something. The channel, the two controller
+    // numbers and the mode all have one: the numbers count, and the other two
+    // follow their own menus — which is what makes the sorted table read in the
+    // same order as the menu you picked from.
+    //
+    // `min` and `max` are deliberately not sortable. Their unit belongs to the
+    // parameter, so one row's 100 is a percentage and the next row's is a
+    // frequency; sorting them would be ordering by a number that means a
+    // different thing in every row.
+    const auto sortable = fixed | juce::TableHeaderComponent::sortable;
+
     // The two menu columns are measured, not chosen: as wide as their longest
     // entry — or their own title, whichever is worse — plus the standard
     // padding, and no wider. Every pixel saved here is one the scrolling area
     // gets, which at 248px is the difference between seeing three columns and
     // four.
-    header.addColumn ("channel", channel, widthForContents ("channel", itemsFor (channel)), 0, -1, fixed);
-    header.addColumn ("MSB",     msb,     metrics::tableCcWidth,    0, -1, fixed);
-    header.addColumn ("LSB",     lsb,     metrics::tableCcWidth,    0, -1, fixed);
-    header.addColumn ("mode",    mode,    widthForContents ("mode", itemsFor (mode)), 0, -1, fixed);
+    header.addColumn ("channel", channel, widthForContents ("channel", itemsFor (channel)), 0, -1, sortable);
+    header.addColumn ("MSB",     msb,     metrics::tableCcWidth,    0, -1, sortable);
+    header.addColumn ("LSB",     lsb,     metrics::tableCcWidth,    0, -1, sortable);
+    header.addColumn ("mode",    mode,    widthForContents ("mode", itemsFor (mode)), 0, -1, sortable);
     header.addColumn ("min",     minimum, metrics::tableLimitWidth, 0, -1, fixed);
     header.addColumn ("max",     maximum, metrics::tableLimitWidth, 0, -1, fixed);
 
-    // The sort toggle. Radio-grouped so exactly one is on, and connected so
-    // the pair reads as one control rather than two switches.
-    for (auto* b : { (juce::Button*) &recentButton, (juce::Button*) &alphabeticalButton })
+    // Radio-grouped so exactly one is on: these are two orderings, not two
+    // switches, and there is no state with neither.
+    for (auto* b : { &recentButton, &alphabeticalButton })
     {
-        b->setClickingTogglesState (true);
         b->setRadioGroupId (sortGroupId);
         addAndMakeVisible (*b);
     }
 
-    // A little more of the button given over to the icon than DrawableButton's
-    // default, which leaves a 12px clock in an 18px strip looking timid.
-    recentButton.setEdgeIndent (metrics::tableCellInset);
+    recentButton.setIcon (icons::clock);
 
-    recentButton      .setConnectedEdges (juce::Button::ConnectedOnRight);
-    alphabeticalButton.setConnectedEdges (juce::Button::ConnectedOnLeft);
+    // The right-hand one runs up against the frozen column's own edge, so it
+    // needs no divider of its own.
+    alphabeticalButton.setShowsDivider (false);
 
     recentButton      .onClick = [this] { setOrder (Order::recent); };
     alphabeticalButton.onClick = [this] { setOrder (Order::alphabetical); };
@@ -281,10 +290,16 @@ void ControllersTable::changed()
 
 void ControllersTable::setOrder (Order newOrder)
 {
-    if (order == newOrder)
-        return;
-
     order = newOrder;
+
+    // Hand the ordering back from the header to these two buttons. The guard is
+    // for the `sortOrderChanged` this provokes, which would otherwise refresh
+    // the table halfway through changing it.
+    const juce::ScopedValueSetter<bool> guard (settingSortColumn, true);
+
+    table.getHeader().setSortColumnId (0, true);
+
+    sortColumn = 0;
     refreshRows();
 }
 
@@ -305,16 +320,11 @@ void ControllersTable::rebuildOrder()
     for (int i = 0; i < mappings.size(); ++i)
         displayOrder.add (i);
 
-    if (order == Order::recent)
-    {
-        // Newest first. `mappings` is append-ordered, so this is simply the
-        // reverse — no timestamps to keep.
-        std::reverse (displayOrder.begin(), displayOrder.end());
-        return;
-    }
+    applyOrdering();
+}
 
-    // By parameter name, a at the top. Stable, so mappings sharing a parameter
-    // stay in the order they were added rather than shuffling on every rebuild.
+void ControllersTable::applyOrdering()
+{
     const auto nameOf = [this] (int index)
     {
         const auto parameterIndex = mappings[index].parameterIndex;
@@ -324,11 +334,71 @@ void ControllersTable::rebuildOrder()
                    : juce::String();
     };
 
+    if (sortColumn == 0)
+    {
+        if (order == Order::recent)
+        {
+            // Newest first. `mappings` is append-ordered, so this is simply the
+            // reverse — no timestamps to keep.
+            std::reverse (displayOrder.begin(), displayOrder.end());
+            return;
+        }
+
+        // By parameter name, a at the top. Stable, so mappings sharing a
+        // parameter stay in the order they were added rather than shuffling on
+        // every rebuild.
+        std::stable_sort (displayOrder.begin(), displayOrder.end(),
+                          [&nameOf] (int a, int b)
+                          {
+                              return nameOf (a).compareIgnoreCase (nameOf (b)) < 0;
+                          });
+
+        return;
+    }
+
+    // An absent controller number sorts after every present one rather than
+    // before, since 127 is the largest a real one can be. "Not set" is not a
+    // small number, and putting the blanks on top would bury the rows that
+    // actually do something.
+    const auto ccKey = [] (const std::optional<int>& cc) { return cc.value_or (metrics::highestCc + 1); };
+
+    const auto ascending = [this, &nameOf, &ccKey] (int a, int b)
+    {
+        switch (sortColumn)
+        {
+            // The channel's own value *is* its menu position — see
+            // `channelForIndex` — so counting sorts omni on, omni off, 1 … 16.
+            case channel: return mappings[a].channel < mappings[b].channel;
+            case msb:     return ccKey (mappings[a].msb) < ccKey (mappings[b].msb);
+            case lsb:     return ccKey (mappings[a].lsb) < ccKey (mappings[b].lsb);
+
+            // Likewise the mode: the enum's order is the menu's order, so this
+            // groups the rows that behave alike and keeps the two that ignore
+            // the LSB together at one end.
+            case mode:    return (int) mappings[a].mode < (int) mappings[b].mode;
+            case param:   return nameOf (a).compareIgnoreCase (nameOf (b)) < 0;
+            default:      break;
+        }
+
+        return false;
+    };
+
+    // Stable both ways round, so rows the column cannot tell apart stay in the
+    // order they were added instead of shuffling each time it is re-sorted.
     std::stable_sort (displayOrder.begin(), displayOrder.end(),
-                      [&nameOf] (int a, int b)
+                      [this, &ascending] (int a, int b)
                       {
-                          return nameOf (a).compareIgnoreCase (nameOf (b)) < 0;
+                          return sortForwards ? ascending (a, b) : ascending (b, a);
                       });
+}
+
+void ControllersTable::sortOrderChanged (int newSortColumnId, bool isForwards)
+{
+    sortColumn   = newSortColumnId;
+    sortForwards = isForwards;
+
+    if (! settingSortColumn)
+        refreshRows();
 }
 
 void ControllersTable::refreshRows()
@@ -466,7 +536,7 @@ void ControllersTable::commitText (int row, int columnId, const juce::String& te
         if (trimmed.isEmpty())
             return std::nullopt;
 
-        return juce::jlimit (0, 127, trimmed.getIntValue());
+        return juce::jlimit (0, metrics::highestCc, trimmed.getIntValue());
     };
 
     switch (columnId)
@@ -718,23 +788,8 @@ void ControllersTable::lookAndFeelChanged()
     if (! getLookAndFeel().isColourSpecified (ReadOutField::backgroundColourId))
         return;
 
-    const auto accent = findColour (ChoiceStrip::selectedColourId);
-    const auto onText = findColour (ChoiceStrip::selectedTextColourId);
-
-    // The chosen order takes the same accent as every other "this one is on" in
-    // the sidebar. The clock is a Drawable, so its selected state is a second
-    // copy of the icon in the contrasting colour rather than a text colour.
-    alphabeticalButton.setColour (juce::TextButton::buttonOnColourId, accent);
-    alphabeticalButton.setColour (juce::TextButton::textColourOnId,   onText);
-
-    // TextButton's ids, not DrawableButton's: with ImageOnButtonBackground the
-    // background is drawn by drawButtonBackground, which reads those — so the
-    // clock and "abc" take their selected colour from the same place.
-    recentButton.setColour (juce::TextButton::buttonOnColourId, accent);
-
-    recentButton.setImages (icons::load (icons::clock, findColour (ReadOutField::textColourId)).get(),
-                            nullptr, nullptr, nullptr,
-                            icons::load (icons::clock, onText).get());
+    // The two ordering buttons colour themselves from the header's own ids;
+    // see HeaderButton.
 
     // The tables sit on the panel like a read-out does — recessed, same
     // hairline — rather than introducing a third surface to the page.
@@ -759,13 +814,13 @@ void ControllersTable::resized()
 
     frozenColumn.setBounds (frozen);
 
-    // Two equal flexible tracks rather than a width halved: the odd pixel is
-    // then distributed by the layout instead of being abandoned at one edge,
-    // which on a connected pair would show as a seam off centre.
+    // Not halved: with an arrow beside each, the icon and the word want
+    // different room and `abc` is the wider of the two. A fixed square for the
+    // clock and the rest for the word.
     juce::Grid sort;
 
     sort.templateRows    = { juce::Grid::TrackInfo (juce::Grid::Fr (1)) };
-    sort.templateColumns = { juce::Grid::TrackInfo (juce::Grid::Fr (1)),
+    sort.templateColumns = { juce::Grid::TrackInfo (juce::Grid::Px (metrics::orderIconWidth)),
                              juce::Grid::TrackInfo (juce::Grid::Fr (1)) };
 
     sort.items = { juce::GridItem (recentButton), juce::GridItem (alphabeticalButton) };

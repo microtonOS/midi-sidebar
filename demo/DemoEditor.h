@@ -35,16 +35,12 @@ private:
     void applyTheme (int themeIndex);
     void applyBubbleTextColour (int bubbleTextIndex);
 
-    /** Hands the controllers page's MPE zone to the tuning page, which cannot
-        tune those channels separately. The two pages know nothing about each
-        other; joining them is the owner's job. */
-    void applyMpeToTuning (controllers::Mpe mpe);
-
     /** Fill the pages with fixed sample values, so they can be looked at
         populated. Nothing drives them yet; see docs/demo.md. */
     void showSampleTuning();
     void showSampleControllers();
     void showSamplePresets();
+    void showSampleChannels();
 
     /** Two-way binding between a choice parameter and a strip of buttons: the
         parameter drives `apply`, and a click on a button drives the parameter.

@@ -33,6 +33,7 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     showSampleTuning();
     showSampleControllers();
     showSamplePresets();
+    showSampleChannels();
 
     // The volume slider is not yet attached to the APVTS parameter: that is a
     // later step, and doing it now would need the sidebar to hand out its
@@ -249,27 +250,31 @@ void DemoEditor::showSampleControllers()
 
     page.setMappings ({ cutoff, resonance, vibrato });
 
-    // Figure 1's line, as one string. The page does not compose these — see the
-    // note in ControllersState.h — so the phrasing is the *host's*, and this is
-    // the demo standing in for it: every number said with what it is, since the
-    // columns that used to explain them are gone. "cc 11" already says the
-    // message is a control change, so the word itself would only repeat the
-    // column heading that was removed with it. Nothing generates this yet; see
-    // docs/demo.md.
-    page.setMessage ("ch 16  cc 11  value 98");
+    // Figure 1's line and one before it, newest first. The page does not
+    // compose these — see the note in ControllersState.h — so the phrasing is
+    // the *host's*, and this is the demo standing in for it: every number said
+    // with what it is, since the columns that used to explain them are gone.
+    // "cc 11" already says the message is a control change, so the word itself
+    // would only repeat the column heading that went with them.
+    //
+    // The second line carries an LSB, which is the longest thing the monitor
+    // has to show and the reason it is two lines rather than one. Nothing
+    // generates these yet; see docs/demo.md.
+    page.setMessages ({ "ch 16  cc 11  value 98",
+                        "ch 16  cc 11  lsb 43  value 98",
+                        "ch 15  note on  A4  value 102" });
 
-    // The sketch's own value, which is MIDI's default range of two semitones.
-    page.setPitchBendCents (controllers::defaultPitchBendCents);
+}
 
-    // A lower zone, on, so the tuning page's multichannel call-out has
-    // something to draw as unavailable — which is the whole point of the link
-    // between the two pages. Half the channels rather than all sixteen: a zone
-    // covering everything greys out the entire call-out, which demonstrates
-    // the rule by making it indistinguishable from a broken control.
-    page.setMpe ({ true, 1, 8 });
-    applyMpeToTuning (page.getMpe());
+void DemoEditor::showSampleChannels()
+{
+    auto& page = sidebar.getChannelsPage();
 
-    page.onMpeChanged = [this] (controllers::Mpe mpe) { applyMpeToTuning (mpe); };
+    // Omni off with a few channels muted, so the grid is visibly doing
+    // something rather than showing sixteen identical buttons. Nothing reads
+    // this yet; see docs/demo.md.
+    page.setMode (channels::Mode::omniOff);
+    page.setChannels ((channels::Mask) (channels::allChannels & ~0b0000'0000'1010'0100));
 }
 
 void DemoEditor::showSamplePresets()
@@ -289,16 +294,6 @@ void DemoEditor::showSamplePresets()
     page.setIncludes ({ true, false });
     page.setSplitActive (true);
     page.setLayer (presets::Layer::lower);
-}
-
-void DemoEditor::applyMpeToTuning (controllers::Mpe mpe)
-{
-    // The link docs/controllers.md describes: a channel carrying one MPE voice
-    // cannot be tuned in its own right, so the tuning page draws those channels
-    // as unavailable. The owner does this rather than the pages doing it
-    // between themselves — neither knows the other exists, which is what lets
-    // either be dropped into a plugin alone.
-    sidebar.getTuningPage().setUnavailableChannels (controllers::channelsCoveredBy (mpe));
 }
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)

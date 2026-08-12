@@ -44,6 +44,35 @@ inline constexpr const char* tuning = R"SVG(
 </svg>
 )SVG";
 
+/** Channels: a lower-case `ch`, in the box the controllers icon uses.
+
+    An abstract idea with no established glyph — docs/sidebar.md weighs a
+    monogram against a funnel and settles on the letters. Built from Arcticons'
+    own `c` and `h`, which each arrive centred in a box of their own, so making
+    a word of them needs two corrections:
+
+    - **A shared baseline.** The `c` sits at x-height and the `h` has an
+      ascender, so centring both leaves them floating at different depths. The
+      `c` drops 2.7 to stand on y = 32, where the `h` already ends.
+    - **Room for two.** Each letter is 8 wide about the centre, so they are
+      moved apart to span 14.3–33.8 — still centred on 24, with a gap of about
+      3.5 between them. Letters that merely clear each other read as one
+      squashed shape at 20px; the gap is what makes them two.
+
+    Every command after the initial `M` is relative, so only that `M` carries
+    the offset (and the `h`'s one absolute `V`, which is the baseline already).
+*/
+inline constexpr const char* channels = R"SVG(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
+        d="M21.737 29.985a4 4 0 0 1-3.474 2.015h0a4 4 0 0 1-4-4v-2.6a4 4 0 0 1 4-4h0c1.484 0 2.78.808 3.47 2.008"/>
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
+        d="M25.75 16v16m0-6.6a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4V32"/>
+  <rect width="37" height="37" x="5.5" y="5.5" fill="none" stroke="#ffffff"
+        stroke-linecap="round" stroke-linejoin="round" rx="4" ry="4"/>
+</svg>
+)SVG";
+
 /** Volume: a speaker with radiating arcs. */
 inline constexpr const char* volume = R"SVG(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">

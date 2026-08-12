@@ -58,8 +58,10 @@ namespace controllers
         without a zone being declared — a partial MPE — and naming the value
         after the protocol would claim more than the setting says.
 
-        The same pair, under the same two names, is what the tuning page's
-        multichannel call-out offers; see `ChannelSelector`. */
+        The same pair, under the same two names, is the first half of the
+        channels page's four-way mode — see `channels::Mode`. There it says what
+        the whole plugin does; here it says what one mapping does, which is why
+        both exist. */
     inline constexpr int omniOnChannel  = -1;
     inline constexpr int omniOffChannel =  0;
 
@@ -78,41 +80,6 @@ namespace controllers
         silent, so both directions are written once here. */
     inline constexpr int channelForIndex (int index)   noexcept { return index + omniOnChannel; }
     inline constexpr int indexForChannel (int channel) noexcept { return channel - omniOnChannel; }
-
-    //==========================================================================
-    /** An MPE zone: which channels carry one voice each.
-
-        `master` is 1 or 16 — a lower zone's master channel is the first, an
-        upper zone's the last — and `last` is how far the members reach from it.
-        Held as two channel numbers rather than as a zone-and-count because that
-        is what the sketch asks the end-user for: "ch 1 to 16".
-
-        What it costs the tuning page is in docs/controllers.md: the channels in
-        this span cannot be tuned separately, since each is carrying a single
-        voice, so their tuning is read from the generic channel instead. */
-    struct Mpe
-    {
-        bool on = false;
-        int master = 1;
-        int last   = 16;
-    };
-
-    /** The channels an `Mpe` covers, inclusive and whichever way round it runs,
-        as a bit per channel with bit 0 being channel 1 — the same shape as
-        `tuning::ChannelMask`, which is where it is going. Empty when MPE is
-        off, so a caller does not have to ask twice. */
-    inline juce::uint16 channelsCoveredBy (const Mpe& mpe) noexcept
-    {
-        if (! mpe.on)
-            return 0;
-
-        juce::uint16 covered = 0;
-
-        for (auto c = juce::jmin (mpe.master, mpe.last); c <= juce::jmax (mpe.master, mpe.last); ++c)
-            covered = (juce::uint16) (covered | (1u << (c - firstChannel)));
-
-        return covered;
-    }
 
     //==========================================================================
     /** One of the plugin's parameters, as the *developer* describes it.
@@ -233,35 +200,27 @@ namespace controllers
     }
 
     //==========================================================================
-    //  The monitor is one line of text: the newest message to arrive, and
-    //  nothing else. It is a glance — "something is coming in, and it looks
-    //  like this" — which a page 260px wide can afford and a table of columns
-    //  it never scrolls could not. The line is composed by whoever is reading
-    //  the MIDI, since turning note 69 into "A4" needs to know how the
-    //  instrument names its notes, and that is exactly the knowledge this
-    //  module does not have and should not acquire.
+    /** How many recent messages the monitor shows, one to a line.
 
-    //==========================================================================
-    /** Pitch-bend sensitivity, in cents.
+        Text rather than a table of columns it never scrolls, which is what it
+        was: at 260px the columns cost more than they explain. Two lines rather
+        than one because a single line is a glimpse rather than a monitor — you
+        cannot tell a repeating controller from a stuck one — and because the
+        longest line, a continuous controller with both an MSB and an LSB, is
+        the one that most wants a neighbour to be read against.
 
-        Not a row in the table: pitch bend has its own 14-bit message and a
-        range of its own, so there is nothing to map it *to* — it always bends
-        pitch. It sits with the monitor at the top of the page for that reason.
+        Three, which is what fits: the block is `metrics::pageTopRows` tall
+        because that is what the other pages need, and three lines of body text
+        fit inside it. A third line part-hidden would still be worth having —
+        it says a message was there even when it cannot quite be read — but at
+        these sizes it is not clipped.
 
-        Cents rather than semitones because this is a microtonal plugin and the
-        rest of it already speaks cents: the tuning page's interval, its period
-        and its modulo divisor are all in cents, and a sensitivity that had to
-        be converted before it could be compared with them would be the only
-        pitch on the sidebar that was not. RPN 0 carries semitones and cents
-        separately; this is the pair added up.
+        Each line is composed by whoever is reading the MIDI: turning note 69
+        into "A4" needs to know how the instrument names its notes, which is
+        exactly the knowledge this module does not have and should not
+        acquire. */
+    inline constexpr int monitorLines = 3;
 
-        200 c is two semitones, which is MIDI's own default. */
-    inline constexpr int defaultPitchBendCents = 200;
-
-    /** RPN 0's semitone count is a 7-bit field, so 127 semitones is the largest
-        range the message can express. The ceiling is the protocol's rather than
-        a judgement about what is musical. */
-    inline constexpr int highestPitchBendCents = 127 * 100;
 }
 
 } // namespace microtonos::sidebar

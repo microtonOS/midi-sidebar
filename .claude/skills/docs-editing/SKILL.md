@@ -19,3 +19,28 @@ AI agents should not write the documentation—they should work like editors, pr
 - Note that the user may also use `<!-- -->`.
 - Note that writing and checking documentation requires focus and time and may at times lag. It may only be fruitful to do a proper writeup once experiments and iterations have stabilized.
 
+A template for the file structure of a docs directory.
+```mermaid
+---
+config:
+    themeVariables:
+        treeView:
+            labelColor: '#888888'
+            lineColor: '#888888'
+---
+treeView-beta
+  docs/
+    01_introduction.md
+    02_...
+    appendices/
+      time_data.ipynb
+    figures/
+      featured_image.png
+    scripts/
+      time_plot.py
+      generate_images.py
+```
+Numbering is optional.
+Leading zeros depend on how many files there are
+appendices, figures, and scripts are optional directories.
+Scripts can e.g. be used to generate images that need to be regenerated severla times or helper scripts for jupyter notebooks containint e.g. plotting functions

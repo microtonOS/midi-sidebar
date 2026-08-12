@@ -1,5 +1,4 @@
 #include "TuningPage.h"
-#include "ChannelSelector.h"
 
 namespace microtonos::sidebar
 {
@@ -18,6 +17,12 @@ namespace
         // already finer than anyone can hear, so a third would be noise.
         return juce::String (cents, 2) + " c";
     }
+
+    /** Which entry of the update strip is which. `always` is first because it
+        is drawn at the top of a vertical strip and reading order is downwards —
+        the enum's own order is the other way round, so the two are converted
+        rather than assumed to agree. */
+    constexpr int alwaysIndex = 0;
 
     juce::String sourceText (tuning::PeriodSource source)
     {
@@ -41,10 +46,13 @@ namespace
 
 //==============================================================================
 TuningPage::TuningPage()
-      // No title: the two choices name themselves, and the strip fills the
-      // right-hand half of the two rows the load buttons occupy on the left.
-    : updateStrip ({}, { "note on", "always" })
+      // No title: the two choices name themselves. `always` first, so that in
+      // the vertical strip it sits at the top.
+    : updateStrip ({}, { "always", "note on" })
 {
+    // Vertical, spanning the two rows the scheme and load buttons occupy on the
+    // left — so the strip is as tall as the pair beside it and the section
+    // reads as two columns rather than as three unrelated rows.
     updateStrip.setOrientation (ChoiceStrip::Orientation::vertical);
 
     // Frames first, so everything else is drawn over them. JUCE has no
@@ -83,6 +91,7 @@ TuningPage::TuningPage()
     addLabel (programLabel, "program");
     addLabel (bankLabel,    "bank");
     addLabel (updatedLabel, "updated");
+    addLabel (pitchBendLabel, "PB sensitivity");
 
     // JUCE's own labelling, for the two that sit above their control:
     // attachToComponent positions the label directly over its owner and follows
@@ -94,8 +103,8 @@ TuningPage::TuningPage()
     for (auto* c : std::initializer_list<juce::Component*> {
              &intervalField, &modResultField, &nameButton,
              &programStepper, &bankStepper, &updatedField, &periodSourceField,
-             &schemeButton, &channelsButton, &scaleButton, &mapButton,
-             &updateStrip, &modEditor, &periodChooser })
+             &schemeButton, &loadButton,
+             &updateStrip, &modEditor, &periodChooser, &pitchBendEditor })
         addAndMakeVisible (*c);
 
     //  Interval ---------------------------------------------------------------
@@ -103,6 +112,23 @@ TuningPage::TuningPage()
     modEditor.setText (juce::String (interval.modDivisor, 0), juce::dontSendNotification);
     modEditor.onReturnKey  = [this] { applyModDivisor(); };
     modEditor.onFocusLost  = [this] { applyModDivisor(); };
+
+    //  Pitch bend -------------------------------------------------------------
+    prepareNumericEditor (pitchBendEditor);
+
+    // No sign and no fraction, unlike the modulo divisor: a bend range runs one
+    // way and a fraction of a cent is past what RPN 0 can address.
+    pitchBendEditor.setInputRestrictions (0, "0123456789");
+    pitchBendEditor.onReturnKey = [this] { applyPitchBendCents(); };
+    pitchBendEditor.onFocusLost = [this] { applyPitchBendCents(); };
+
+    setPitchBendCents (tuning::defaultPitchBendCents);
+
+    // Stated rather than inherited. A ChoiceStrip selects its first entry on
+    // construction, and reordering the two put `always` there — which would
+    // have shown a mode the enum does not default to, and quietly, since
+    // nothing else in the page disagrees with it.
+    setUpdateMode (tuning::UpdateMode::noteOn);
 
     //  Period -----------------------------------------------------------------
     // A number box stepping through the offered periods, not a free text field:
@@ -164,22 +190,18 @@ TuningPage::TuningPage()
             onSchemeChanged (static_cast<tuning::Scheme> (index));
     };
 
-    channelsButton.onClick = [this] { showChannelSelector(); };
+    loadButton.onClick = [this] { if (onFilesRequested != nullptr) onFilesRequested(); };
 
-    // The buttons say what they hold, and prompt when they hold nothing. A
+    // The button says what it holds, and prompts when it holds nothing. A
     // separate label for the filename would need a column the panel has not
     // got at 248px.
-    setScaleFileName ({});
-    setMappingSummary ({});
-
-    scaleButton.onClick = [this] { if (onScaleFileRequested    != nullptr) onScaleFileRequested(); };
-    mapButton  .onClick = [this] { if (onMappingFilesRequested != nullptr) onMappingFilesRequested(); };
+    setLoadedSummary ({});
 
     updateStrip.onChoice = [this] (int index)
     {
         if (onUpdateModeChanged != nullptr)
-            onUpdateModeChanged (index == 1 ? tuning::UpdateMode::always
-                                            : tuning::UpdateMode::noteOn);
+            onUpdateModeChanged (index == alwaysIndex ? tuning::UpdateMode::always
+                                                      : tuning::UpdateMode::noteOn);
     };
 
     refreshInterval();
@@ -259,31 +281,41 @@ void TuningPage::setScheme (tuning::Scheme scheme)
 
 void TuningPage::setUpdateMode (tuning::UpdateMode mode)
 {
-    updateStrip.setSelectedIndex (mode == tuning::UpdateMode::always ? 1 : 0);
+    updateStrip.setSelectedIndex (mode == tuning::UpdateMode::always ? alwaysIndex
+                                                                     : alwaysIndex + 1);
 }
 
-void TuningPage::setChannels (bool omniOn, tuning::ChannelMask mask)
+void TuningPage::setPitchBendCents (int cents)
 {
-    omni = omniOn;
-    channelMask = mask;
+    pitchBendCents = juce::jlimit (0, tuning::highestPitchBendCents, cents);
+
+    // Shown with its unit and typed without one, the same arrangement the
+    // table's limits use; the editor's restriction is what keeps the two from
+    // disagreeing, since a "c" cannot be typed back in.
+    pitchBendEditor.setText (juce::String (pitchBendCents) + " c", juce::dontSendNotification);
 }
 
-void TuningPage::setUnavailableChannels (tuning::ChannelMask mask)
+void TuningPage::applyPitchBendCents()
 {
-    // Nothing to redraw here: the channels are only ever shown inside the
-    // call-out, which is built fresh each time it opens.
-    unavailableChannels = mask;
+    const auto typed = juce::jlimit (0, tuning::highestPitchBendCents,
+                                     pitchBendEditor.getText().getIntValue());
+
+    // Written back either way: an out-of-range or empty entry has to be
+    // corrected on screen, or the box goes on showing something the plugin does
+    // not have. Only a real change is reported.
+    const auto changed = typed != pitchBendCents;
+
+    setPitchBendCents (typed);
+
+    if (changed && onPitchBendCentsChosen != nullptr)
+        onPitchBendCentsChosen (pitchBendCents);
 }
 
-void TuningPage::setScaleFileName (const juce::String& name)
+void TuningPage::setLoadedSummary (const juce::String& summary)
 {
-    scaleButton.setButtonText (name.isNotEmpty() ? name : juce::String ("load scale"));
-}
-
-void TuningPage::setMappingSummary (const juce::String& summary)
-{
-    // Plural: a mapping is a set of `.kbm` files, one per channel, not one file.
-    mapButton.setButtonText (summary.isNotEmpty() ? summary : juce::String ("load maps"));
+    // One line for however many files were chosen: the owner decides how to say
+    // "a scale and four mappings" in the width of half a page.
+    loadButton.setButtonText (summary.isNotEmpty() ? summary : juce::String ("load files"));
 }
 
 //==============================================================================
@@ -346,36 +378,6 @@ void TuningPage::applyModDivisor()
 }
 
 
-void TuningPage::showChannelSelector()
-{
-    auto content = std::make_unique<ChannelSelector> (omni, channelMask, unavailableChannels);
-    const auto size = ChannelSelector::getPreferredSize();
-
-    content->setSize (size.x, size.y);
-
-    content->onChanged = [this] (bool omniOn, tuning::ChannelMask mask)
-    {
-        omni = omniOn;
-        channelMask = mask;
-
-        if (onChannelsChanged != nullptr)
-            onChannelsChanged (omniOn, mask);
-    };
-
-    // findPopupHost, never getTopLevelComponent: in a standalone or a host the
-    // top-level component is a window that knows nothing about this module's
-    // LookAndFeel, so a call-out parented to it resolves none of the ColourIds
-    // the widgets inside ask for — the selected channels come out drawn by
-    // LookAndFeel_V4 instead of in the sidebar's accent. It looks correct under
-    // the snapshot tool either way, because there the editor *is* the top-level
-    // component. See PopupHost.h.
-    if (auto* host = findPopupHost (*this))
-        juce::CallOutBox::launchAsynchronously (std::move (content),
-                                                host->getLocalArea (&channelsButton,
-                                                                    channelsButton.getLocalBounds()),
-                                                host);
-}
-
 //==============================================================================
 void TuningPage::lookAndFeelChanged()
 {
@@ -400,7 +402,7 @@ void TuningPage::lookAndFeelChanged()
     }
 
     for (auto* label : { &modLabel, &equalsLabel, &programLabel, &bankLabel,
-                         &updatedLabel })
+                         &updatedLabel, &pitchBendLabel })
     {
         label->setFont (font);
         label->setColour (juce::Label::textColourId, text);
@@ -413,8 +415,11 @@ void TuningPage::lookAndFeelChanged()
     // the Light scheme's white field: the value is there, correct, and cannot
     // be read. Re-applying it here is the documented fix (see the note on
     // TextEditor::textColourId), and `true` makes later insertions use it too.
-    modEditor.setFont (font);
-    modEditor.applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
+    for (auto* editor : { &modEditor, &pitchBendEditor })
+    {
+        editor->setFont (font);
+        editor->applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
+    }
 }
 
 //==============================================================================
@@ -492,26 +497,27 @@ void TuningPage::resized()
     const auto settingsTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     {
-        const auto row = grid.addRow (metrics::pageRowHeight);
-
-        grid.place (schemeButton,   row, 1, half);
-        grid.place (channelsButton, row, rightHalf, half);
-    }
-
-    {
-        // Two rows, two halves: the load buttons stacked on the left, the two
-        // update choices stacked on the right. The buttons say what they load,
-        // so neither column needs a label — and the strip spans both rows with
-        // the same gap between its choices as there is between the rows, which
-        // is what lands "note on" beside the scale button and "always" beside
-        // the map button.
+        // Two rows, two columns: the scheme and the load button stacked on the
+        // left, the update choices stacked beside them. The strip spans both
+        // rows with the same gap between its choices as there is between the
+        // rows, which is what lands `always` beside the scheme and `note on`
+        // beside the load button.
         const auto firstRow  = grid.addRow (metrics::pageRowHeight);
         const auto secondRow = grid.addRow (metrics::pageRowHeight);
 
-        grid.place (scaleButton, firstRow,  1, half);
-        grid.place (mapButton,   secondRow, 1, half);
+        grid.place (schemeButton, firstRow,  1, half);
+        grid.place (loadButton,   secondRow, 1, half);
 
         grid.placeSpanning (updateStrip, firstRow, secondRow, rightHalf, half);
+    }
+
+    // Pitch bend on the bottom row, where a value with a unit sits on every
+    // other page.
+    {
+        const auto row = grid.addRow (metrics::pageRowHeight);
+
+        grid.place (pitchBendLabel,  row, 1, half);
+        grid.place (pitchBendEditor, row, rightHalf, half);
     }
 
     grid.frame (settingsGroup, settingsTitle, grid.addRow (metrics::pageGroupPadding));

@@ -11,7 +11,7 @@ using juce::GridItem;
 //==============================================================================
 Sidebar::Sidebar()
 {
-    for (auto* b : { &presetsButton, &controllersButton, &tuningButton })
+    for (auto* b : { &presetsButton, &controllersButton, &tuningButton, &channelsButton })
     {
         b->setClickingTogglesState (true);
         addAndMakeVisible (*b);
@@ -27,6 +27,7 @@ Sidebar::Sidebar()
     presetsButton    .onClick = [this] { pageButtonClicked (Page::presets); };
     controllersButton.onClick = [this] { pageButtonClicked (Page::controllers); };
     tuningButton     .onClick = [this] { pageButtonClicked (Page::tuning); };
+    channelsButton   .onClick = [this] { pageButtonClicked (Page::channels); };
 
     volumeButton.onClick = [this] { showVolumeCallOut(); };
     panicButton .onClick = [this] { if (onPanic != nullptr) onPanic(); };
@@ -39,7 +40,7 @@ Sidebar::Sidebar()
     // DrawableButton fits the image to the whole button, so the icon size is an
     // inset rather than a size. Without this, railIcon would have no effect and
     // every icon would be as large as its hit area.
-    for (auto* b : { &presetsButton, &controllersButton, &tuningButton,
+    for (auto* b : { &presetsButton, &controllersButton, &tuningButton, &channelsButton,
                      &volumeButton, &panicButton })
         b->setEdgeIndent ((metrics::railButton - metrics::railIcon) / 2);
 
@@ -69,6 +70,7 @@ void Sidebar::setActivePage (Page newPage)
     panel.showTuningPage (activePage == Page::tuning);
     panel.showControllersPage (activePage == Page::controllers);
     panel.showPresetsPage (activePage == Page::presets);
+    panel.showChannelsPage (activePage == Page::channels);
     panel.setTitle ([this]() -> juce::String
     {
         switch (activePage)
@@ -76,6 +78,7 @@ void Sidebar::setActivePage (Page newPage)
             case Page::presets:     return "Presets";
             case Page::controllers: return "Controllers";
             case Page::tuning:      return "Tuning";
+            case Page::channels:    return "Channels";
             case Page::none:        break;
         }
 
@@ -114,6 +117,7 @@ void Sidebar::refreshToggleStates()
     presetsButton    .setToggleState (activePage == Page::presets,     juce::dontSendNotification);
     controllersButton.setToggleState (activePage == Page::controllers, juce::dontSendNotification);
     tuningButton     .setToggleState (activePage == Page::tuning,      juce::dontSendNotification);
+    channelsButton   .setToggleState (activePage == Page::channels,    juce::dontSendNotification);
 }
 
 void Sidebar::refreshIcons()
@@ -143,6 +147,7 @@ void Sidebar::refreshIcons()
     setUp (presetsButton,     icons::presets);
     setUp (controllersButton, icons::controllers);
     setUp (tuningButton,      icons::tuning);
+    setUp (channelsButton,    icons::channels);
     setUp (volumeButton,      icons::volume);
     setUp (panicButton,       icons::panic);
 }
@@ -263,12 +268,13 @@ void Sidebar::layOutRail (juce::Rectangle<int> area, Density density)
     // is left. Growing the window then only grows the gap, continuously, rather
     // than moving controls from one end to the other at a threshold. Density
     // changes one track — the volume control — and nothing else.
-    grid.templateRows = { button, button, button, slack,
+    grid.templateRows = { button, button, button, button, slack,
                           compact ? button : strip, button };
 
     grid.items = { GridItem (presetsButton),
                    GridItem (controllersButton),
                    GridItem (tuningButton),
+                   GridItem (channelsButton),
                    GridItem(),
                    compact ? GridItem (volumeButton) : GridItem (volumeStrip),
                    GridItem (panicButton) };

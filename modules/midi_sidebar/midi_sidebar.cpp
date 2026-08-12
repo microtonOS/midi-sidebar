@@ -5,5 +5,6 @@
 #include "sidebar/pages/ControllersTable.cpp"
 #include "sidebar/pages/ControllersPage.cpp"
 #include "sidebar/pages/PresetsPage.cpp"
+#include "sidebar/pages/ChannelsPage.cpp"
 #include "sidebar/Sidebar.cpp"
 #include "sidebar/ParameterMenu.cpp"

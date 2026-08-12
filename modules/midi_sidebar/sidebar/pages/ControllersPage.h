@@ -6,7 +6,6 @@
 
 #include "../SidebarLookAndFeel.h"
 #include "../widgets/ChoiceButton.h"
-#include "../widgets/ChoiceStrip.h"
 #include "../widgets/ReadOutField.h"
 #include "ControllersState.h"
 #include "ControllersTable.h"
@@ -18,16 +17,20 @@ namespace microtonos::sidebar
 //==============================================================================
 /** The controllers page: what is arriving, and what it is mapped to.
 
-    Implements docs/controllers.md. The newest message and the pitch-bend range
-    at the top, then `FILES`, `MPE` and `EDITING` as framed sections, the same
-    shape the tuning page uses.
+    Implements docs/controllers.md. The newest message at the top, then `FILES`
+    and `EDITING` as framed sections, the same shape the tuning page uses.
+
+    Channels are not here. Omni and the MPE zones were a section of this page
+    and are now a page of their own, because they are the whole plugin's
+    business rather than the controller table's — see `ChannelsPage`. The
+    per-mapping `channel` column stays: that is one mapping's scope.
 
     **Its height works the other way round from the tuning page.** There every
     row was fixed and a short panel cut the bottom off. Here everything but the
-    editing table is fixed — two rows at the top, three rows of buttons, three
-    frames — and the table is the single flexible track, so the page has a
-    genuine minimum and simply grows into anything above it. That is the pattern
-    the presets page should follow.
+    editing table is fixed — the monitor, three rows of buttons, two frames —
+    and the table is the single flexible track, so the page has a genuine
+    minimum and simply grows into anything above it. That is the pattern the
+    presets page should follow.
 */
 class ControllersPage final : public juce::Component
 {
@@ -56,19 +59,16 @@ public:
         right-click menu's "unlearn". */
     void removeLatestMappingFor (int parameterIndex);
 
-    /** The line the monitor shows, replacing whatever was there. Already
+    /** Pushes one line onto the monitor, dropping the oldest. Already
         formatted — see the note in ControllersState.h about why this module
-        does not compose it. An empty string shows the placeholder. */
-    void setMessage (const juce::String& message);
+        does not compose it. This is the call an owner watching a MIDI stream
+        wants. */
+    void addMessage (const juce::String& message);
 
-    /** Pitch-bend range in cents, clamped to
-        `controllers::highestPitchBendCents`. */
-    void setPitchBendCents (int cents);
-
-    /** Whether the plugin is reading an MPE zone, and which channels it
-        covers. */
-    void setMpe (controllers::Mpe mpe);
-    const controllers::Mpe& getMpe() const noexcept { return mpe; }
+    /** Replaces the whole monitor at once, newest first, which is what a demo
+        or a restored session does. Anything past `controllers::monitorLines` is
+        ignored, and an empty list shows the placeholder. */
+    void setMessages (juce::StringArray messages);
 
     //==========================================================================
     //  Intent out.
@@ -81,17 +81,10 @@ public:
     std::function<void()> onLoadRequested;
     std::function<void()> onSaveRequested;
 
-    std::function<void (int)> onPitchBendCentsChosen;
-
-    /** The MPE zone changed. The owner is expected to hand the channels it
-        covers — `controllers::channelsCoveredBy` — to the tuning page, which
-        cannot tune them separately; see docs/controllers.md. */
-    std::function<void (controllers::Mpe)> onMpeChanged;
-
     //==========================================================================
     /** The height below which the page cannot show its own minimum: the
-        monitor, the pitch-bend row, all three frames, every button row, and
-        `tableMinimumRows` of table.
+        monitor, both frames, every button row, and `tableMinimumRows` of
+        table.
 
         Each `section` is given its whole content block, internal gaps included.
         The `add | remove` row used to be left out of it, which made this about
@@ -99,10 +92,8 @@ public:
         meant the number did not mean what it says. */
     static constexpr int getMinimumHeight() noexcept
     {
-        return metrics::pageRowHeight                         // the monitor
-             + metrics::pageRowGap + metrics::pageRowHeight   // PB sensitivity
+        return metrics::pageTopHeight (metrics::pageTopRows)  // the monitor
              + section (metrics::pageRowHeight)               // load | save
-             + section (metrics::pageRowHeight)               // the MPE zone
              + section (ControllersTable::getHeightForRows (metrics::tableMinimumRows)
                             + 2 * (metrics::pageRowGap + metrics::pageRowHeight));
                                                               // table, add | remove, aftertouch | polytouch
@@ -123,15 +114,7 @@ private:
              + metrics::pageRowGap * 3;
     }
 
-    /** Commits the typed range on Return and on losing focus, rejecting
-        anything the plugin could not act on — the tuning page's modulo divisor
-        works the same way. */
-    void applyPitchBendCents();
-
-    /** Sends the zone out and refreshes what the two menus offer. */
-    void mpeChanged();
-
-    juce::GroupComponent filesGroup, mpeGroup, editingGroup;
+    juce::GroupComponent filesGroup, editingGroup;
 
     /** The monitor: the newest message, as one line of text. A `ReadOutField`
         like every other read-only value in the module, rather than a table —
@@ -139,18 +122,11 @@ private:
         around a single sentence. */
     ReadOutField monitor { "nothing yet" };
 
-    //  Pitch bend, at the top with the monitor and unframed: the sketch gives
-    //  it no title, and on these pages a GroupComponent is what a *named*
-    //  section looks like.
-    juce::Label pitchBendLabel;
-    juce::TextEditor pitchBendEditor;
+    /** Newest first. Kept here rather than in the field, which draws a string
+        and knows nothing about messages. */
+    juce::StringArray messages;
 
     juce::TextButton loadButton { "load" }, saveButton { "save" };
-
-    //  The MPE zone: on or off, and the channels it spans.
-    ChoiceStrip mpeStrip;
-    juce::Label fromLabel, toLabel;
-    ChoiceButton masterButton { "mpe master" }, lastButton { "mpe last" };
 
     juce::TextButton addButton { "add" }, removeButton { "remove" };
 
@@ -160,8 +136,6 @@ private:
 
     ControllersTable table;
 
-    int pitchBendCents = controllers::defaultPitchBendCents;
-    controllers::Mpe mpe;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ControllersPage)
 };

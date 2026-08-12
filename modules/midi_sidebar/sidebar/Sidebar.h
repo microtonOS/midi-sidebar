@@ -41,7 +41,7 @@ public:
     /** The three expandable pages, plus the collapsed state. Exactly one of
         these is true at a time. */
 
-    enum class Page { none, presets, controllers, tuning };
+    enum class Page { none, presets, controllers, tuning, channels };
 
     //==========================================================================
     Sidebar();
@@ -90,6 +90,7 @@ public:
         has a wide interface, and forwarding all of it would be a second copy of
         the same API to keep in step. */
     TuningPage&      getTuningPage()      noexcept { return panel.getTuningPage(); }
+    ChannelsPage&    getChannelsPage()    noexcept { return panel.getChannelsPage(); }
     ControllersPage& getControllersPage() noexcept { return panel.getControllersPage(); }
     PresetsPage&     getPresetsPage()     noexcept { return panel.getPresetsPage(); }
 
@@ -125,6 +126,7 @@ private:
     juce::DrawableButton presetsButton  { "Presets",     juce::DrawableButton::ImageFitted };
     juce::DrawableButton controllersButton { "Controllers", juce::DrawableButton::ImageFitted };
     juce::DrawableButton tuningButton   { "Tuning",      juce::DrawableButton::ImageFitted };
+    juce::DrawableButton channelsButton { "Channels",    juce::DrawableButton::ImageFitted };
     juce::DrawableButton volumeButton   { "Volume",      juce::DrawableButton::ImageFitted };
     juce::DrawableButton panicButton    { "All sound off", juce::DrawableButton::ImageFitted };
 

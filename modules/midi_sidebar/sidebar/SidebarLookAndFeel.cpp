@@ -81,6 +81,16 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     target.setColour (ChoiceStrip::selectedColourId,     accent);
     target.setColour (ChoiceStrip::selectedTextColourId, accent.contrasting());
 
+    // Table headers. `LookAndFeel_V2` hardcodes these four in its own colour
+    // table — a pale blue-white with black text — and `LookAndFeel_V4` never
+    // touches them, so a header is the one part of a V4 plugin that ignores the
+    // scheme entirely. On a dark theme it arrives as a bright band across the
+    // table. Registered here so it follows the sidebar like everything else.
+    target.setColour (juce::TableHeaderComponent::backgroundColourId, widget);
+    target.setColour (juce::TableHeaderComponent::textColourId,       text);
+    target.setColour (juce::TableHeaderComponent::outlineColourId,    text.withMultipliedAlpha (shades::hairline));
+    target.setColour (juce::TableHeaderComponent::highlightColourId,  accent.withMultipliedAlpha (shades::selectedRow));
+
     // Tabs. Not a sidebar widget — nothing in the module uses one — but this
     // LookAndFeel dresses the whole plugin, and JUCE's default here is a trap:
     // with none of these ids specified, `LookAndFeel_V2::drawTabButtonText`
@@ -98,6 +108,66 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     target.setColour (juce::TabbedButtonBar::frontTextColourId,    text);
     target.setColour (juce::TabbedButtonBar::tabOutlineColourId,   text.withMultipliedAlpha (shades::hairline));
     target.setColour (juce::TabbedButtonBar::frontOutlineColourId, text.withMultipliedAlpha (shades::icon));
+}
+
+void SidebarLookAndFeel::drawSortArrow (juce::Graphics& g, juce::Rectangle<int> area,
+                                        bool forwards, juce::Colour colour)
+{
+    juce::Path arrow;
+
+    // JUCE's own shape, from LookAndFeel_V2::drawTableHeaderColumn: a triangle
+    // in a unit box, scaled to fit. Kept identical so the mark on the ordering
+    // buttons cannot drift from the one on the columns beside them.
+    arrow.addTriangle (0.0f, 0.0f,
+                       0.5f, forwards ? -0.8f : 0.8f,
+                       1.0f, 0.0f);
+
+    g.setColour (colour);
+    g.fillPath (arrow, arrow.getTransformToScaleToFit (area.reduced (2).toFloat(), true));
+}
+
+void SidebarLookAndFeel::drawTableHeaderBackground (juce::Graphics& g, juce::TableHeaderComponent& header)
+{
+    g.fillAll (header.findColour (juce::TableHeaderComponent::backgroundColourId));
+
+    g.setColour (header.findColour (juce::TableHeaderComponent::outlineColourId));
+
+    auto area = header.getLocalBounds();
+    g.fillRect (area.removeFromBottom (1));
+
+    // A divider on the right of every column, as JUCE draws them — which is
+    // what the two ordering buttons beside this header have to reproduce.
+    for (int i = header.getNumColumns (true); --i >= 0;)
+        g.fillRect (header.getColumnPosition (i).removeFromRight (1));
+}
+
+void SidebarLookAndFeel::drawTableHeaderColumn (juce::Graphics& g, juce::TableHeaderComponent& header,
+                                                const juce::String& columnName, int /*columnId*/,
+                                                int width, int height,
+                                                bool isMouseOver, bool isMouseDown, int columnFlags)
+{
+    const auto highlight = header.findColour (juce::TableHeaderComponent::highlightColourId);
+
+    if (isMouseDown)
+        g.fillAll (highlight);
+    else if (isMouseOver)
+        g.fillAll (highlight.withMultipliedAlpha (metrics::hoverAlpha));
+
+    auto area = juce::Rectangle<int> (width, height).reduced (metrics::tableTextPadding / 2, 0);
+
+    const auto text = header.findColour (juce::TableHeaderComponent::textColourId);
+
+    constexpr auto sorted = juce::TableHeaderComponent::sortedForwards
+                              | juce::TableHeaderComponent::sortedBackwards;
+
+    if ((columnFlags & sorted) != 0)
+        drawSortArrow (g, area.removeFromRight (height / 2),
+                       (columnFlags & juce::TableHeaderComponent::sortedForwards) != 0,
+                       text);
+
+    g.setColour (text);
+    g.setFont (font (metrics::bodyFontHeight * metrics::headerFontScale, true));
+    g.drawFittedText (columnName, area, juce::Justification::centredLeft, 1);
 }
 
 juce::Slider::SliderLayout SidebarLookAndFeel::getSliderLayout (juce::Slider& slider)

@@ -48,25 +48,13 @@ public:
 
     void setScheme      (tuning::Scheme scheme);
     void setUpdateMode  (tuning::UpdateMode mode);
-    void setChannels    (bool omniOn, tuning::ChannelMask mask);
+    /** Pitch-bend range in cents, clamped to
+        `tuning::highestPitchBendCents`. */
+    void setPitchBendCents (int cents);
 
-    /** Channels that cannot be tuned separately, drawn as unavailable in the
-        multichannel call-out.
-
-        MPE is what puts channels here: its member channels carry one voice
-        each, so a per-channel tuning has nothing to attach to and the tuning is
-        read from the generic channel instead — MTS ESP's "-1". See
-        docs/controllers.md, which is where the range is chosen.
-
-        Only the display is affected. Whatever the end-user had selected stays
-        selected underneath, the same way it does under omni, so switching MPE
-        off gives it back rather than making them set it up again. */
-    void setUnavailableChannels (tuning::ChannelMask mask);
-
-    /** Shown on the two file buttons. Empty means nothing is loaded, which the
-        buttons draw as a prompt rather than as a filename. */
-    void setScaleFileName   (const juce::String& name);
-    void setMappingSummary  (const juce::String& summary);
+    /** Shown on the load button. Empty means nothing is loaded, which the
+        button draws as a prompt rather than as a filename. */
+    void setLoadedSummary (const juce::String& summary);
 
     //==========================================================================
     //  Intent out. None of these change the page; the owner is expected to act
@@ -82,15 +70,17 @@ public:
 
     std::function<void (tuning::Scheme)>     onSchemeChanged;
     std::function<void (tuning::UpdateMode)> onUpdateModeChanged;
-    std::function<void (bool, tuning::ChannelMask)> onChannelsChanged;
     std::function<void (double)> onModDivisorChanged;
+    std::function<void (int)> onPitchBendCentsChosen;
 
     /** The period the end-user stepped to, in cents — always one of the
         candidates handed in by `setPeriod`, never a value they invented. */
     std::function<void (double)> onPeriodChosen;
 
-    std::function<void()> onScaleFileRequested;
-    std::function<void()> onMappingFilesRequested;
+    /** One request for one chooser. A `.scl` and its `.kbm` are picked
+        together — the owner accepts several files and sorts out which is which
+        by extension, which is the whole point of there being one button. */
+    std::function<void()> onFilesRequested;
 
     //==========================================================================
     /** The height this page needs to show everything.
@@ -123,29 +113,29 @@ public:
 
 private:
     //==========================================================================
-    void showChannelSelector();
     void refreshNames();
     void refreshInterval();
     void refreshPeriod();
 
-    /** The modulo divisor commits on Return and on losing focus, and rejects
-        anything that is not a number, so it cannot leave the page showing
-        something the plugin does not have. */
+    /** Both commit on Return and on losing focus, and reject anything that is
+        not a number, so neither can leave the page showing something the plugin
+        does not have. */
     void applyModDivisor();
+    void applyPitchBendCents();
 
     //==========================================================================
     tuning::Interval interval;
     tuning::Status   status;
     tuning::Period   period;
 
-    bool omni = false;
-    tuning::ChannelMask channelMask = tuning::allChannels;
-    tuning::ChannelMask unavailableChannels = tuning::noChannels;
+    int pitchBendCents = tuning::defaultPitchBendCents;
+
 
     /** The labels naming a field beside or above it. Collected so that the one
         thing they share — font, colour, alignment — is applied in a loop rather
         than six times. */
-    juce::Label modLabel, equalsLabel, programLabel, bankLabel, updatedLabel;
+    juce::Label modLabel, equalsLabel, programLabel, bankLabel, updatedLabel,
+                pitchBendLabel;
 
     juce::StringArray availableNames;
 
@@ -181,8 +171,12 @@ private:
     //  Settings section. A ChoiceButton rather than a ComboBox, so the scheme
     //  menu matches the ones in the controllers table — see ChoiceButton.
     ChoiceButton schemeButton { "scheme" };
-    juce::TextButton channelsButton { "multichannel" };
-    juce::TextButton scaleButton, mapButton;
+
+    /** One button, one chooser. Two — a scale and its mapping — meant two trips
+        through a file dialog to describe one tuning. */
+    juce::TextButton loadButton;
+
+    juce::TextEditor pitchBendEditor;
     ChoiceStrip updateStrip;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TuningPage)

@@ -48,7 +48,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DemoProcessor::createParamet
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { ids::page, 1 },
         "Page",
-        juce::StringArray { "None", "Presets", "Controllers", "Tuning" },
+        juce::StringArray { "None", "Presets", "Controllers", "Tuning", "Channels" },
         0));
 
     // The developer settings the demo exposes as buttons. Parameters for the

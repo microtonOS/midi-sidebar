@@ -26,10 +26,10 @@ namespace tuning
         remembers nothing else about the others, but the owner is expected to,
         so that toggling back restores what was set up.
 
-        **MPE is not one of them.** It was, until it became its own section on
-        the controllers page: MPE is not a way of being told what to play but a
-        way of laying voices across channels, and it applies whichever of these
-        is in force. See docs/controllers.md.
+        **MPE is not one of them.** MPE is not a way of being told what to play
+        but a way of laying voices across channels, and it applies whichever of
+        these is in force — so it lives on the channels page. See
+        docs/channels.md.
 
         The order is the sketch's, and a menu index is the enum's value — so
         this list and `schemeNames` in TuningPage.cpp have to move together. */
@@ -64,27 +64,6 @@ namespace tuning
         specified
     };
 
-    /** MIDI channels, one bit per channel, bit 0 being channel 1. A mask rather
-        than a set of 16 flags because that is how it will have to be handed to
-        anything that acts on it, and because "no channels selected" — legal,
-        if unadvisable — then needs no special case. */
-    using ChannelMask = juce::uint16;
-
-    inline constexpr int numChannels = 16;
-    inline constexpr ChannelMask allChannels  = 0xffff;
-    inline constexpr ChannelMask noChannels   = 0x0000;
-
-    inline constexpr bool isChannelSet (ChannelMask mask, int channelIndex) noexcept
-    {
-        return (mask & (ChannelMask) (1u << channelIndex)) != 0;
-    }
-
-    inline constexpr ChannelMask withChannel (ChannelMask mask, int channelIndex, bool shouldBeSet) noexcept
-    {
-        const auto bit = (ChannelMask) (1u << channelIndex);
-        return (ChannelMask) (shouldBeSet ? (mask | bit) : (mask & ~bit));
-    }
-
     //==========================================================================
     /** What the status block shows.
 
@@ -110,6 +89,21 @@ namespace tuning
             how you see that the connection is alive. */
         std::optional<juce::Time> updated;
     };
+
+    //==========================================================================
+    /** Pitch-bend sensitivity, in cents.
+
+        Here rather than with the controllers because it is a statement about
+        pitch: how far the wheel bends, in the same unit as the interval, the
+        period and the modulo divisor. RPN 0 carries semitones and cents
+        separately; this is the pair added up, and 200 c is two semitones, which
+        is MIDI's own default. */
+    inline constexpr int defaultPitchBendCents = 200;
+
+    /** RPN 0's semitone count is a 7-bit field, so 127 semitones is the largest
+        range the message can express — the protocol's ceiling rather than a
+        judgement about what is musical. */
+    inline constexpr int highestPitchBendCents = 127 * 100;
 
     /** An octave. The default divisor, not a limit — the end-user can set any
         other, which is the whole reason the field is editable. */

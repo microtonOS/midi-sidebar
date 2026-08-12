@@ -6,6 +6,7 @@
 #include "../SidebarLookAndFeel.h"
 #include "../widgets/ChoiceButton.h"
 #include "../widgets/ChoiceStrip.h"
+#include "../widgets/HeaderButton.h"
 #include "../widgets/ReadOutField.h"
 #include "ControllersState.h"
 
@@ -62,8 +63,9 @@ public:
         that was learned however the table happens to be sorted. */
     void removeLatestMappingFor (int parameterIndex);
 
-    /** How the rows are ordered. The mappings themselves are always held in the
-        order they were added; this only decides how they are shown. */
+    /** How the frozen column orders the rows, when no table column is doing it.
+        The mappings themselves are always held in the order they were added;
+        this only decides how they are shown. */
     enum class Order
     {
         recent,        ///< Most recently added first — the clock button.
@@ -124,6 +126,11 @@ public:
                                               juce::Component* existing) override;
     void selectedRowsChanged (int lastRowSelected) override;
 
+    /** A sortable header was clicked, or `setSortColumnId` was called. Column 0
+        means "no column", which is when the frozen column's own two orderings
+        apply. */
+    void sortOrderChanged (int newSortColumnId, bool isForwards) override;
+
 private:
     //==========================================================================
     /** Column ids, which `TableListBox` needs to be 1-based. `param` is not one
@@ -156,6 +163,9 @@ private:
         so do the enums and the parameter list behind these columns. */
     int choiceFor (int row, int columnId) const;
     void commitChoice (int row, int columnId, int index);
+
+    /** Orders `displayOrder` by whichever mechanism is in force. */
+    void applyOrdering();
 
     /** True when the row's mode ignores the LSB, which the two threshold modes
         do. The cell is disabled rather than hidden: the number is still part of
@@ -194,22 +204,31 @@ private:
 
     /** Display order over `mappings`, rebuilt whenever either changes. */
     juce::Array<int> displayOrder;
+
+    /** Which of the two mechanisms is ordering the table.
+
+        `sortColumn` is a column id, or 0 for "none" — and then `order` decides,
+        which is what the two buttons above the frozen column set. Keeping both
+        rather than folding the buttons into the header means the sort survives
+        a trip through a column and back: pressing `abc` clears the header's
+        column, pressing a header leaves `order` alone underneath. */
+    int sortColumn = 0;
+    bool sortForwards = true;
     Order order = Order::recent;
 
-    /** The sort toggle, in the strip above the frozen column — which is the one
+    /** True while `setSortColumnId` is being called from our own code, so the
+        `sortOrderChanged` it provokes does not undo what provoked it. */
+    bool settingSortColumn = false;
+
+    /** The two orderings of the frozen column, in the strip above it — the one
         piece of the header the parameter names do not need, since they have no
         title of their own.
 
-        Not a `ChoiceStrip`: one of the two is an icon, and a strip builds
-        TextButtons. The pair still takes the same accent for "this one is on",
-        so it reads as the same kind of control. */
-    /** ImageOnButtonBackground, not ImageFitted: only that style routes through
-        `LookAndFeel::drawButtonBackground`, which is what rounds a button's
-        corners and honours its connected edges. `ImageFitted` goes to
-        `drawDrawableButton` instead and fills a plain rectangle — which is why
-        this sat square-cornered beside a rounded "abc". */
-    juce::DrawableButton recentButton { "recent", juce::DrawableButton::ImageOnButtonBackground };
-    juce::TextButton alphabeticalButton { "abc" };
+        Drawn as header cells rather than as a segmented pair of buttons: they
+        sit in the header row and do what a sortable column does, so looking
+        like the columns beside them is the honest thing. See HeaderButton. */
+    HeaderButton recentButton { "recent" };
+    HeaderButton alphabeticalButton { "abc" };
 
     juce::ListBox frozenColumn { "parameters", this };
     juce::TableListBox table { "mappings", this };
