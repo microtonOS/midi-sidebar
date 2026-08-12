@@ -108,7 +108,7 @@ as its own window, and four things follow, none of them obvious:
 
 The content must be sized before it can be attached, which means it is laid out
 while still parentless — so anything it caches from the LookAndFeel is computed
-from the wrong one. See the caching trap in [design](design.md#colours).
+from the wrong one. See the caching trap in [look and feel](look-and-feel.md#colours).
 
 `LookAndFeel_V4` paints a call-out with `widgetBackground` at **0.8 alpha** over
 a drop shadow, rimmed with a 2px `outline` stroke. If the box holds controls

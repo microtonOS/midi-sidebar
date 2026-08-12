@@ -7,10 +7,6 @@ using namespace controllers;
 
 namespace
 {
-    /** Any non-zero value: the two sort buttons are the only radio group that
-        shares this component as a parent. */
-    constexpr int sortGroupId = 1;
-
     /** An unset controller number shows nothing at all — an empty cell says
         "no value" without having to be read. */
     juce::String ccText (const std::optional<int>& cc)
@@ -124,11 +120,17 @@ struct ControllersTable::NumberCell final : public juce::Component
 //==============================================================================
 ControllersTable::ControllersTable()
 {
+    // Our own header, for the three-state cycle: JUCE's stops at ascending and
+    // descending, and never lets go of the column. See SortingHeader.
+    auto ownedHeader = std::make_unique<SortingHeader>();
+    tableHeader = ownedHeader.get();
+    table.setHeader (std::move (ownedHeader));
+
     table.setHeaderHeight (metrics::tableHeaderHeight);
     table.setRowHeight (metrics::tableRowHeight);
 
-    // visible only: no resizing, dragging, sorting or column menu. The columns
-    // are the specification, not a preference.
+    // visible only: no resizing, dragging or column menu. The columns are the
+    // specification, not a preference.
     auto& header = table.getHeader();
     const auto fixed = juce::TableHeaderComponent::visible;
 
@@ -148,31 +150,28 @@ ControllersTable::ControllersTable()
     // padding, and no wider. Every pixel saved here is one the scrolling area
     // gets, which at 248px is the difference between seeing three columns and
     // four.
-    header.addColumn ("channel", channel, widthForContents ("channel", itemsFor (channel)), 0, -1, sortable);
+    header.addColumn ("channel", channel, widthForContents ("channel", itemsFor (channel), true), 0, -1, sortable);
     header.addColumn ("MSB",     msb,     metrics::tableCcWidth,    0, -1, sortable);
     header.addColumn ("LSB",     lsb,     metrics::tableCcWidth,    0, -1, sortable);
-    header.addColumn ("mode",    mode,    widthForContents ("mode", itemsFor (mode)), 0, -1, sortable);
+    header.addColumn ("mode",    mode,    widthForContents ("mode", itemsFor (mode), true), 0, -1, sortable);
     header.addColumn ("min",     minimum, metrics::tableLimitWidth, 0, -1, fixed);
     header.addColumn ("max",     maximum, metrics::tableLimitWidth, 0, -1, fixed);
 
-    // Radio-grouped so exactly one is on: these are two orderings, not two
-    // switches, and there is no state with neither.
-    for (auto* b : { &recentButton, &alphabeticalButton })
-    {
-        b->setRadioGroupId (sortGroupId);
-        addAndMakeVisible (*b);
-    }
+    tableHeader->onColumnClicked = [this] (int columnId) { cycleSort (columnId); };
 
-    recentButton.setIcon (icons::clock);
+    // The frozen column gets a header of its own rather than a pair of buttons
+    // dressed as one. It is then drawn by `drawTableHeaderColumn` like the
+    // header beside it — same background, same divider, same sort arrow — and
+    // nothing here paints a header cell by hand. `ListBox` insets its list by
+    // whatever height this component has, so the two sets of rows line up.
+    auto frozen = std::make_unique<SortingHeader>();
+    frozenHeader = frozen.get();
 
-    // The right-hand one runs up against the frozen column's own edge, so it
-    // needs no divider of its own.
-    alphabeticalButton.setShowsDivider (false);
+    frozen->setSize (metrics::tableFrozenColumnWidth, metrics::tableHeaderHeight);
+    frozen->addColumn ("param", param, metrics::tableFrozenColumnWidth, 0, -1, sortable);
+    frozen->onColumnClicked = [this] (int columnId) { cycleSort (columnId); };
 
-    recentButton      .onClick = [this] { setOrder (Order::recent); };
-    alphabeticalButton.onClick = [this] { setOrder (Order::alphabetical); };
-
-    recentButton.setToggleState (true, juce::dontSendNotification);
+    frozenColumn.setHeaderComponent (std::move (frozen));
 
     // One parameter can be mapped several times, and "view in sidebar" points
     // at all of them at once — so the selection has to be able to hold more
@@ -213,11 +212,62 @@ void ControllersTable::setParameters (juce::Array<controllers::Parameter> newPar
 void ControllersTable::setMappings (juce::Array<controllers::Mapping> newMappings)
 {
     mappings = std::move (newMappings);
+
+    // The owner replacing the whole list is not an edit, so there is nothing to
+    // undo back to — and undoing *into* a list the owner has since replaced
+    // would put back rows it never asked for.
+    undoStack.clearQuick();
+    redoStack.clearQuick();
+
     refreshRows();
+
+    if (onHistoryChanged != nullptr)
+        onHistoryChanged();
+}
+
+void ControllersTable::pushUndo()
+{
+    undoStack.add (mappings);
+
+    // Oldest first out. A cap rather than no cap because a long session of
+    // small edits would otherwise keep every one of them for ever.
+    while (undoStack.size() > metrics::undoDepth)
+        undoStack.remove (0);
+
+    // A fresh edit is a new branch: whatever was undone is no longer reachable.
+    redoStack.clearQuick();
+}
+
+void ControllersTable::undo()
+{
+    if (undoStack.isEmpty())
+        return;
+
+    redoStack.add (mappings);
+    mappings = undoStack.getLast();
+    undoStack.removeLast();
+
+    refreshRows();
+    changed();
+}
+
+void ControllersTable::redo()
+{
+    if (redoStack.isEmpty())
+        return;
+
+    undoStack.add (mappings);
+    mappings = redoStack.getLast();
+    redoStack.removeLast();
+
+    refreshRows();
+    changed();
 }
 
 void ControllersTable::addMapping (controllers::Source source)
 {
+    pushUndo();
+
     Mapping mapping;
     mapping.source = source;
 
@@ -263,6 +313,7 @@ void ControllersTable::removeLatestMappingFor (int parameterIndex)
         if (mappings[i].parameterIndex != parameterIndex)
             continue;
 
+        pushUndo();
         mappings.remove (i);
         refreshRows();
         changed();
@@ -275,6 +326,8 @@ void ControllersTable::removeSelectedMapping()
     if (mappings.isEmpty())
         return;
 
+    pushUndo();
+
     const auto selected = mappingIndexFor (table.getSelectedRow());
     mappings.remove (selected >= 0 ? selected : mappings.size() - 1);
 
@@ -286,20 +339,47 @@ void ControllersTable::changed()
 {
     if (onMappingsChanged != nullptr)
         onMappingsChanged();
+
+    if (onHistoryChanged != nullptr)
+        onHistoryChanged();
 }
 
-void ControllersTable::setOrder (Order newOrder)
+bool ControllersTable::isSortable (int columnId) noexcept
 {
-    order = newOrder;
+    return columnId == param || columnId == channel || columnId == msb
+        || columnId == lsb   || columnId == mode;
+}
 
-    // Hand the ordering back from the header to these two buttons. The guard is
-    // for the `sortOrderChanged` this provokes, which would otherwise refresh
-    // the table halfway through changing it.
-    const juce::ScopedValueSetter<bool> guard (settingSortColumn, true);
+void ControllersTable::cycleSort (int columnId)
+{
+    if (! isSortable (columnId))
+        return;
 
-    table.getHeader().setSortColumnId (0, true);
+    // Ascending, then descending, then out — and out means the order they were
+    // added in. A column that could only be sorted one way or the other would
+    // leave no way back to that.
+    if (sortColumn != columnId)
+    {
+        sortColumn   = columnId;
+        sortForwards = true;
+    }
+    else if (sortForwards)
+    {
+        sortForwards = false;
+    }
+    else
+    {
+        sortColumn   = 0;
+        sortForwards = true;
+    }
 
-    sortColumn = 0;
+    // Both headers are told, so the arrow appears on the one column doing the
+    // sorting and on neither of the others. `setSortColumnId` notifies the
+    // model rather than calling back through `columnClicked`, and this class
+    // does not implement `sortOrderChanged`, so there is no loop to guard.
+    frozenHeader->setSortColumnId (sortColumn, sortForwards);
+    tableHeader ->setSortColumnId (sortColumn, sortForwards);
+
     refreshRows();
 }
 
@@ -336,23 +416,10 @@ void ControllersTable::applyOrdering()
 
     if (sortColumn == 0)
     {
-        if (order == Order::recent)
-        {
-            // Newest first. `mappings` is append-ordered, so this is simply the
-            // reverse — no timestamps to keep.
-            std::reverse (displayOrder.begin(), displayOrder.end());
-            return;
-        }
-
-        // By parameter name, a at the top. Stable, so mappings sharing a
-        // parameter stay in the order they were added rather than shuffling on
-        // every rebuild.
-        std::stable_sort (displayOrder.begin(), displayOrder.end(),
-                          [&nameOf] (int a, int b)
-                          {
-                              return nameOf (a).compareIgnoreCase (nameOf (b)) < 0;
-                          });
-
+        // No column sorting: newest first. `mappings` is append-ordered, so
+        // this is simply the reverse — no timestamps to keep, and the row just
+        // added is the one at the top, which is where you are looking.
+        std::reverse (displayOrder.begin(), displayOrder.end());
         return;
     }
 
@@ -392,14 +459,6 @@ void ControllersTable::applyOrdering()
                       });
 }
 
-void ControllersTable::sortOrderChanged (int newSortColumnId, bool isForwards)
-{
-    sortColumn   = newSortColumnId;
-    sortForwards = isForwards;
-
-    if (! settingSortColumn)
-        refreshRows();
-}
 
 void ControllersTable::refreshRows()
 {
@@ -412,7 +471,8 @@ void ControllersTable::refreshRows()
     frozenColumn.repaint();
 }
 
-int ControllersTable::widthForContents (const juce::String& title, const juce::StringArray& items)
+int ControllersTable::widthForContents (const juce::String& title, const juce::StringArray& items,
+                                        bool sortable)
 {
     // Each is measured in the font it will actually be drawn in: a cell's
     // button is short, so LookAndFeel scales its label down well below
@@ -427,7 +487,12 @@ int ControllersTable::widthForContents (const juce::String& title, const juce::S
     for (const auto& item : items)
         widest = juce::jmax (widest, juce::GlyphArrangement::getStringWidthInt (itemFont, item));
 
-    return widest + metrics::tableTextPadding;
+    // A sortable column has to hold its arrow as well, or the title elides to
+    // make room for it the moment the column is sorted — "channel" became
+    // "chan…" on the first click. The arrow is half the header's height; see
+    // `drawTableHeaderColumn`.
+    return widest + metrics::tableTextPadding
+         + (sortable ? metrics::tableHeaderHeight / 2 : 0);
 }
 
 //==============================================================================
@@ -525,6 +590,8 @@ void ControllersTable::commitText (int row, int columnId, const juce::String& te
 
     if (index < 0)
         return;
+
+    pushUndo();
 
     auto& mapping = mappings.getReference (index);
     const auto trimmed = text.trim();
@@ -627,6 +694,8 @@ void ControllersTable::commitChoice (int row, int columnId, int index)
 
     if (index < 0 || mappingIndex < 0)
         return;
+
+    pushUndo();
 
     auto& mapping = mappings.getReference (mappingIndex);
 
@@ -788,9 +857,6 @@ void ControllersTable::lookAndFeelChanged()
     if (! getLookAndFeel().isColourSpecified (ReadOutField::backgroundColourId))
         return;
 
-    // The two ordering buttons colour themselves from the header's own ids;
-    // see HeaderButton.
-
     // The tables sit on the panel like a read-out does — recessed, same
     // hairline — rather than introducing a third surface to the page.
     for (auto* list : { (juce::ListBox*) &frozenColumn, (juce::ListBox*) &table })
@@ -809,22 +875,10 @@ void ControllersTable::resized()
     // up with the table's first row rather than with the header. The strip that
     // leaves free above it is where the sort toggle goes: the parameter column
     // has no title of its own, so the space is there for the taking.
-    auto frozen = bounds.removeFromLeft (metrics::tableFrozenColumnWidth);
-    const auto sortStrip = frozen.removeFromTop (metrics::tableHeaderHeight);
-
-    frozenColumn.setBounds (frozen);
-
-    // Not halved: with an arrow beside each, the icon and the word want
-    // different room and `abc` is the wider of the two. A fixed square for the
-    // clock and the rest for the word.
-    juce::Grid sort;
-
-    sort.templateRows    = { juce::Grid::TrackInfo (juce::Grid::Fr (1)) };
-    sort.templateColumns = { juce::Grid::TrackInfo (juce::Grid::Px (metrics::orderIconWidth)),
-                             juce::Grid::TrackInfo (juce::Grid::Fr (1)) };
-
-    sort.items = { juce::GridItem (recentButton), juce::GridItem (alphabeticalButton) };
-    sort.performLayout (sortStrip);
+    // The frozen column carries its own header now, and `ListBox` puts it at
+    // the top and starts the list beneath it — so the two sets of rows line up
+    // without this having to reserve a strip and lay anything out in it.
+    frozenColumn.setBounds (bounds.removeFromLeft (metrics::tableFrozenColumnWidth));
 
     bounds.removeFromLeft (metrics::pageColumnGap);
     table.setBounds (bounds);

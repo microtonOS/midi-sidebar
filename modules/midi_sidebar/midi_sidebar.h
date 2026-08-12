@@ -34,7 +34,7 @@
 #include "sidebar/widgets/ReadOutField.h"
 #include "sidebar/pages/ChannelsState.h"
 #include "sidebar/widgets/ChannelGrid.h"
-#include "sidebar/widgets/HeaderButton.h"
+#include "sidebar/widgets/SortingHeader.h"
 #include "sidebar/pages/PageGrid.h"
 #include "sidebar/pages/TuningState.h"
 #include "sidebar/pages/ControllersState.h"

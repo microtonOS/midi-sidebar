@@ -18,7 +18,7 @@ namespace microtonos::sidebar
     travels with it.
 
     Implements docs/presets.md. The frequency pair and the split control at the
-    top, then `STATUS`, `FILES` and `META` as framed sections — the same shape
+    top, then `STATUS`, `FILE` and `META` as framed sections — the same shape
     the other two pages use.
 
     Height follows the controllers page rather than the tuning page: everything
@@ -46,7 +46,6 @@ public:
         among them, so the button always shows what is loaded. */
     void setAvailableNames (juce::StringArray names);
     void setMeta (presets::Meta meta);
-    void setIncludes (presets::Includes includes);
 
     void setSplitActive (bool isActive);
     void setLayer (presets::Layer layer);
@@ -62,7 +61,6 @@ public:
 
     std::function<void (bool)> onSplitToggled;
     std::function<void (presets::Layer)> onLayerChanged;
-    std::function<void (presets::Includes)> onIncludesChanged;
 
     /** After an author or comment edit has been committed, never mid-keystroke. */
     std::function<void (presets::Meta)> onMetaEdited;
@@ -87,9 +85,10 @@ public:
 private:
     //==========================================================================
     /** Rows that never change height: frequencies, split, name, the program and
-        bank labels, their steppers, load/save, the include toggles, and
-        author. */
-    static constexpr int fixedRows = 8;
+        bank labels, their steppers, load/save, and author. One fewer since the
+        include toggles went: a preset carries the whole state, so there was
+        nothing left to choose. */
+    static constexpr int fixedRows = 7;
     static constexpr int groups    = 3;
 
     /** Every track has a gap after it except the last: the fixed rows, the
@@ -100,7 +99,6 @@ private:
     void commitMeta();
 
     //==========================================================================
-    presets::Includes includes;
     presets::Status status;
     juce::StringArray availableNames;
 
@@ -123,7 +121,6 @@ private:
     juce::Label programLabel, bankLabel, authorLabel, commentLabel;
 
     juce::TextButton loadButton { "load" }, saveButton { "save" };
-    juce::ToggleButton controllersToggle { "controllers" }, tuningToggle { "tuning" };
 
     juce::TextEditor authorEditor, commentEditor;
 

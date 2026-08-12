@@ -10,9 +10,12 @@ namespace microtonos::sidebar
 
     Two settings that used to live on two different pages and contradict each
     other: omni was part of the tuning page's multichannel call-out, and the MPE
-    zone was a section of the controllers page, so a channel could be declared
-    an MPE member and separately tuned at the same time. They are one setting
-    and one filter now — see docs/channels.md.
+    zone was a section of the controllers page. See docs/channels.md.
+
+    **They are independent.** An MPE zone over channels 1 to 9 leaves 10 to 16
+    for omni to do as it likes with, and turning MPE off must not throw away the
+    omni selection underneath — nor the other way round. So this holds both at
+    once and the page shows one of them at a time.
 
     Free of MIDI, like the other pages' state: nothing here reads a message or
     silences a note. A mask is what the end-user asked for, and acting on it is
@@ -21,39 +24,22 @@ namespace microtonos::sidebar
 namespace channels
 {
     //==========================================================================
-    /** What the plugin does with the channels it hears, as one four-way choice.
+    /** Which end of the sixteen an MPE zone is anchored at. A lower zone runs
+        up from channel 1, an upper zone down from channel 16 — one master and
+        its members either way, and which end carries the zone-wide messages is
+        the whole of the difference. */
+    enum class Zone { lower, upper };
 
-        Omni on and omni off differ in whether the channels are *merged*: on,
-        a message moves the instrument; off, it moves only what is sounding on
-        the channel it arrived on. The two zones are MPE, which is the same
-        per-channel arrangement with the extra rule that the members are
-        contiguous from one end of the sixteen and one of them is the master.
-    */
-    enum class Mode
-    {
-        omniOn,
-        omniOff,
-        lowerZone,
-        upperZone
-    };
+    /** The page asks two questions rather than showing one four-way switch:
+        *which* of the two settings you are looking at, and whether it is on.
+        The buttons under the channels then belong to whichever is showing. */
+    inline const juce::StringArray settingNames { "omni", "MPE" };
+    inline const juce::StringArray enabledNames { "on", "off" };
+    inline const juce::StringArray zoneNames    { "lower zone", "upper zone" };
+    inline const juce::StringArray selectNames  { "select all", "mute all" };
 
-    /** The mode is asked as two questions rather than as one four-way choice:
-        `MPE on` or `off`, and then which of that answer's two.
-
-        A four-way switch would have to be a two-by-two, and a segmented control
-        is a line — but the better reason is that the pair sitting under `MPE
-        on` is what says `lower zone` and `upper zone` are MPE's, which nothing
-        about the words themselves does. */
-    inline const juce::StringArray mpeNames  { "MPE on", "MPE off" };
-    inline const juce::StringArray omniNames { "omni on", "omni off" };
-    inline const juce::StringArray zoneNames { "lower zone", "upper zone" };
-
-    inline constexpr int mpeOnIndex = 0;
-
-    inline constexpr bool isZone (Mode mode) noexcept
-    {
-        return mode == Mode::lowerZone || mode == Mode::upperZone;
-    }
+    /** `on` first in `enabledNames`, so an index is not a truth value. */
+    inline constexpr int onIndex = 0;
 
     //==========================================================================
     /** One bit per channel, bit 0 being channel 1. A mask rather than sixteen
@@ -79,38 +65,55 @@ namespace channels
 
     /** The channels a zone covers, given the channel its far edge sits on.
 
-        A zone is anchored at one end of the sixteen and runs contiguously
-        towards the other: a lower zone from channel 1 up to `edge`, an upper
-        zone from `edge` up to channel 16. So the extent is one number, and
-        clicking a channel in the grid is what sets it — which is why the grid
-        stays live under a zone instead of being locked. Clicking 8 in a lower
-        zone turns 1 to 8 on and the rest off.
+        A zone runs contiguously from its anchor towards the other end, so its
+        extent is one number — and clicking a channel is what sets it. Clicking
+        8 in a lower zone gives channels 1 to 8.
 
-        `edge` is a channel number, from 1, not an index. Returns nothing for
-        the omni modes, where the mask is the end-user's free choice rather than
-        a range. */
-    inline constexpr Mask channelsForZone (Mode mode, int edge) noexcept
+        `edge` is a channel number, from 1, not an index. */
+    inline constexpr Mask channelsForZone (Zone zone, int edge) noexcept
     {
         Mask covered = 0;
 
-        if (mode == Mode::lowerZone)
+        if (zone == Zone::lower)
             for (int c = 1; c <= edge; ++c)
                 covered = (Mask) (covered | (1u << (c - 1)));
-
-        if (mode == Mode::upperZone)
+        else
             for (int c = edge; c <= numChannels; ++c)
                 covered = (Mask) (covered | (1u << (c - 1)));
 
         return covered;
     }
 
-    /** Where a zone's edge sits when nothing has been clicked yet: the whole
-        sixteen, since a zone that starts off covering half the instrument would
-        look like a setting somebody had already made. */
-    inline constexpr int fullExtentFor (Mode mode) noexcept
+    //==========================================================================
+    /** Everything the page holds, and everything an owner has to act on.
+
+        One struct rather than four setters, because the two settings are read
+        together — what a channel actually does depends on whether the zone has
+        claimed it — and handing them over separately invites an owner to act on
+        half an answer.
+    */
+    struct Setup
     {
-        return mode == Mode::upperZone ? 1 : numChannels;
-    }
+        //  Omni: which channels are listened to, and whether that is in force.
+        bool omniOn = false;
+        Mask omniChannels = allChannels;
+
+        //  MPE: a zone, and whether that is in force.
+        bool mpeOn = false;
+        Zone zone = Zone::lower;
+
+        /** The channel the zone reaches to, from 1. Kept when the zone is
+            switched or turned off, so neither throws away what was set. */
+        int zoneEdge = numChannels;
+
+        /** The zone's channels, or none when MPE is off. What an owner needs in
+            order to know which channels the omni selection no longer governs —
+            the two overlap, and MPE wins on the ones it has claimed. */
+        Mask mpeChannels() const noexcept
+        {
+            return mpeOn ? channelsForZone (zone, zoneEdge) : noChannels;
+        }
+    };
 }
 
 } // namespace microtonos::sidebar

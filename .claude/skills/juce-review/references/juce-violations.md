@@ -396,7 +396,67 @@ Checklist for `prepareToPlay`:
 
 ---
 
-## 9. Recommended JUCE Patterns Summary
+## 9. Module and Macro Pitfalls
+
+### A JUCE module is a unity build
+
+A module's `<module>.cpp` `#include`s every implementation file it owns, so the
+whole module is **one translation unit**. Anything file-scoped in one `.cpp` is
+therefore still in force in the next one concatenated after it.
+
+The usual casualty is a using-directive:
+
+**BAD**
+```cpp
+// pages/ControllersPage.cpp
+using namespace controllers;      // convenience, this file only — except it isn't
+```
+```cpp
+// pages/ChannelsPage.cpp — compiled after it, in the same TU
+Mode mode;                        // error: ambiguous, controllers::Mode is visible here
+```
+
+Neither file includes the other and neither is wrong on its own; the ambiguity is
+created by the include order in `<module>.cpp`, and moves when a file is added.
+Static and anonymous-namespace helpers collide the same way, as do `#define`s
+that are never `#undef`'d.
+
+**GOOD** — qualify at the point of use, or open the namespace:
+
+```cpp
+namespace microtonos::sidebar { /* names resolve without a directive */ }
+```
+
+Keep using-directives inside a function body if they are wanted at all. The same
+applies to consumers: a module's headers are visible to every file after the
+first that includes them.
+
+### `JUCE_DECLARE_NON_COPYABLE` removes the default constructor
+
+The macro expands to deleted copy operations, which are *user-declared*
+constructors — and any user-declared constructor suppresses the implicit default
+one. A class that had no constructor of its own stops being default-constructible
+the moment the macro is added:
+
+```cpp
+struct SortingHeader final : juce::TableHeaderComponent
+{
+    // …
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SortingHeader)
+};
+
+auto header = std::make_unique<SortingHeader>();   // error: no matching constructor
+```
+
+The diagnostic points at `make_unique` and lists the deleted copy constructor as
+the candidate, which reads as a copy problem rather than a default-construction
+one. Add `SortingHeader() = default;` explicitly. Most JUCE classes carrying the
+macro declare their constructors anyway, which is why it is only noticed on a
+small subclass written to add one virtual.
+
+---
+
+## 10. Recommended JUCE Patterns Summary
 
 | Concern | Recommended Pattern |
 |---------|---------------------|

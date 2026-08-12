@@ -2,11 +2,10 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-#include "../SidebarIcons.h"
 #include "../SidebarLookAndFeel.h"
 #include "../widgets/ChoiceButton.h"
 #include "../widgets/ChoiceStrip.h"
-#include "../widgets/HeaderButton.h"
+#include "../widgets/SortingHeader.h"
 #include "../widgets/ReadOutField.h"
 #include "ControllersState.h"
 
@@ -63,17 +62,8 @@ public:
         that was learned however the table happens to be sorted. */
     void removeLatestMappingFor (int parameterIndex);
 
-    /** How the frozen column orders the rows, when no table column is doing it.
-        The mappings themselves are always held in the order they were added;
-        this only decides how they are shown. */
-    enum class Order
-    {
-        recent,        ///< Most recently added first — the clock button.
-        alphabetical   ///< By parameter name, a at the top — the "abc" button.
-    };
-
-    /** Appends a blank mapping and selects it, which is what `add` does. Under
-        `Order::recent` it appears at the top, since that is where the newest
+    /** Appends a blank mapping and selects it, which is what `add` does. With
+        no column sorting, it appears at the top, since that is where the newest
         row belongs.
 
         The source is an argument rather than a column because it decides what
@@ -90,6 +80,19 @@ public:
     /** Called after any edit, insertion or removal, never while one is in
         progress. */
     std::function<void()> onMappingsChanged;
+
+    //==========================================================================
+    //  Undo, over the mappings and nothing else.
+
+    void undo();
+    void redo();
+
+    bool canUndo() const noexcept { return ! undoStack.isEmpty(); }
+    bool canRedo() const noexcept { return ! redoStack.isEmpty(); }
+
+    /** Called whenever `canUndo` or `canRedo` may have changed, so the buttons
+        driving them are never dead-looking while there is something to do. */
+    std::function<void()> onHistoryChanged;
 
     /** Height that shows `rows` rows under the header — what the page reserves
         when it has the room, and its minimum when it does not.
@@ -126,11 +129,6 @@ public:
                                               juce::Component* existing) override;
     void selectedRowsChanged (int lastRowSelected) override;
 
-    /** A sortable header was clicked, or `setSortColumnId` was called. Column 0
-        means "no column", which is when the frozen column's own two orderings
-        apply. */
-    void sortOrderChanged (int newSortColumnId, bool isForwards) override;
-
 private:
     //==========================================================================
     /** Column ids, which `TableListBox` needs to be 1-based. `param` is not one
@@ -148,10 +146,11 @@ private:
     juce::String editableTextFor (int row, int columnId) const;
     void commitText (int row, int columnId, const juce::String& text);
 
-    /** How wide a column has to be for its title and every one of its entries.
-        Static because the column widths are set before there is anything in the
-        table to ask. */
-    static int widthForContents (const juce::String& title, const juce::StringArray& items);
+    /** How wide a column has to be for its title, every one of its entries, and
+        its sort arrow if it has one. Static because the column widths are set
+        before there is anything in the table to ask. */
+    static int widthForContents (const juce::String& title, const juce::StringArray& items,
+                                 bool sortable = false);
 
     /** What a choice column offers, where its dividing line goes, and what its
         cells are called in the component tree. */
@@ -164,8 +163,17 @@ private:
     int choiceFor (int row, int columnId) const;
     void commitChoice (int row, int columnId, int index);
 
-    /** Orders `displayOrder` by whichever mechanism is in force. */
+    /** Orders `displayOrder` by whatever `sortColumn` currently says. */
     void applyOrdering();
+
+    /** Ascending, descending, neither — and neither means newest first. Both
+        headers route their clicks here, so only one of them can be sorting at a
+        time and the other is told to show nothing. */
+    void cycleSort (int columnId);
+
+    /** True for the columns worth ordering; see the note where they are
+        declared. */
+    static bool isSortable (int columnId) noexcept;
 
     /** True when the row's mode ignores the LSB, which the two threshold modes
         do. The cell is disabled rather than hidden: the number is still part of
@@ -181,6 +189,14 @@ private:
     void changed();
     void refreshRows();
 
+    /** Snapshots the mappings before something changes them. Every mutation
+        calls this first; `setMappings` does not, because an owner replacing the
+        list wholesale is not an edit to undo — it clears the history instead. */
+    void pushUndo();
+
+    /** Both stacks hold whole copies of the list. See `metrics::undoDepth`. */
+    juce::Array<juce::Array<controllers::Mapping>> undoStack, redoStack;
+
     /** Selects a row on behalf of a cell.
 
         A cell's widget swallows the click that would otherwise reach the table,
@@ -195,7 +211,6 @@ private:
         gets, and it never changes just because the view was re-sorted. */
     int mappingIndexFor (int row) const;
     void rebuildOrder();
-    void setOrder (Order newOrder);
     void scrollBarMoved (juce::ScrollBar*, double newRangeStart) override;
 
     //==========================================================================
@@ -205,33 +220,22 @@ private:
     /** Display order over `mappings`, rebuilt whenever either changes. */
     juce::Array<int> displayOrder;
 
-    /** Which of the two mechanisms is ordering the table.
-
-        `sortColumn` is a column id, or 0 for "none" — and then `order` decides,
-        which is what the two buttons above the frozen column set. Keeping both
-        rather than folding the buttons into the header means the sort survives
-        a trip through a column and back: pressing `abc` clears the header's
-        column, pressing a header leaves `order` alone underneath. */
+    /** Which column is sorting the table, or 0 for none — and none means the
+        order the mappings were added in, newest first. One number for both
+        headers, which is what stops them disagreeing about who is in force. */
     int sortColumn = 0;
     bool sortForwards = true;
-    Order order = Order::recent;
-
-    /** True while `setSortColumnId` is being called from our own code, so the
-        `sortOrderChanged` it provokes does not undo what provoked it. */
-    bool settingSortColumn = false;
-
-    /** The two orderings of the frozen column, in the strip above it — the one
-        piece of the header the parameter names do not need, since they have no
-        title of their own.
-
-        Drawn as header cells rather than as a segmented pair of buttons: they
-        sit in the header row and do what a sortable column does, so looking
-        like the columns beside them is the honest thing. See HeaderButton. */
-    HeaderButton recentButton { "recent" };
-    HeaderButton alphabeticalButton { "abc" };
 
     juce::ListBox frozenColumn { "parameters", this };
     juce::TableListBox table { "mappings", this };
+
+    /** Both headers, owned by the lists they sit on — `ListBox::
+        setHeaderComponent` and `TableListBox::setHeader` each take ownership —
+        so these are the borrowed pointers used to drive them. The frozen
+        column gets a real header rather than a pair of buttons dressed as one:
+        it is then drawn by the LookAndFeel, exactly like the one beside it. */
+    SortingHeader* frozenHeader = nullptr;
+    SortingHeader* tableHeader  = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ControllersTable)
 };

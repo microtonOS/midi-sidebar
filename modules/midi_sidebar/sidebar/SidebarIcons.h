@@ -94,20 +94,6 @@ inline constexpr const char* panic = R"SVG(
 </svg>
 )SVG";
 
-/** Recency: a clock. Used by the controllers page to order mappings by when
-    they were added rather than by name. Its `currentColor` strokes are swapped
-    for the authored colour like every other icon here. */
-inline constexpr const char* clock = R"SVG(
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
-        d="M24 2.5A21.5 21.5 0 1 1 2.5 24A21.51 21.51 0 0 1 24 2.5"/>
-  <circle cx="24" cy="24" r="2.5" fill="none" stroke="#ffffff"
-          stroke-linecap="round" stroke-linejoin="round"/>
-  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
-        d="M24 21.5V11.44m2.1 13.91l12.2 7.8"/>
-</svg>
-)SVG";
-
 //==============================================================================
 /** Parses one of the strings above and recolours it.
 

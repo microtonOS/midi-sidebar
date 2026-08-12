@@ -10,6 +10,30 @@ Iterate with continuous feedback from the user.
 This is meant as a reusable skill for various JUCE projects, so the details of the user feedback may vary.
 It can make sense to update the skills file depending on the feedback from the user—ask to do this if something is missing or inconsistent and it is general enough to extend to other projects.
 
+## References
+
+This file is the whole of what you need to *start*. The references below are for
+the questions that come up once you are working; open one when its line
+describes what you are doing, not before.
+
+| open | when you are |
+|---|---|
+| [layout](references/layout.md) | deciding where things go — grids, columns, spans, sizing tracks, and the two ways a `Grid` fails without saying so |
+| [widgets](references/widgets.md) | choosing or wiring a control — sliders, buttons, tables, text and menus, and what each gets wrong by default |
+| [look and feel](references/look-and-feel.md) | deciding how it looks — the colour scheme, custom `ColourId`s, and when an override belongs on the LookAndFeel |
+| [fonts](references/fonts.md) | picking or sizing type, or a label will not fit |
+| [animation](references/animation.md) | moving something over time, or something you laid out will not stay where you put it |
+| [popups](references/popups.md) | putting something in front — menus, call-out boxes, file choosers, tooltips |
+| [versions](references/juce-versions.md) | a GUI that compiled before a JUCE bump does not compile after it |
+
+One more lives in the **juce-review** skill and is worth knowing about from here,
+because several of its faults present as GUI faults:
+[juce-violations](../juce-review/references/juce-violations.md) — the crash
+before `main`, and the traps a JUCE module's unity build sets.
+
+The [Gotchas](#gotchas) list near the end of this file is the other way in: it is
+indexed by *symptom*, for when you can see what is wrong but not what caused it.
+
 ## Files
 
 Decide the file structure when you create the first file, not once it has grown.
@@ -275,7 +299,7 @@ looking at; follow the link once you recognise it.
 
 - **A tab's label is invisible on a light scheme.** Its colour falls back to the
   tab's background `contrasting()`, and a transparent background contrasts as
-  black. See [design](references/design.md#an-override-the-lookandfeel-has-to-own).
+  black. See [look and feel](references/look-and-feel.md#an-override-the-lookandfeel-has-to-own).
 
 - **A slider shows `1999.99…` however few decimals you ask for.** A parameter
   attachment installs a `textFromValueFunction`, which outranks
@@ -290,7 +314,7 @@ looking at; follow the link once you recognise it.
 - **Everything renders black, or one widget does.** A custom `ColourId` was
   never registered, or was read before a LookAndFeel was reachable. Watch the
   log for the assertion even when the picture looks plausible; black on a dark
-  background is easy to miss. See [design](references/design.md#colours).
+  background is easy to miss. See [look and feel](references/look-and-feel.md#colours).
 
 - **A pop-up looks like a different application.** A `CallOutBox` launched onto
   the desktop does not inherit your LookAndFeel.
@@ -315,7 +339,7 @@ looking at; follow the link once you recognise it.
 
 - **A widget that was fine draws nothing once a second one appears.** A
   `LookAndFeel` override written for one widget applies to every widget of that
-  type. See [design](references/design.md#overriding-a-lookandfeel).
+  type. See [look and feel](references/look-and-feel.md#overriding-a-lookandfeel).
 
 - **A whole component is missing, and `setVisible` is not the reason.** A `Grid`
   auto-placed it into an implicit row past the ones you declared — two things
@@ -329,26 +353,52 @@ looking at; follow the link once you recognise it.
 - **A short button label turns into "F...".** `TextButton` does not shrink its
   font to fit. See [widgets](references/widgets.md#buttons).
 
+- **One widget keeps JUCE's grey while everything around it follows the theme.**
+  Its colour ids are set by `LookAndFeel_V2` and never revisited by
+  `LookAndFeel_V4`, so no scheme will move them — `TableHeaderComponent` is the
+  usual one. Two of its `drawX` methods go further and ignore their own ids: a
+  white band across the top of the header, and a sort arrow at a hardcoded
+  translucent black. See
+  [look and feel](references/look-and-feel.md#widgets-the-scheme-does-not-reach).
+
+- **A new element is the right colour and still invisible.** Its shade was
+  derived with `contrasting()` from the wrong sibling and landed on the
+  neighbour's own colour. `widgetBackground` is darker than `windowBackground` in
+  three of JUCE's four schemes and lighter in the fourth, so "away from this one"
+  is not "away from the other one". See [look and feel](references/look-and-feel.md#colours).
+
+- **A button is there, is labelled, and nothing can find it by name.** It was
+  default-constructed and labelled with `setButtonText`, which sets the text but
+  not the *component* name. Accessibility, name lookups and the snapshot tool's
+  `--click` all go by the name. See [widgets](references/widgets.md#buttons).
+
+- **A column header will not go back to unsorted, or its title elides the moment
+  it becomes sortable.** `columnClicked` only ever toggles ascending and
+  descending, and the arrow takes `height / 2` off the title's width.
+  See [widgets](references/widgets.md#sortable-columns-and-the-header-as-a-component).
+
+- **Two files that do not include each other collide.** A JUCE module is a unity
+  build, so a file-scope `using namespace` in one `.cpp` is still in force in the
+  next. See
+  [juce-review](../juce-review/references/juce-violations.md#a-juce-module-is-a-unity-build).
+
+- **`make_unique<T>()` fails with the deleted copy constructor as the candidate.**
+  `JUCE_DECLARE_NON_COPYABLE` user-declares constructors, which suppresses the
+  implicit default one. Add `T() = default;`. See
+  [juce-review](../juce-review/references/juce-violations.md#juce_declare_non_copyable-removes-the-default-constructor).
+
 - **Controls vanish after resizing the window.** `setBounds` loses to a running
-  `ComponentAnimator`. See [design](references/design.md#animations).
+  `ComponentAnimator`. See [animation](references/animation.md#jucecomponentanimator--animating-bounds).
 
-- **`juce::Font (float)` no longer compiles cleanly.** Deprecated in JUCE 8; use
-  `FontOptions`. See [design](references/design.md#fonts).
+- **A label is the right size and the wrong shape.** `drawFittedText` squashes
+  text horizontally before it breaks or truncates it, so it reads as a condensed
+  typeface rather than as text that did not fit.
+  See [fonts](references/fonts.md#fitting-text-to-a-widget).
 
-- **`Drawable` no longer compiles as a `Component`.** JUCE 9 moved it into
-  `juce_graphics` and removed the `Component` base; wrap it in
-  `DrawableComponent`. Check this first when porting a GUI from JUCE 8.
-
-   Before laying a component out directly, cancel any animation on it:
-
-   ```cpp
-   animator.cancelAnimation (&child, false);   // false = don't jump to the end
-   child.setBounds (target);
-   ```
-
-   `animator.isAnimating (&child)` is available if you need to branch instead.
-   The same applies to the animation's *target*: compute it from bounds that are
-   current, or you will animate towards a stale rectangle.
+- **A wall of unrelated errors around icons after a JUCE bump.** Something the
+  GUI relies on moved between releases — `Drawable` ceasing to be a `Component`
+  in JUCE 9 is the expensive one, and `juce::Font (float)`'s deprecation in
+  JUCE 8 the common one. See [versions](references/juce-versions.md).
 
 
 ## Resources

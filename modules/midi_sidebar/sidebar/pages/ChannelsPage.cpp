@@ -6,14 +6,12 @@ namespace microtonos::sidebar
 // **No `using namespace channels;`.** This module is a unity build — every
 // page's .cpp is included into midi_sidebar.cpp — so a file-scope
 // using-directive in one of them is still in force in the next. ControllersPage
-// has one for `controllers`, whose `Mode` and `modeNames` would then be
-// ambiguous against these. Qualified names cost a word and cannot collide.
+// has one for `controllers`, whose names would then be ambiguous against these.
 
 //==============================================================================
 ChannelsPage::ChannelsPage()
-    : mpeStrip  ({}, channels::mpeNames),
-      omniStrip ({}, channels::omniNames),
-      zoneStrip ({}, channels::zoneNames)
+    : settingStrip ({}, channels::settingNames),
+      enabledStrip ({}, channels::enabledNames)
 {
     // The frame first, so everything drawn over it stays legible — the
     // arrangement every page in this module uses, and the reason a
@@ -23,116 +21,112 @@ ChannelsPage::ChannelsPage()
     filterGroup.setText ("FILTER");
     addAndMakeVisible (filterGroup);
 
-    for (auto* strip : { &mpeStrip, &omniStrip, &zoneStrip })
+    for (auto* strip : { &settingStrip, &enabledStrip })
         addAndMakeVisible (*strip);
 
-    mpeStrip.onChoice = [this] (int index)
+    // Choosing a view changes nothing about either setting — it only decides
+    // which of them the rest of the page is showing.
+    settingStrip.onChoice = [this] (int) { refresh(); };
+
+    enabledStrip.onChoice = [this] (int index)
     {
-        // The second question keeps its own last answer, so turning MPE off and
-        // on again finds the zone that was left rather than resetting it.
-        modePicked (index == channels::mpeOnIndex ? lastZone : lastOmni);
+        (showingMpe() ? setup.mpeOn : setup.omniOn) = index == channels::onIndex;
+
+        refresh();
+        announce();
     };
 
-    omniStrip.onChoice = [this] (int index)
+    // The edge is kept across a change of zone, so switching from a lower zone
+    // reaching to 9 gives an upper zone from 9 — the channel last clicked stays
+    // the boundary rather than the setting resetting.
+    const auto pickZone = [this] (channels::Zone zone)
     {
-        modePicked (index == 0 ? channels::Mode::omniOn : channels::Mode::omniOff);
+        setup.zone = zone;
+
+        refresh();
+        announce();
     };
 
-    zoneStrip.onChoice = [this] (int index)
+    lowerZoneButton.onClick = [pickZone] { pickZone (channels::Zone::lower); };
+    upperZoneButton.onClick = [pickZone] { pickZone (channels::Zone::upper); };
+
+    channelGrid.onChannelClicked = [this] (int index) { channelClicked (index); };
+    addAndMakeVisible (channelGrid);
+
+    selectAllButton.onClick = [this] { setup.omniChannels = channels::allChannels; refresh(); announce(); };
+    muteAllButton  .onClick = [this] { setup.omniChannels = channels::noChannels;  refresh(); announce(); };
+
+    // The name as well as the text. `TextButton (name)` sets both, but these
+    // take their labels from the arrays above at construction time, so the name
+    // has to be given separately — and it is what identifies the button in a
+    // component tree and to the snapshot tool's `--click`.
+    const auto label = [] (juce::TextButton& button, const juce::String& text)
     {
-        modePicked (index == 0 ? channels::Mode::lowerZone : channels::Mode::upperZone);
+        button.setButtonText (text);
+        button.setName (text);
     };
 
-    grid.onChannelClicked = [this] (int index) { channelClicked (index); };
-    addAndMakeVisible (grid);
+    label (selectAllButton, channels::selectNames[0]);
+    label (muteAllButton,   channels::selectNames[1]);
+    label (lowerZoneButton, channels::zoneNames[0]);
+    label (upperZoneButton, channels::zoneNames[1]);
 
-    selectAllButton.onClick = [this] { chosen = channels::allChannels; refresh(); announceChannels(); };
-    muteAllButton  .onClick = [this] { chosen = channels::noChannels;  refresh(); announceChannels(); };
-
-    for (auto* b : { &selectAllButton, &muteAllButton })
+    for (auto* b : { &selectAllButton, &muteAllButton, &lowerZoneButton, &upperZoneButton })
         addAndMakeVisible (*b);
 
     refresh();
 }
 
 //==============================================================================
-void ChannelsPage::setMode (channels::Mode newMode)
+bool ChannelsPage::showingMpe() const noexcept
 {
-    // A zone arriving from outside starts at its full extent rather than at
-    // whatever edge a previous zone happened to leave behind.
-    if (channels::isZone (newMode) && ! channels::isZone (mode))
-        zoneEdge = channels::fullExtentFor (newMode);
+    return settingStrip.getSelectedIndex() == 1;
+}
 
-    mode = newMode;
+void ChannelsPage::setSetup (channels::Setup newSetup)
+{
+    setup = newSetup;
     refresh();
 }
 
-void ChannelsPage::setChannels (channels::Mask mask)
+void ChannelsPage::announce()
 {
-    chosen = mask;
-    refresh();
-}
-
-channels::Mask ChannelsPage::getChannels() const noexcept
-{
-    return channels::isZone (mode) ? channels::channelsForZone (mode, zoneEdge) : chosen;
-}
-
-void ChannelsPage::modePicked (channels::Mode picked)
-{
-    setMode (picked);
-
-    if (onModeChanged != nullptr)
-        onModeChanged (mode);
-
-    // The mask changes with the mode even though nothing in the grid was
-    // touched — omni's free selection and a zone's span are different answers.
-    announceChannels();
+    if (onSetupChanged != nullptr)
+        onSetupChanged (setup);
 }
 
 void ChannelsPage::channelClicked (int channelIndex)
 {
-    if (channels::isZone (mode))
-        zoneEdge = channelIndex + 1;   // a channel number, not an index
+    if (showingMpe())
+        setup.zoneEdge = channelIndex + 1;   // a channel number, not an index
     else
-        chosen = channels::withChannel (chosen, channelIndex,
-                                        ! channels::isSet (chosen, channelIndex));
+        setup.omniChannels = channels::withChannel (setup.omniChannels, channelIndex,
+                                                    ! channels::isSet (setup.omniChannels, channelIndex));
 
     refresh();
-    announceChannels();
-}
-
-void ChannelsPage::announceChannels()
-{
-    if (onChannelsChanged != nullptr)
-        onChannelsChanged (getChannels());
+    announce();
 }
 
 void ChannelsPage::refresh()
 {
-    const auto zone = channels::isZone (mode);
+    const auto mpe = showingMpe();
 
-    (zone ? lastZone : lastOmni) = mode;
+    enabledStrip.setSelectedIndex ((mpe ? setup.mpeOn : setup.omniOn) ? channels::onIndex
+                                                                     : channels::onIndex + 1);
 
-    mpeStrip.setSelectedIndex (zone ? channels::mpeOnIndex : channels::mpeOnIndex + 1);
+    // The grid shows whichever setting is in view — the zone's span under MPE,
+    // the free selection under omni. Neither is drawn through the other; see
+    // the note on the class.
+    channelGrid.setChannels (mpe ? channels::channelsForZone (setup.zone, setup.zoneEdge)
+                                 : setup.omniChannels);
 
-    // One of the two occupies the cell; the other is not merely disabled but
-    // absent, because a question that does not apply is not a question with a
-    // greyed answer.
-    omniStrip.setVisible (! zone);
-    zoneStrip.setVisible (zone);
+    // One row, two pairs. Neither pair means anything to the other setting, so
+    // only the one belonging to the view in force is there at all.
+    lowerZoneButton.setVisible (mpe);
+    upperZoneButton.setVisible (mpe);
 
-    omniStrip.setSelectedIndex (mode == channels::Mode::omniOn    ? 0 : 1);
-    zoneStrip.setSelectedIndex (mode == channels::Mode::lowerZone ? 0 : 1);
-
-    grid.setChannels (getChannels());
-
-    // The grid stays live under a zone — a click there sets the zone's edge.
-    // These two do not: "all" and "none" are not extents, and a zone with
-    // nothing in it is not a zone. They belong to the free selection, and
-    // under a zone there is little to save anyway.
-    selectAllButton.setEnabled (! zone);
-    muteAllButton  .setEnabled (! zone);
+    selectAllButton.setVisible (! mpe);
+    muteAllButton  .setVisible (! mpe);
 }
 
 //==============================================================================
@@ -160,32 +154,29 @@ void ChannelsPage::resized()
     constexpr auto half = metrics::pageColumns / 2;
     constexpr auto rightHalf = 1 + half;
 
-    //  The mode, unframed at the top: the sketch gives it no title, and on
-    //  these pages that is what says "not a named section". Two rows, which is
-    //  the height every page's opening block has — see metrics::pageTopRows.
-    pageGrid.place (mpeStrip, pageGrid.addRow (metrics::pageRowHeight), 1, full);
-
-    {
-        // Both second-row strips are given the same cell, explicitly. Left to
-        // auto-placement the hidden one would be handed an implicit row below
-        // the page and would come back invisible when it was shown.
-        const auto row = pageGrid.addRow (metrics::pageRowHeight);
-
-        pageGrid.place (omniStrip, row, 1, full);
-        pageGrid.place (zoneStrip, row, 1, full);
-    }
+    //  The two switches, unframed at the top: the sketch gives them no title,
+    //  and on these pages that is what says "not a named section". Two rows,
+    //  which is every page's opening block — see metrics::pageTopRows.
+    pageGrid.place (settingStrip, pageGrid.addRow (metrics::pageRowHeight), 1, full);
+    pageGrid.place (enabledStrip, pageGrid.addRow (metrics::pageRowHeight), 1, full);
 
     //  Filter -------------------------------------------------------------
     const auto filterTitle = pageGrid.addRow (metrics::pageGroupTitleHeight);
 
     // One item spanning all six columns; its own four columns are its business.
-    pageGrid.place (grid, pageGrid.addRow (metrics::channelGridHeight), 1, full);
+    pageGrid.place (channelGrid, pageGrid.addRow (metrics::channelGridHeight), 1, full);
 
     {
+        // All four share the row, explicitly. Left to auto-placement the
+        // hidden ones would be given implicit rows below the page and would
+        // come back invisible when they were shown.
         const auto row = pageGrid.addRow (metrics::pageRowHeight);
 
         pageGrid.place (selectAllButton, row, 1, half);
         pageGrid.place (muteAllButton,   row, rightHalf, half);
+
+        pageGrid.place (lowerZoneButton, row, 1, half);
+        pageGrid.place (upperZoneButton, row, rightHalf, half);
     }
 
     pageGrid.frame (filterGroup, filterTitle, pageGrid.addRow (metrics::pageGroupPadding));

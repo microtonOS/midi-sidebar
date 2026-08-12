@@ -118,8 +118,13 @@ namespace synth
         // of frequencies and so a bare number. The letter names the quantity,
         // not what it is measured in, so it belongs in the description.
         { "resonance", "Filter resonance", {},
-          "How much the filter emphasises the frequencies right at the cutoff — "
-          "its quality factor, Q. High values ring; at the top the filter begins "
+          // Plain ASCII, and deliberately: these are bare `const char*`, and
+          // `juce::String` asserts on a multi-byte literal that has not been
+          // wrapped in `CharPointer_UTF8`. An em dash here tripped that on
+          // every launch. Anything beyond ASCII in a user-visible string needs
+          // the wrapper; a comma is cheaper.
+          "How much the filter emphasises the frequencies right at the cutoff, "
+          "its quality factor Q. High values ring; at the top the filter begins "
           "to whistle at its own cutoff frequency.",
           {}, { 0.1f, 10.0f }, 0.7f },
 

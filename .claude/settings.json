@@ -21,7 +21,10 @@
     "allow": [
       "Bash(./.claude/skills/juce-ui/scripts/snapshot.sh:*)",
       "Bash(python3 .claude/skills/juce-ui/scripts/layout_lint.py:*)",
-      "Bash(cmake --build:*)"
+      "Bash(cmake --build:*)",
+      "Bash(grep:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)"
     ]
   }
 }

@@ -31,7 +31,7 @@ PresetsPage::PresetsPage()
     }
 
     statusGroup.setText ("STATUS");
-    filesGroup .setText ("FILES");
+    filesGroup .setText ("FILE");
     metaGroup  .setText ("META");
 
     const auto addLabel = [this] (juce::Label& label, const juce::String& text)
@@ -60,7 +60,7 @@ PresetsPage::PresetsPage()
     for (auto* c : std::initializer_list<juce::Component*> {
              &lowField, &highField, &splitButton, &layerStrip,
              &nameButton, &programStepper, &bankStepper,
-             &loadButton, &saveButton, &controllersToggle, &tuningToggle,
+             &loadButton, &saveButton,
              &authorEditor, &commentEditor })
         addAndMakeVisible (*c);
 
@@ -98,20 +98,6 @@ PresetsPage::PresetsPage()
 
     loadButton.onClick = [this] { if (onLoadRequested != nullptr) onLoadRequested(); };
     saveButton.onClick = [this] { if (onSaveRequested != nullptr) onSaveRequested(); };
-
-    // Two independent flags, not a choice: a file may carry both, either or
-    // neither, which is what tick boxes say and a segmented strip would not.
-    for (auto* toggle : { &controllersToggle, &tuningToggle })
-    {
-        toggle->onClick = [this]
-        {
-            includes.controllers = controllersToggle.getToggleState();
-            includes.tuning      = tuningToggle.getToggleState();
-
-            if (onIncludesChanged != nullptr)
-                onIncludesChanged (includes);
-        };
-    }
 
     authorEditor.setMultiLine (false);
     authorEditor.setReturnKeyStartsNewLine (false);
@@ -170,14 +156,6 @@ void PresetsPage::setMeta (presets::Meta meta)
 {
     authorEditor .setText (meta.author,  juce::dontSendNotification);
     commentEditor.setText (meta.comment, juce::dontSendNotification);
-}
-
-void PresetsPage::setIncludes (presets::Includes newIncludes)
-{
-    includes = newIncludes;
-
-    controllersToggle.setToggleState (includes.controllers, juce::dontSendNotification);
-    tuningToggle     .setToggleState (includes.tuning,      juce::dontSendNotification);
 }
 
 void PresetsPage::setSplitActive (bool isActive)
@@ -291,17 +269,6 @@ void PresetsPage::resized()
 
         grid.place (loadButton, row, 1, half);
         grid.place (saveButton, row, rightHalf, half);
-    }
-
-    {
-        // A half each, and no "include" label. A tick box plus the word
-        // "controllers" needs about 90px, which a half gives and a third does
-        // not — the sketch's three-way split elided it to "control...". The
-        // two sit under load and save, which is what they qualify.
-        const auto row = grid.addRow (metrics::pageRowHeight);
-
-        grid.place (controllersToggle, row, 1, half);
-        grid.place (tuningToggle,      row, rightHalf, half);
     }
 
     grid.frame (filesGroup, filesTitle, grid.addRow (metrics::pageGroupPadding));

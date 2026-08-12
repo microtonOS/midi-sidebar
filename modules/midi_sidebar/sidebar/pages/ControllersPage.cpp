@@ -10,38 +10,41 @@ ControllersPage::ControllersPage()
 {
     // Frames first, so everything else draws over them — the arrangement the
     // tuning page uses and for the same reason.
-    for (auto* group : { &filesGroup, &editingGroup })
+    for (auto* group : { &insertGroup, &editGroup })
     {
         group->setTextLabelPosition (juce::Justification::centredLeft);
         group->setInterceptsMouseClicks (false, false);
         addAndMakeVisible (*group);
     }
 
-    filesGroup  .setText ("FILES");
-    editingGroup.setText ("EDITING");
+    insertGroup.setText ("INSERT");
+    editGroup  .setText ("EDIT");
 
     addAndMakeVisible (monitor);
 
-    for (auto* b : { &loadButton, &saveButton, &addButton, &removeButton,
-                     &aftertouchButton, &polytouchButton })
+    for (auto* b : { &ccButton, &aftertouchButton, &polytouchButton,
+                     &deleteButton, &undoButton, &redoButton })
         addAndMakeVisible (*b);
 
     addAndMakeVisible (table);
 
-    //  Buttons ----------------------------------------------------------------
-    loadButton.onClick = [this] { if (onLoadRequested != nullptr) onLoadRequested(); };
-    saveButton.onClick = [this] { if (onSaveRequested != nullptr) onSaveRequested(); };
-
-    addButton   .onClick = [this] { table.addMapping(); };
-    removeButton.onClick = [this] { table.removeSelectedMapping(); };
-
-    // Each adds a row of its own kind. The mapping is otherwise blank, exactly
-    // as `add` leaves one, so the only thing these decide is what the row's two
-    // controller-number cells say instead of holding a number.
+    //  Insert -----------------------------------------------------------------
+    // Each adds a blank row of its own kind. The kind is a button rather than a
+    // column because it decides what the rest of the row means: the two touch
+    // sources have no controller number to type into.
+    ccButton        .onClick = [this] { table.addMapping (controllers::Source::control); };
     aftertouchButton.onClick = [this] { table.addMapping (controllers::Source::aftertouch); };
     polytouchButton .onClick = [this] { table.addMapping (controllers::Source::polytouch); };
 
+    //  Edit -------------------------------------------------------------------
+    deleteButton.onClick = [this] { table.removeSelectedMapping(); };
+    undoButton  .onClick = [this] { table.undo(); };
+    redoButton  .onClick = [this] { table.redo(); };
+
     table.onMappingsChanged = [this] { if (onMappingsChanged != nullptr) onMappingsChanged(); };
+    table.onHistoryChanged  = [this] { refreshHistory(); };
+
+    refreshHistory();
 }
 
 ControllersPage::~ControllersPage() = default;
@@ -95,13 +98,22 @@ void ControllersPage::setMessages (juce::StringArray newMessages)
     monitor.setValue (messages.joinIntoString ("\n"));
 }
 
+void ControllersPage::refreshHistory()
+{
+    // Disabled rather than hidden: a button that vanishes when there is nothing
+    // to undo moves the two beside it, and a row that reflows as you work is
+    // harder to aim at than one with a greyed button in it.
+    undoButton.setEnabled (table.canUndo());
+    redoButton.setEnabled (table.canRedo());
+}
+
 //==============================================================================
 void ControllersPage::lookAndFeelChanged()
 {
     if (! getLookAndFeel().isColourSpecified (pageColours::sectionTitleColourId))
         return;
 
-    for (auto* group : { &filesGroup, &editingGroup })
+    for (auto* group : { &insertGroup, &editGroup })
     {
         group->setColour (juce::GroupComponent::textColourId,    findColour (pageColours::sectionTitleColourId));
         group->setColour (juce::GroupComponent::outlineColourId, findColour (pageColours::sectionOutlineColourId));
@@ -115,28 +127,30 @@ void ControllersPage::resized()
     // see PageGrid.
     PageGrid grid;
 
-    constexpr auto full = metrics::pageColumns;
-    constexpr auto half = metrics::pageColumns / 2;
-    constexpr auto rightHalf = 1 + half;
+    constexpr auto full  = metrics::pageColumns;
+    constexpr auto third = metrics::pageThirdColumns;
 
     //  The monitor, unframed at the top like the tuning page's interval block:
     //  the sketch gives it no title.
     grid.place (monitor, grid.addRow (metrics::pageTopHeight (metrics::pageTopRows)), 1, full);
 
-    //  Files ------------------------------------------------------------------
-    const auto filesTitle = grid.addRow (metrics::pageGroupTitleHeight);
+    //  Insert -----------------------------------------------------------------
+    const auto insertTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     {
+        // Thirds, which six columns divide into exactly — and the same three
+        // the EDIT row below uses, so the two rows line up down the page.
         const auto row = grid.addRow (metrics::pageRowHeight);
 
-        grid.place (loadButton, row, 1, half);
-        grid.place (saveButton, row, rightHalf, half);
+        grid.place (ccButton,         row, 1, third);
+        grid.place (aftertouchButton, row, 1 + third, third);
+        grid.place (polytouchButton,  row, 1 + third * 2, third);
     }
 
-    grid.frame (filesGroup, filesTitle, grid.addRow (metrics::pageGroupPadding));
+    grid.frame (insertGroup, insertTitle, grid.addRow (metrics::pageGroupPadding));
 
-    //  Editing ----------------------------------------------------------------
-    const auto editingTitle = grid.addRow (metrics::pageGroupTitleHeight);
+    //  Edit -------------------------------------------------------------------
+    const auto editTitle = grid.addRow (metrics::pageGroupTitleHeight);
 
     // The one flexible track on the page: the table takes whatever height is
     // left, which is what lets the page fit a short panel and fill a tall one.
@@ -145,20 +159,14 @@ void ControllersPage::resized()
     {
         const auto row = grid.addRow (metrics::pageRowHeight);
 
-        grid.place (addButton,    row, 1, half);
-        grid.place (removeButton, row, rightHalf, half);
+        // delete first, then the pair that puts it back — the destructive action
+        // beside the table it acts on, and undo/redo in their reading order.
+        grid.place (deleteButton, row, 1, third);
+        grid.place (undoButton,   row, 1 + third, third);
+        grid.place (redoButton,   row, 1 + third * 2, third);
     }
 
-    {
-        // The other two ways to add a row, so they belong with `add` inside the
-        // frame rather than under it.
-        const auto row = grid.addRow (metrics::pageRowHeight);
-
-        grid.place (aftertouchButton, row, 1, half);
-        grid.place (polytouchButton,  row, rightHalf, half);
-    }
-
-    grid.frame (editingGroup, editingTitle, grid.addRow (metrics::pageGroupPadding));
+    grid.frame (editGroup, editTitle, grid.addRow (metrics::pageGroupPadding));
 
     grid.performLayout (getLocalBounds(), getMinimumHeight());
 }

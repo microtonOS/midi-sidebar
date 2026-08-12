@@ -86,7 +86,13 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     // touches them, so a header is the one part of a V4 plugin that ignores the
     // scheme entirely. On a dark theme it arrives as a bright band across the
     // table. Registered here so it follows the sidebar like everything else.
-    target.setColour (juce::TableHeaderComponent::backgroundColourId, widget);
+    //
+    // Lifted off `window`, which is what the lists themselves are filled with,
+    // so the header is a step above its own rows. Deriving it from the panel
+    // instead put it within a shade of the rows in the dark scheme, where the
+    // panel happens to be the darker of the two — see `shades::headerLift`.
+    target.setColour (juce::TableHeaderComponent::backgroundColourId,
+                      window.contrasting (shades::headerLift));
     target.setColour (juce::TableHeaderComponent::textColourId,       text);
     target.setColour (juce::TableHeaderComponent::outlineColourId,    text.withMultipliedAlpha (shades::hairline));
     target.setColour (juce::TableHeaderComponent::highlightColourId,  accent.withMultipliedAlpha (shades::selectedRow));

@@ -62,14 +62,6 @@ namespace presets
         juce::String author, comment;
     };
 
-    /** What a save writes alongside the preset, and what a load is allowed to
-        apply. Two independent flags rather than a choice: a file may carry
-        both, either or neither. */
-    struct Includes
-    {
-        bool controllers = false;
-        bool tuning = false;
-    };
 }
 
 } // namespace microtonos::sidebar

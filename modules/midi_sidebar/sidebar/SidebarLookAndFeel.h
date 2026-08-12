@@ -253,12 +253,6 @@ namespace metrics
         ComboBox, since that is what the column holds. */
     inline constexpr int tableFrozenColumnWidth = 68;
 
-    /** The clock half of the frozen column's header strip. Fixed rather than
-        half, because the two halves want different room: an icon and an arrow
-        on one side, a word and an arrow on the other, and `abc` is the wider
-        of the two. Split evenly, the icon loses. */
-    inline constexpr int orderIconWidth = 30;
-
     /** The largest a continuous controller number can be, 7 bits. Named because
         sorting needs somewhere to put the rows that have none, and "one past
         the largest real one" is the only answer that keeps them out of the way
@@ -301,6 +295,14 @@ namespace metrics
         leave, which is more than this. Kept low deliberately, since it is what
         sets the page's minimum height. */
     inline constexpr int commentMinimumRows = 2;
+
+    /** How many edits the mapping table remembers.
+
+        Snapshots of the whole list rather than a stack of `UndoableAction`s:
+        the table already owns its mappings, a mapping is a handful of ints, and
+        a copy of the array is cheaper to write and impossible to get wrong. The
+        cap is what stops a long session growing without bound. */
+    inline constexpr int undoDepth = 64;
 
     /** Rows the editing table must be able to show before the page has to give
         up any more height. The table is the page's flexible track, so this is
@@ -416,6 +418,22 @@ namespace shades
     /** Anything the end-user cannot edit from the GUI — see docs/general.md.
         Dimming the whole of it says so without a word of explanation. */
     inline constexpr float readOnly = 0.6f;
+
+    /** How far a table header stands off the rows beneath it.
+
+        Applied with `Colour::contrasting`, which overlays black or white at
+        this alpha depending on the surface — so one number lightens a dark
+        theme and darkens a light one.
+
+        Measured against the *rows*, not the panel. In JUCE's dark scheme the
+        panel (`widgetBackground`, #263238) is darker than the table's own
+        background (`windowBackground`, #323e44), so a header lifted a little
+        off the panel lands on #333e44 — the row colour exactly, which is how
+        the header came to be invisible. A quarter is enough to read as a bar
+        without going near JUCE's own near-white #e8ebf9, which is a fixed
+        colour rather than a derived one and looks pasted on over a dark
+        theme. */
+    inline constexpr float headerLift = 0.25f;
 }
 
 //==============================================================================
@@ -519,12 +537,6 @@ public:
         against a dark one it is a white band across the table. */
     void drawTableHeaderBackground (juce::Graphics&, juce::TableHeaderComponent&) override;
 
-    /** The sort arrow, drawn into `area`, pointing up when `forwards`. Public
-        because the controllers page marks its two ordering buttons with it —
-        they sit in the header row without being columns of one, and the mark
-        has to be the same mark. */
-    static void drawSortArrow (juce::Graphics&, juce::Rectangle<int> area,
-                               bool forwards, juce::Colour);
 
 
     // Call-outs are left to LookAndFeel_V4, which fills them with
@@ -537,6 +549,12 @@ public:
     static juce::Font font (float height, bool bold = false);
 
 private:
+    /** The sort arrow, pointing up when `forwards`. Private: the two ordering
+        buttons that used to borrow it are header columns of their own now, so
+        nothing outside this class draws one. */
+    static void drawSortArrow (juce::Graphics&, juce::Rectangle<int> area,
+                               bool forwards, juce::Colour);
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SidebarLookAndFeel)
 };
 

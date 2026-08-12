@@ -299,7 +299,7 @@ Three things to know before using one:
   `setOutline (0)`, or you get two rectangles a pixel apart.
 - **A transparent tab background makes the label invisible on a light scheme.**
   Give the tab bar its text colours rather than a background; the mechanism is
-  in [design](design.md#an-override-the-lookandfeel-has-to-own).
+  in [look and feel](look-and-feel.md#an-override-the-lookandfeel-has-to-own).
 
 See also
 TabbedButtonBar

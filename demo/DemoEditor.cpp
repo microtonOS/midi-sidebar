@@ -270,11 +270,19 @@ void DemoEditor::showSampleChannels()
 {
     auto& page = sidebar.getChannelsPage();
 
-    // Omni off with a few channels muted, so the grid is visibly doing
-    // something rather than showing sixteen identical buttons. Nothing reads
-    // this yet; see docs/demo.md.
-    page.setMode (channels::Mode::omniOff);
-    page.setChannels ((channels::Mask) (channels::allChannels & ~0b0000'0000'1010'0100));
+    // Both settings live at once, which is the point of the page: a lower zone
+    // over channels 1 to 9, and an omni selection with a few of the rest muted.
+    // Nothing reads this yet; see docs/demo.md.
+    channels::Setup setup;
+
+    setup.omniOn = true;
+    setup.omniChannels = (channels::Mask) (channels::allChannels & ~0b0000'0000'1010'0100);
+
+    setup.mpeOn = true;
+    setup.zone = channels::Zone::lower;
+    setup.zoneEdge = 9;
+
+    page.setSetup (setup);
 }
 
 void DemoEditor::showSamplePresets()
@@ -291,7 +299,6 @@ void DemoEditor::showSamplePresets()
                     "Drawbar registration for gospel organ. "
                     "Works best with the rotary on fast. CC-BY-SA 4.0." });
 
-    page.setIncludes ({ true, false });
     page.setSplitActive (true);
     page.setLayer (presets::Layer::lower);
 }

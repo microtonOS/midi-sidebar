@@ -17,8 +17,12 @@ namespace microtonos::sidebar
 //==============================================================================
 /** The controllers page: what is arriving, and what it is mapped to.
 
-    Implements docs/controllers.md. The newest message at the top, then `FILES`
-    and `EDITING` as framed sections, the same shape the tuning page uses.
+    Implements docs/controllers.md. The newest messages at the top, then
+    `INSERT` and `EDIT` as framed sections, the same shape the tuning page uses.
+
+    **No files section.** A preset carries the whole state, mappings included,
+    so a second way to save just the mappings was a second thing to keep in
+    step. See the presets page, whose `FILE` section is now the only one.
 
     Channels are not here. Omni and the MPE zones were a section of this page
     and are now a page of their own, because they are the whole plugin's
@@ -27,7 +31,7 @@ namespace microtonos::sidebar
 
     **Its height works the other way round from the tuning page.** There every
     row was fixed and a short panel cut the bottom off. Here everything but the
-    editing table is fixed — the monitor, three rows of buttons, two frames —
+    editing table is fixed — the monitor, two rows of buttons, two frames —
     and the table is the single flexible track, so the page has a genuine
     minimum and simply grows into anything above it. That is the pattern the
     presets page should follow.
@@ -78,25 +82,22 @@ public:
         `ControllersTable`. */
     std::function<void()> onMappingsChanged;
 
-    std::function<void()> onLoadRequested;
-    std::function<void()> onSaveRequested;
 
     //==========================================================================
     /** The height below which the page cannot show its own minimum: the
         monitor, both frames, every button row, and `tableMinimumRows` of
         table.
 
-        Each `section` is given its whole content block, internal gaps included.
-        The `add | remove` row used to be left out of it, which made this about
-        a row short — harmless, since the flexible track only shrank, but it
-        meant the number did not mean what it says. */
+        Each `section` is given its whole content block, internal gaps
+        included — the button row under the table as well as the table, which
+        an earlier version left out and so came up a row short. */
     static constexpr int getMinimumHeight() noexcept
     {
         return metrics::pageTopHeight (metrics::pageTopRows)  // the monitor
-             + section (metrics::pageRowHeight)               // load | save
+             + section (metrics::pageRowHeight)               // the three insert buttons
              + section (ControllersTable::getHeightForRows (metrics::tableMinimumRows)
-                            + 2 * (metrics::pageRowGap + metrics::pageRowHeight));
-                                                              // table, add | remove, aftertouch | polytouch
+                            + metrics::pageRowGap + metrics::pageRowHeight);
+                                                              // table, then undo | redo | delete
     }
 
     void resized() override;
@@ -104,6 +105,9 @@ public:
 
 private:
     //==========================================================================
+    /** Enables the two history buttons from what the table can actually do. */
+    void refreshHistory();
+
     /** A framed section: its title band, its content, the padding under it, and
         the row gaps that separate all three. */
     static constexpr int section (int contentHeight) noexcept
@@ -114,7 +118,7 @@ private:
              + metrics::pageRowGap * 3;
     }
 
-    juce::GroupComponent filesGroup, editingGroup;
+    juce::GroupComponent insertGroup, editGroup;
 
     /** The monitor: the newest message, as one line of text. A `ReadOutField`
         like every other read-only value in the module, rather than a table —
@@ -126,13 +130,17 @@ private:
         and knows nothing about messages. */
     juce::StringArray messages;
 
-    juce::TextButton loadButton { "load" }, saveButton { "save" };
+    /** One button per kind of row. `CC` makes the ordinary sort, with an MSB
+        and maybe an LSB; the other two make rows that have no controller number
+        at all and say so across those two columns instead. */
+    juce::TextButton ccButton { "CC" },
+                     aftertouchButton { "aftertouch" },
+                     polytouchButton { "polytouch" };
 
-    juce::TextButton addButton { "add" }, removeButton { "remove" };
-
-    /** The two message types that cannot be described by a controller number,
-        so they are added as rows of their own rather than typed into one. */
-    juce::TextButton aftertouchButton { "aftertouch" }, polytouchButton { "polytouch" };
+    /** Undo and redo read as words at a third of the panel, so the arrows
+        docs/controllers.md offers as a fallback are not needed. */
+    juce::TextButton deleteButton { "delete" }, undoButton { "undo" },
+                     redoButton { "redo" };
 
     ControllersTable table;
 

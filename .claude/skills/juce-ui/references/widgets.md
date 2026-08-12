@@ -106,7 +106,7 @@ so the change that reveals the bug has nothing to do with the code that caused
 it.
 
 Note that the layout is cached; see the LookAndFeel caching trap in
-[design](design.md#colours).
+[look and feel](look-and-feel.md#colours).
 
 **An attached slider ignores `setNumDecimalPlacesToDisplay`.**
 `SliderParameterAttachment`, and so
@@ -269,6 +269,49 @@ If the cell *wraps* its widget rather than being one, register for the child's
 events too — `child.addMouseListener (this, true)` — or the click never reaches
 the wrapper either.
 
+### Sortable columns, and the header as a component
+
+A column marked `sortable` in `addColumn` gets a clickable header and an arrow.
+Three things follow from that which are easy to get wrong.
+
+**`columnClicked` has only two states.**
+`TableHeaderComponent::columnClicked` calls `setSortColumnId (id, ! forwards)`,
+so clicking cycles ascending → descending → ascending and never returns to
+unsorted. A three-state cycle — ascending, descending, neither — needs the
+virtual overridden in a subclass that *reports* the click instead of acting on
+it, leaving the caller to decide what the next state is and to call
+`setSortColumnId` itself:
+
+```cpp
+struct SortingHeader final : juce::TableHeaderComponent
+{
+    SortingHeader() = default;      // see the note in juce-review: the
+                                    // NON_COPYABLE macro removes the implicit one
+
+    void columnClicked (int columnId, const juce::ModifierKeys&) override
+    {
+        if (onColumnClicked != nullptr)
+            onColumnClicked (columnId);
+    }
+
+    std::function<void (int)> onColumnClicked;
+};
+```
+
+`setSortColumnId (0, …)` is the "neither" state and clears the arrow.
+
+**A sortable column needs room for its arrow.** `drawTableHeaderColumn` reserves
+`height / 2` on the right for the arrow and fits the title into what is left, so
+a width computed from the title's own text elides it the moment the column
+becomes sortable — `channel` becomes `chan…` with no other change. Add the arrow's
+width when measuring.
+
+**`ListBox` can take a header too.** `ListBox::setHeaderComponent` accepts any
+component, `TableHeaderComponent` included, which is what lets the pinned column
+above carry a real header rather than a button painted to look like one. Its
+height comes from **the component's own height**, not from the list, so set it
+before handing it over or it lands at zero and the list looks headerless.
+
 ## Buttons
 
 | class | description |
@@ -279,6 +322,20 @@ the wrapper either.
 | `DrawableButton` | Draws images either instead of the button or inside it |
 
 Note that although `Slider::IncDecButtons` behaves like a slider, its graphical appearance is that of a pair of buttons, which is why it is placed in this section.
+
+**A button has a name as well as a text, and they are only the same by
+accident.** `Button (const String& name)` sets the *component* name and the
+button text from the one argument, so `TextButton { "load" }` gives both. The
+default constructor sets neither, and `setButtonText` sets only the text — so a
+button labelled later carries an empty component name. Nothing on screen changes,
+and everything that addresses components by name stops seeing it: accessibility,
+`findChildWithID`-style lookups, and the snapshot tool's `--click`. Buttons whose
+labels come from an array at construction time are the usual way in. Set both:
+
+```cpp
+button.setButtonText (text);
+button.setName (text);
+```
 
 A `TextButton` does not shrink its label to fit, so a narrow button clips
 "FAST" to "F...". If the button is one of a row of choices, try turning the row
@@ -349,6 +406,21 @@ void mouseDown (const juce::MouseEvent& event) override
 Dropping rather than consuming: the click still reaches anything registered as a
 `MouseListener`, which is how the menu sees it. Guarding `mouseDown` alone is
 enough — `mouseUp` only fires a click when the button was already down.
+
+### Drawables and icon buttons
+
+**Since JUCE 9 a `Drawable` is not a `Component`.** It moved to `juce_graphics`
+and lost the base class, so it can no longer be added as a child or given bounds
+of its own. `DrawableButton` takes `Drawable`s directly and is unaffected, which
+is why a rail of icon buttons needs no change; anything that treated a `Drawable`
+as a child has to wrap it in a `DrawableComponent`. See
+[versions](juce-versions.md).
+
+Note also that a `Drawable` recoloured with `replaceColour` **holds** that
+colour, so it does not follow a theme change on its own —
+[look and feel](look-and-feel.md#custom-colourids-and-why-a-widget-renders-black) covers the
+refresh, and JUCE's SVG parser does not understand `currentColor`, so an icon has
+to be authored in one literal colour for a single replacement to recolour it.
 
 **A `DrawableButton` beside a `TextButton` looks like a different control.** Its
 style decides which drawing path it takes, and only one of them is the one every

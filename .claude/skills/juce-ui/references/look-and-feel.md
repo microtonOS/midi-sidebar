@@ -1,6 +1,10 @@
-# Design
+# Look and feel
 
-This is a deliberately restricted subset of particularly important design tools.
+Every colour a JUCE widget draws with is resolved through a `LookAndFeel`, and
+most of the ways a widget comes out the wrong colour are really ways that
+resolution went somewhere you did not expect. This file is that system: the
+colour scheme, custom `ColourId`s, and when a `drawX` has to be overridden rather
+than configured.
 
 ## Colours
 
@@ -19,6 +23,18 @@ The standard set of colours to use.
 
 see 
 [`juce::LookAndFeel_V4::ColourScheme`](https://docs.juce.com/master/classjuce_1_1LookAndFeel__V4_1_1ColourScheme.html)
+
+**Do not assume which of the two backgrounds is darker.** The relation flips
+between JUCE's own schemes: widget is *darker* than window in the dark, midnight
+and grey schemes (`0xff263238` against `0xff323e44` in the dark one) and *lighter*
+in the light scheme (`0xffffffff` against `0xffefefef`). So `contrasting (amount)`
+does not mean "away from the other one" — it means away from *this* one, in
+whichever direction this one implies, and a shade derived from the wrong sibling
+lands on the neighbour's own colour. `widgetBackground.contrasting (0.06f)` in the
+dark scheme gives `#333e44` against a row painted `windowBackground` `#323e44`:
+one step apart on paper, indistinguishable on screen, and it reads as "the new
+element did not draw". Derive a shade from the surface the element sits
+*against*, and check the result in a light scheme as well as a dark one.
 
 ### Custom ColourIds, and why a widget renders black
 
@@ -86,6 +102,33 @@ vanishes on a light scheme.
 Before relying on a `drawX` default, read its fallback. `contrasting()` applied
 to a colour that was never meant to be seen is a common way to get one.
 
+### Widgets the scheme does not reach
+
+`LookAndFeel_V4`'s constructor walks a list of colour ids and assigns them from
+the four scheme colours. **Ids not on that list keep whatever `LookAndFeel_V2`
+gave them**, which is a literal from 2012 and has no relation to the scheme. The
+symptom is one widget in the wrong palette while everything around it follows the
+theme, and it will not be fixed by choosing a different scheme.
+
+`TableHeaderComponent` is the clearest case: `textColourId`, `backgroundColourId`,
+`outlineColourId` and `highlightColourId` are all set in `V2` and none are
+revisited in `V4`, so a themed app has to `setColour` them itself. Grep
+`LookAndFeel_V4::initialiseColours` for the id in question before assuming the
+scheme covers it.
+
+Two of that class's `drawX` methods go further and ignore their own ids:
+
+- `drawTableHeaderBackground` fills the lower half from `backgroundColourId` but
+  paints the **top half `Colours::white` literally**, so a dark header comes out
+  with a white band across it.
+- `drawTableHeaderColumn` draws the sort arrow at a hardcoded `0x99000000` —
+  translucent black, invisible on any dark header, and unaffected by
+  `textColourId`.
+
+Neither can be reached with `setColour`; both need the method overridden. This is
+the general shape of the problem, not a fact about tables: when a colour will not
+move, read the `V2` implementation before believing the id is wrong.
+
 ## Overriding a LookAndFeel
 
 **An override applies to every widget of that type in the whole project, not to
@@ -114,70 +157,6 @@ to give a fader its full height also discarded the *text box* of every slider,
 which was invisible until a slider that needed one was added, and then looked
 like a broken widget rather than a look-and-feel bug.
 
-## Fonts
-
-`juce::Font (float)` is deprecated as of JUCE 8. Use `FontOptions`:
-
-```cpp
-juce::Font (juce::FontOptions().withHeight (h).withStyle ("Bold"))
-```
-
-Leaving the typeface name unset uses the platform's default sans, which is the
-right starting point until the design says otherwise.
-
-JUCE 9 adds variable fonts, so one family can supply several weights by setting
-axes rather than by shipping a file per weight. That makes the "at most three
-fonts" budget easier to keep, and is the tidier way to bundle a face for a build
-that cannot rely on a system font being present.
-
-## Animations
-
-[Example of animations](https://github.com/juce-framework/JUCE/blob/master/examples/GUI/AnimationEasingDemo.h).
-
-### `juce::Animator` Class
-Wrapper class for managing the lifetime of all the different animator kinds created through the builder classes.
-
-It uses reference counting. If you copy an Animator the resulting object will refer to the same underlying instance, and the underlying instance is guaranteed to remain valid for as long as you have an Animator object referencing it.
-
-An Animator object can be registered with the AnimatorUpdater, which only stores a weak reference to the underlying instance. If an AnimatorUpdater references the underlying instance and it becomes deleted due to all Animator objects being deleted, the updater will automatically remove it from its queue, so manually removing it is not required.
-
-See also
-ValueAnimatorBuilder, AnimatorSetBuilder, AnimatorUpdater, VBlankAnimatorUpdater
-
-### `juce::ComponentAnimator` — animating bounds
-
-The older, simpler animator, reached through
-`Desktop::getInstance().getAnimator()`. It moves a component towards a target
-rectangle over a duration, and is the easy way to slide a panel in and out.
-
-While it is running it keeps driving that component every frame, so **any
-`setBounds` you perform meanwhile is silently overwritten** on the next frame.
-There is no error and no warning.
-
-The usual way in is a window resize landing mid-animation: `resized()` lays
-everything out correctly for the new size, the animator immediately restores the
-geometry it was aiming at, and the component is left laid out for a window size
-that no longer exists. Children then get positioned outside the visible area and
-disappear. It presents as "my buttons vanished", not as an animation problem,
-which is what makes it expensive to find.
-
-Cancel before laying out directly:
-
-```cpp
-auto& animator = juce::Desktop::getInstance().getAnimator();
-
-if (animated)
-{
-    animator.animateComponent (&child, target, 1.0f, ms, false, 1.0, 1.0);
-}
-else
-{
-    animator.cancelAnimation (&child, false);   // false = do not jump to the end
-    child.setBounds (target);
-}
-```
-
-`animator.isAnimating (&child)` is available if you would rather branch. Compute
-the animation's target from current bounds too, or you will animate towards a
-rectangle that was already stale when you asked for it.
-
+The commonest reason to reach for one of these is text that will not fit its
+widget, which is `getTextButtonFont` — see [fonts](fonts.md#fitting-text-to-a-widget),
+and note that everything above applies to it.

@@ -14,28 +14,26 @@ namespace microtonos::sidebar
 //==============================================================================
 /** The channels page: what the plugin listens to, and how it treats it.
 
-    Implements docs/channels.md. The mode at the top, then a `FILTER` section
-    holding the sixteen channels and the two buttons that set them all at once.
+    Implements docs/channels.md. Two rows of switches at the top, then a
+    `FILTER` section holding the sixteen channels and the two buttons under
+    them.
 
-    **The mode is two questions, not one four-way switch.** `MPE on` or `off`
-    first; the row below it then offers that answer's two — `lower zone` /
-    `upper zone` under on, `omni on` / `omni off` under off. Two reasons, and
-    the second is the better one: a segmented control is a line rather than a
-    two-by-two, and putting the zones *under* `MPE on` is what says they are
-    MPE's, which nothing about the words "lower zone" does on its own.
+    **The first switch chooses a view, not a value.** `omni` or `MPE` says which
+    of the two settings the rest of the page is showing; `on` or `off` then
+    belongs to whichever that is. The two are independent — a zone over channels
+    1 to 9 leaves omni free to do what it likes with 10 to 16 — so switching the
+    view never disturbs what the other one holds.
 
-    **The two used to be separate and disagree.** Omni lived in a call-out on
-    the tuning page and chose which channels were tuned in their own right; the
-    MPE zone was a section of the controllers page. A channel could be declared
-    an MPE member and separately tuned at the same time, which is why the owner
-    had to be told to grey one out from the other. One mode and one filter
-    cannot contradict each other, so nothing has to.
+    **The two views are graphically independent.** Neither shows the other's
+    state greyed behind it, though functionally they overlap on whatever the
+    zone has claimed. That is a deliberate simplification: the cross-hatching
+    needed to show one setting through the other costs more legibility than it
+    buys, and flipping between the two views is one click.
 
-    **Under a zone the grid sets its extent.** A zone runs contiguously from one
-    end of the sixteen, so it is described by a single edge — and clicking a
-    channel is how that edge is set: in a lower zone, clicking 8 turns 1 to 8 on
-    and the rest off. The grid therefore stays live rather than being locked;
-    what changes is what a click *means*.
+    **Under MPE the grid sets the zone's extent.** A zone runs contiguously from
+    one end, so clicking 8 in a lower zone gives 1 to 8. Under omni the same
+    grid is a free selection, and the two buttons below change with it: `select
+    all` / `mute all` for omni, `lower zone` / `upper zone` for MPE.
 
     Holds no MIDI and silences nothing: values in, intent out, like every other
     page.
@@ -46,26 +44,13 @@ public:
     ChannelsPage();
 
     //==========================================================================
-    //  Values in.
+    /** Everything at once — the two settings are read together, so they are set
+        together. */
+    void setSetup (channels::Setup setup);
+    const channels::Setup& getSetup() const noexcept { return setup; }
 
-    void setMode (channels::Mode mode);
-    channels::Mode getMode() const noexcept { return mode; }
-
-    /** The channels the end-user has chosen. Under a zone this is remembered
-        rather than shown — the grid shows the zone — and comes back when the
-        mode leaves it. */
-    void setChannels (channels::Mask mask);
-
-    /** What is actually being listened to: the free selection under omni, the
-        zone's span under a zone. This is the one an owner acts on. */
-    channels::Mask getChannels() const noexcept;
-
-    //==========================================================================
-    //  Intent out. Neither changes the page; the owner acts and pushes the
-    //  result back, so what is drawn is always what the plugin has.
-
-    std::function<void (channels::Mode)> onModeChanged;
-    std::function<void (channels::Mask)> onChannelsChanged;
+    /** Whenever any of it changes. */
+    std::function<void (channels::Setup)> onSetupChanged;
 
     //==========================================================================
     /** The height this page needs. Summed from the rows rather than measured
@@ -77,7 +62,7 @@ public:
         return metrics::pageTopHeight (metrics::pageTopRows)
              + metrics::pageGroupTitleHeight
              + metrics::channelGridHeight
-             + metrics::pageRowHeight              // select all | mute all
+             + metrics::pageRowHeight              // the two context buttons
              + metrics::pageGroupPadding
              + tracks * metrics::pageRowGap;
     }
@@ -87,43 +72,35 @@ public:
 
 private:
     //==========================================================================
-    /** Shows the mode, and whatever it implies about the rest of the page. */
+    /** Shows whichever setting the view switch is on. */
     void refresh();
 
-    void modePicked (channels::Mode picked);
+    /** Announces the whole setup. */
+    void announce();
 
-    /** What a click on channel `index` means, which depends on the mode. */
+    /** What a click on channel `index` means, which depends on the view. */
     void channelClicked (int channelIndex);
 
-    /** Announces whatever `getChannels` now returns. */
-    void announceChannels();
+    bool showingMpe() const noexcept;
 
-    channels::Mode mode = channels::Mode::omniOff;
-
-    /** The last answer given to each of the two second-row questions, so that
-        switching MPE off and on again finds the zone that was left rather than
-        resetting it — and the same the other way. */
-    channels::Mode lastOmni = channels::Mode::omniOff;
-    channels::Mode lastZone = channels::Mode::lowerZone;
-
-    /** What the end-user selected under omni, which is not what the grid shows
-        while a zone is in force. */
-    channels::Mask chosen = channels::allChannels;
-
-    /** The channel a zone reaches to — its far end from the anchor. Kept across
-        a change of zone, so switching lower to upper keeps the extent the
-        end-user last clicked rather than resetting it. */
-    int zoneEdge = channels::numChannels;
+    channels::Setup setup;
 
     juce::GroupComponent filterGroup;
 
-    /** The two questions. `omniStrip` and `zoneStrip` share one cell and take
-        turns being visible — `ChoiceStrip` is built with its choices, so the
-        second question is two widgets rather than one that is relabelled. */
-    ChoiceStrip mpeStrip, omniStrip, zoneStrip;
+    /** Which setting is showing, and whether it is on. The second reads and
+        writes whichever the first names. */
+    ChoiceStrip settingStrip, enabledStrip;
 
-    ChannelGrid grid;
-    juce::TextButton selectAllButton { "select all" }, muteAllButton { "mute all" };
+    ChannelGrid channelGrid;
+
+    /** The row under the grid, whose pair follows the view. Four plain buttons
+        sharing the row rather than two strips: `lower zone` and `upper zone`
+        *are* a state, but the grid above already shows which one is in force —
+        channels 1 to 9 lit reads as a lower zone without a second thing saying
+        so — and a highlight that merely repeats the matrix is noise. So all
+        four behave as commands. */
+    juce::TextButton selectAllButton, muteAllButton;
+    juce::TextButton lowerZoneButton, upperZoneButton;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChannelsPage)
 };

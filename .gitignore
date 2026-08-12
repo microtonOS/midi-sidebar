@@ -4,3 +4,6 @@ build/**
 .claude/skills/*/assets/
 # Files meant to be removed later
 tmp/**
+
+# temporarily leave out docs images
+docs/figures/**
