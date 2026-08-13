@@ -43,43 +43,22 @@ namespace controllers
     inline constexpr int modesBeforeSeparator = 3;
 
     //==========================================================================
-    /** The two answers that listen to everything, and differ in what they then
-        do with it. Neither is a valid MIDI channel number, so neither can be
-        confused with one.
+    /** A mapping listens on one channel, 1 to 16, and that is the whole of it.
 
-        **Omni on merges.** A controller arriving on any channel moves the
-        parameter, once, for the whole instrument — the ordinary meaning of a
-        knob on a front panel.
+        There used to be `omni on` and `omni off` entries above the numbers here.
+        They are gone: the channels page already says which channels the plugin
+        listens to at all, and having the same question answered twice — once for
+        the plugin and once per mapping — meant two settings that could disagree
+        with no rule saying which won.
 
-        **Omni off keeps the channels apart.** The mapping still listens to all
-        sixteen, but a message on channel 5 moves only what is sounding on
-        channel 5. That is what MPE does with its member channels, and it is
-        deliberately *not* called MPE here: a controller can be channel-specific
-        without a zone being declared — a partial MPE — and naming the value
-        after the protocol would claim more than the setting says.
-
-        The same pair, under the same two names, is the first half of the
-        channels page's four-way mode — see `channels::Mode`. There it says what
-        the whole plugin does; here it says what one mapping does, which is why
-        both exist. */
-    inline constexpr int omniOnChannel  = -1;
-    inline constexpr int omniOffChannel =  0;
-
+        So this column is now what it looks like: a channel number, typed like an
+        MSB or an LSB. **The channels page may still override it functionally** —
+        a mapping on a channel the page has muted hears nothing — but that is the
+        page filtering, not this value changing. The number stays 1 to 16
+        whatever the page is set to, so nothing here has to be recomputed when
+        the page changes. */
     inline constexpr int firstChannel = 1;
     inline constexpr int lastChannel  = 16;
-
-    /** Where the rule goes in the channel menu: the two omni answers above it,
-        the sixteen numbered channels below. */
-    inline constexpr int channelsBeforeSeparator = 2;
-
-    /** Menu index ↔ channel value.
-
-        The two are numbered so that the menu — omni on, omni off, 1 … 16 — is a
-        contiguous run, which makes the conversion one offset rather than a
-        lookup table. A stray ±1 in any of the four places that convert would be
-        silent, so both directions are written once here. */
-    inline constexpr int channelForIndex (int index)   noexcept { return index + omniOnChannel; }
-    inline constexpr int indexForChannel (int channel) noexcept { return channel - omniOnChannel; }
 
     //==========================================================================
     /** One of the plugin's parameters, as the *developer* describes it.
@@ -124,7 +103,7 @@ namespace controllers
     struct Mapping
     {
         int parameterIndex = 0;
-        int channel = omniOnChannel;
+        int channel = firstChannel;
 
         Source source = Source::control;
 
@@ -143,12 +122,12 @@ namespace controllers
     };
 
     //==========================================================================
-    /** The channel as the menus and summaries say it. */
+    /** The channel as the summaries say it. Spelled out rather than abbreviated:
+        the table's column header is `ch` because it has 44px, but a summary line
+        is prose and reads better with the word. */
     inline juce::String channelName (int channel)
     {
-        return channel == omniOnChannel  ? juce::String ("omni on")
-             : channel == omniOffChannel ? juce::String ("omni off")
-                                         : "channel " + juce::String (channel);
+        return "channel " + juce::String (channel);
     }
 
     /** What a parameter's assignment says in one line, for the right-click

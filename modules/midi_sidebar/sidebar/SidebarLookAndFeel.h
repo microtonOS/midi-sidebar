@@ -85,8 +85,28 @@ namespace metrics
         separate positions. */
     inline constexpr int faderThumbOverhang = (faderThumbDiameter - faderTrackWidth) / 2;
 
-    /** Width of the panel revealed when a page button is active. */
-    inline constexpr int panelWidth = 260;
+    /** Width of the panel revealed when a page button is active, and the
+        narrowest it can be dragged to.
+
+        It is a minimum rather than a fixed size because it is *derived*: at this
+        width the controllers table shows its pinned parameter column plus the
+        channel, MSB and LSB columns, which is the least that reads as a mapping
+        rather than as a fragment of one. Narrower and the table would be showing
+        a number with no idea what it belongs to.
+
+        There is no matching maximum here, because the sensible one is not a
+        constant: the sidebar cannot usefully be wider than the window it lies
+        on, and only the sidebar knows how wide that is. See
+        `Sidebar::setPanelWidth`. */
+    inline constexpr int panelMinWidth = 260;
+
+    /** How wide a grab strip is on the sidebar's inner edge.
+
+        Bigger than the hairline it sits over: a target the width of the line it
+        represents is a target you miss. This is roughly the smallest strip that
+        is comfortable to hit without aiming, and it is invisible, so it costs
+        nothing to be generous. */
+    inline constexpr int resizeHandleWidth = 6;
 
     //==========================================================================
     //  Pages. One set of measurements for all three, so they cannot drift into
@@ -248,10 +268,32 @@ namespace metrics
         which on this page is the cell the touch sources span. */
     inline constexpr int labelTextInset = 5;
 
-    /** The frozen parameter column, and the gap between it and the columns that
-        scroll under their own header. Wide enough for a parameter name in a
-        ComboBox, since that is what the column holds. */
-    inline constexpr int tableFrozenColumnWidth = 68;
+    /** How much of a full-width row its first third occupies, gutter included.
+
+        A child spanning all six columns is laid out by itself, so anything
+        inside it that has to line up with a row of three buttons above or below
+        has to reproduce the grid's arithmetic — which is here rather than in the
+        child, so there is one place where the six columns and five gutters are
+        written down.
+
+        This is what fixes the frozen parameter column: its right-hand edge falls
+        in the same gutter as the one between `delete` and `undo`, at every
+        width. The column is therefore not a constant — it is a third of whatever
+        the table has, which is also what makes it the only column that grows
+        when the panel is dragged wider. */
+    inline constexpr int rowFirstThird (int width) noexcept
+    {
+        const auto column = (width - pageColumnGap * (pageColumns - 1)) / pageColumns;
+        return column * pageThirdColumns + pageColumnGap * (pageThirdColumns - 1);
+    }
+
+    /** The hairline a table is recessed behind, the same one a read-out has.
+
+        Named because two numbers depend on it being one and not two: the frozen
+        column and the scrolling table overlap by exactly this much so their
+        outlines share a pixel, and a column measured for the header has this
+        much less room than the list is wide. */
+    inline constexpr int tableOutline = 1;
 
     /** The largest a continuous controller number can be, 7 bits. Named because
         sorting needs somewhere to put the rows that have none, and "one past

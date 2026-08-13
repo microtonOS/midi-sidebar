@@ -11,6 +11,12 @@ using juce::GridItem;
 //==============================================================================
 Sidebar::Sidebar()
 {
+    // A component name is what accessibility reads out and what anything
+    // walking the tree addresses — a screenshot tool cropping to this component,
+    // a UI test finding it. Unnamed is the default and costs nothing visible,
+    // which is exactly why it is easy to leave that way.
+    setName ("Sidebar");
+
     for (auto* b : { &presetsButton, &controllersButton, &tuningButton, &channelsButton })
     {
         b->setClickingTogglesState (true);
@@ -36,6 +42,24 @@ Sidebar::Sidebar()
     addAndMakeVisible (panicButton);
     addAndMakeVisible (volumeStrip);
     addChildComponent (panel);
+
+    // Every delta is measured from the width the drag started at, not from the
+    // last one reported, so a pointer that runs past an end and comes back finds
+    // the panel where it left it rather than however far the clamp had eaten.
+    widthHandle.onDragStart = [this] { panelWidthAtDragStart = panelWidth; };
+
+    widthHandle.onDrag = [this] (int deltaX)
+    {
+        // The handle is on the inner edge, so which way widens depends on which
+        // side of the window the sidebar is on: dragging right widens a
+        // left-hand sidebar and narrows a right-hand one.
+        const auto widening = edge == Edge::left ? deltaX : -deltaX;
+        setPanelWidth (panelWidthAtDragStart + widening);
+    };
+
+    // Added last so it is on top of the rail buttons it overlaps, and hidden
+    // until there is a panel to resize.
+    addChildComponent (widthHandle);
 
     // DrawableButton fits the image to the whole button, so the icon size is an
     // inset rather than a size. Without this, railIcon would have no effect and
@@ -91,13 +115,45 @@ void Sidebar::setActivePage (Page newPage)
     if (onPageChanged != nullptr)
         onPageChanged (activePage);
 
+    // Animated: the panel sliding out is what makes it read as one object
+    // rather than as something that appeared.
     if (onPreferredWidthChanged != nullptr)
-        onPreferredWidthChanged();
+        onPreferredWidthChanged (true);
 }
 
 void Sidebar::pageButtonClicked (Page page)
 {
     setActivePage (activePage == page ? Page::none : page);
+}
+
+int Sidebar::largestPanelWidth() const noexcept
+{
+    // Not a constant, which is why it is not in metrics:: beside the minimum: it
+    // depends on the window the sidebar is lying on. Leaving the rail's own
+    // width of that window uncovered means there is always something visible
+    // past the sidebar, and so always a way back for someone who drags too far.
+    //
+    // With no parent yet — during construction, or in a test — there is nothing
+    // to measure, so nothing is imposed.
+    if (auto* parent = getParentComponent())
+        return juce::jmax (metrics::panelMinWidth, parent->getWidth() - metrics::railWidth * 2);
+
+    return std::numeric_limits<int>::max();
+}
+
+void Sidebar::setPanelWidth (int newWidth)
+{
+    const auto clamped = juce::jlimit (metrics::panelMinWidth, largestPanelWidth(), newWidth);
+
+    if (clamped == panelWidth)
+        return;
+
+    panelWidth = clamped;
+
+    // Not animated: the width is already following the pointer, and a target
+    // that moves every few milliseconds is one the animator never reaches.
+    if (activePage != Page::none && onPreferredWidthChanged != nullptr)
+        onPreferredWidthChanged (false);
 }
 
 void Sidebar::setLevel (float left, float right)
@@ -107,8 +163,14 @@ void Sidebar::setLevel (float left, float right)
 
 int Sidebar::getPreferredWidth() const noexcept
 {
-    return activePage == Page::none ? metrics::railWidth
-                                    : metrics::railWidth + metrics::panelWidth;
+    if (activePage == Page::none)
+        return metrics::railWidth;
+
+    // Clamped here as well as on the way in, so a window that shrinks under a
+    // sidebar already dragged wide narrows it to fit rather than letting it
+    // cover the whole editor. The stored width is left alone, so growing the
+    // window back gives back the width that was chosen.
+    return metrics::railWidth + juce::jmin (panelWidth, largestPanelWidth());
 }
 
 //==============================================================================
@@ -244,6 +306,20 @@ void Sidebar::resized()
 
     panel.setBounds (bounds);
     layOutRail (railArea, densityFor (getHeight()));
+
+    // The grab strip straddles the inner edge — the side facing the content,
+    // which is the boundary being moved and where the hairline is drawn. It
+    // overlaps the rail's outermost pixels; those are padding, so nothing
+    // clickable is covered.
+    const auto edgeStrip = edge == Edge::left
+                         ? getLocalBounds().removeFromRight (metrics::resizeHandleWidth)
+                         : getLocalBounds().removeFromLeft (metrics::resizeHandleWidth);
+
+    widthHandle.setBounds (edgeStrip);
+
+    // Nothing to resize with no panel open, and a resize cursor over an edge
+    // that will not move is a promise the sidebar does not keep.
+    widthHandle.setVisible (activePage != Page::none);
 }
 
 void Sidebar::layOutRail (juce::Rectangle<int> area, Density density)

@@ -30,6 +30,8 @@ public:
 
     SidebarPanel()
     {
+        setName ("Sidebar panel");   // see the note in Sidebar's constructor
+
         title.setJustificationType (juce::Justification::centredLeft);
         title.setFont (SidebarLookAndFeel::font (metrics::titleFontHeight, true));
 

@@ -62,6 +62,9 @@ struct Options
 
     /** Components to click before rendering, by name, in order. */
     juce::StringArray clicks;
+
+    /** --component: crop the render to this component. Empty = the whole root. */
+    juce::String    component;
     double          sampleRate      { 44100.0 };
     int             blockSize       { 512 };
 
@@ -99,6 +102,13 @@ Renders the plugin editor to a PNG and prints the absolute path on stdout.
                       that only exist after interaction — menus, call-outs,
                       toggled panels — can be captured. Repeatable; clicks
                       happen in order. Names come from Component::getName().
+  --component <name>  Render only the named component's area instead of the
+                      whole editor, so a figure can show one page, one panel or
+                      one table without its surroundings. The picture is the
+                      full render cropped to that component, not the component
+                      drawn on its own, so anything painted behind it is still
+                      there. Applied after --click. Names come from
+                      Component::getName(); try --list-components.
   --click-settle <ms> How long to wait after each click. Default: 120.
                       Kept deliberately short: a juce::CallOutBox dismisses
                       itself 200ms after opening unless its process is in the
@@ -170,6 +180,7 @@ bool parseArgs (int argc, char* argv[], Options& o, bool& showHelp)
         else if (a == "--host-window")           { o.hostWindow = true; }
         else if (a == "--no-host-window")        { o.hostWindow = false; }
         else if (a == "--click")                 { const auto v = needsValue (i, "--click");      if (v.isEmpty()) return false; o.clicks.add (v); }
+        else if (a == "--component")             { const auto v = needsValue (i, "--component");  if (v.isEmpty()) return false; o.component = v; }
         else if (a == "--timestamp")             { o.timestamp = true; }
         else if (a == "--out")                   { const auto v = needsValue (i, "--out");        if (v.isEmpty()) return false; o.explicitOut = juce::File::getCurrentWorkingDirectory().getChildFile (v); }
         else if (a == "--dir")                   { const auto v = needsValue (i, "--dir");        if (v.isEmpty()) return false; o.directory = v; }
@@ -537,7 +548,7 @@ int main (int argc, char* argv[])
         if (o.clicks.isEmpty())
             settle (o.settleMs);
 
-        const auto bounds = root.getLocalBounds();
+        auto bounds = root.getLocalBounds();
 
         if (bounds.isEmpty())
         {
@@ -545,6 +556,33 @@ int main (int argc, char* argv[])
                          "calls setSize(); pass --size <w>x<h> to force one.\n";
             proc.releaseResources();
             return 2;
+        }
+
+        // Crop rather than snapshot the child itself: a component that does not
+        // paint its own background would otherwise lose whatever is behind it,
+        // and the point of a cropped figure is that it is the same picture with
+        // less of it, not a different picture.
+        if (o.component.isNotEmpty())
+        {
+            auto* target = findByName (root, o.component);
+
+            if (target == nullptr)
+            {
+                std::cerr << "[snapshot] no component named '" << o.component
+                          << "' (try --list-components)\n";
+                proc.releaseResources();
+                return 1;
+            }
+
+            bounds = root.getLocalArea (target, target->getLocalBounds());
+
+            if (bounds.isEmpty())
+            {
+                std::cerr << "[snapshot] '" << o.component << "' has zero size — it is probably "
+                             "hidden in this state (try --list-components)\n";
+                proc.releaseResources();
+                return 2;
+            }
         }
 
         const auto image = root.createComponentSnapshot (bounds, true, o.scale);

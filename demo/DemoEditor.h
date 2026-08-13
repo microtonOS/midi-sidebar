@@ -71,6 +71,7 @@ private:
     std::unique_ptr<juce::ParameterAttachment> edgeAttachment;
     std::unique_ptr<juce::ParameterAttachment> bubbleTextAttachment;
     std::unique_ptr<juce::ParameterAttachment> viewAttachment;
+    std::unique_ptr<juce::ParameterAttachment> panelWidthAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DemoEditor)
 };

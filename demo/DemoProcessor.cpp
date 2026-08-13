@@ -14,6 +14,7 @@ namespace ids
     const juce::String edge       { "edge" };
     const juce::String bubbleText { "bubbleText" };
     const juce::String view       { "view" };
+    const juce::String panelWidth { "panelWidth" };
 }
 
 //==============================================================================
@@ -50,6 +51,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout DemoProcessor::createParamet
         "Page",
         juce::StringArray { "None", "Presets", "Controllers", "Tuning", "Channels" },
         0));
+
+    // How wide the sidebar's page area is. The end-user sets this by dragging
+    // the sidebar's inner edge, which is a gesture nothing headless can perform
+    // — so without a parameter the widened sidebar could not be rendered, tested
+    // or automated at all. The sidebar clamps whatever it is given to its own
+    // minimum and to what the window can hold, so no value here is unsafe.
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { ids::panelWidth, 1 },
+        "Panel width",
+        metrics::panelMinWidth,
+        layout::maxWidth / 2,
+        metrics::panelMinWidth));
 
     // The developer settings the demo exposes as buttons. Parameters for the
     // same three reasons the page is one: they survive the editor being

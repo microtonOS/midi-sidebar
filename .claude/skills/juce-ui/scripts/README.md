@@ -113,6 +113,30 @@ desktop, where it is a separate window: outside the editor's component tree, so
 `createComponentSnapshot` cannot see it, and styled by the default LookAndFeel
 rather than yours. Pass the editor instead.
 
+## Framing the picture: `--component`
+
+`--component <name>` crops the render to one component, so a figure can show a
+single panel, page or table without the rest of the window around it. It takes
+the same names as `--click`, is applied after every click, and fails the same
+way on a name that matches nothing.
+
+```bash
+snapshot.sh --target X -- --component "Sidebar panel" --param page=Tuning
+```
+
+It **crops the full render** rather than snapshotting the component on its own.
+A component that does not paint its own background — most containers do not —
+would otherwise come out over transparency or over black, which is a different
+picture rather than a smaller one. Cropping keeps every pixel exactly as it is
+on screen.
+
+Two consequences worth knowing. A hidden or not-yet-laid-out component has zero
+size and is reported as an error rather than written as an empty file, which is
+usually telling you the state you asked for is not the one you think. And the
+name has to exist: containers are unnamed by default in JUCE, so cropping to one
+often means adding a `setName` first — worth doing regardless, since that name
+is also what accessibility reads.
+
 ## Where the files go
 
 `snapshot.sh` writes to **`tmp/` inside the project**, creating it if it is

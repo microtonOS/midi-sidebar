@@ -120,6 +120,8 @@ struct ControllersTable::NumberCell final : public juce::Component
 //==============================================================================
 ControllersTable::ControllersTable()
 {
+    setName ("Controllers table");   // see the note in Sidebar's constructor
+
     // Our own header, for the three-state cycle: JUCE's stops at ascending and
     // descending, and never lets go of the column. See SortingHeader.
     auto ownedHeader = std::make_unique<SortingHeader>();
@@ -145,12 +147,16 @@ ControllersTable::ControllersTable()
     // different thing in every row.
     const auto sortable = fixed | juce::TableHeaderComponent::sortable;
 
-    // The two menu columns are measured, not chosen: as wide as their longest
-    // entry — or their own title, whichever is worse — plus the standard
-    // padding, and no wider. Every pixel saved here is one the scrolling area
-    // gets, which at 248px is the difference between seeing three columns and
-    // four.
-    header.addColumn ("channel", channel, widthForContents ("channel", itemsFor (channel), true), 0, -1, sortable);
+    // `mode` is measured, not chosen: as wide as its longest entry — or its own
+    // title, whichever is worse — plus the standard padding, and no wider. Every
+    // pixel saved here is one the scrolling area gets, which at the panel's
+    // minimum width is the difference between seeing three columns and four.
+    //
+    // The three numbers share `tableCcWidth`: two digits and a sort arrow is the
+    // same shape whether the number is a channel or a controller. `ch` rather
+    // than `channel` for the same reason — the column is as wide as its values,
+    // and the values are 1 to 16.
+    header.addColumn ("ch",      channel, metrics::tableCcWidth,    0, -1, sortable);
     header.addColumn ("MSB",     msb,     metrics::tableCcWidth,    0, -1, sortable);
     header.addColumn ("LSB",     lsb,     metrics::tableCcWidth,    0, -1, sortable);
     header.addColumn ("mode",    mode,    widthForContents ("mode", itemsFor (mode), true), 0, -1, sortable);
@@ -167,8 +173,12 @@ ControllersTable::ControllersTable()
     auto frozen = std::make_unique<SortingHeader>();
     frozenHeader = frozen.get();
 
-    frozen->setSize (metrics::tableFrozenColumnWidth, metrics::tableHeaderHeight);
-    frozen->addColumn ("param", param, metrics::tableFrozenColumnWidth, 0, -1, sortable);
+    // Only the height is the header's own to choose: `ListBox` positions it and
+    // gives it the list's width less the outline on each side. The column's
+    // width is set in `resized`, since the frozen column is a third of the table
+    // and the table's width is not known until then.
+    frozen->setSize (0, metrics::tableHeaderHeight);
+    frozen->addColumn ("param", param, metrics::pageRowHeight, 0, -1, sortable);
     frozen->onColumnClicked = [this] (int columnId) { cycleSort (columnId); };
 
     frozenColumn.setHeaderComponent (std::move (frozen));
@@ -553,6 +563,7 @@ juce::String ControllersTable::textFor (int row, int columnId) const
 
     switch (columnId)
     {
+        case channel: return juce::String (mapping.channel);
         case msb:     return ccText (mapping.msb);
         case lsb:     return ccText (mapping.lsb);
         case minimum: return withUnit (mapping.min);
@@ -574,6 +585,7 @@ juce::String ControllersTable::editableTextFor (int row, int columnId) const
 
     switch (columnId)
     {
+        case channel: return juce::String (mapping.channel);
         case msb:     return mapping.msb.has_value() ? juce::String (*mapping.msb) : juce::String();
         case lsb:     return mapping.lsb.has_value() ? juce::String (*mapping.lsb) : juce::String();
         case minimum: return numberText (mapping.min);
@@ -608,6 +620,13 @@ void ControllersTable::commitText (int row, int columnId, const juce::String& te
 
     switch (columnId)
     {
+        // A channel is never absent — every mapping listens somewhere — so an
+        // emptied cell keeps what it had rather than becoming "no channel".
+        case channel: if (trimmed.isNotEmpty())
+                          mapping.channel = juce::jlimit (firstChannel, lastChannel,
+                                                          trimmed.getIntValue());
+                      break;
+
         case msb:     mapping.msb = asCc(); break;
         case lsb:     mapping.lsb = asCc(); break;
         case minimum: if (trimmed.isNotEmpty()) mapping.min = trimmed.getDoubleValue(); break;
@@ -624,10 +643,9 @@ juce::String ControllersTable::nameFor (int columnId) const
 {
     // Every cell in a column shares a name, so `--click chan` takes the first
     // row's — which is what you want when checking that a menu opens at all.
-    return columnId == param   ? "param"
-         : columnId == channel ? "chan"
-         : columnId == mode    ? "mode"
-                               : juce::String();
+    return columnId == param ? "param"
+         : columnId == mode  ? "mode"
+                             : juce::String();
 }
 
 juce::StringArray ControllersTable::itemsFor (int columnId) const
@@ -642,30 +660,13 @@ juce::StringArray ControllersTable::itemsFor (int columnId) const
         return names;
     }
 
-    if (columnId == channel)
-    {
-        // The order the sketch draws: the two answers that are not a channel
-        // number first, then the sixteen that are. `channelForIndex` is what
-        // turns a position in this list back into a value.
-        juce::StringArray channels { "omni on", "omni off" };
-
-        for (int c = firstChannel; c <= lastChannel; ++c)
-            channels.add (juce::String (c));
-
-        return channels;
-    }
-
     return columnId == mode ? modeNames : juce::StringArray();
 }
 
 int ControllersTable::separatorFor (int columnId) const
 {
-    // The two rules the sketch draws. In the mode menu everything below it
-    // ignores the LSB; in the channel menu everything below it is a channel
-    // number.
-    return columnId == mode    ? modesBeforeSeparator
-         : columnId == channel ? channelsBeforeSeparator
-                               : -1;
+    // One rule, in the mode menu: everything below the line ignores the LSB.
+    return columnId == mode ? modesBeforeSeparator : -1;
 }
 
 int ControllersTable::choiceFor (int row, int columnId) const
@@ -680,7 +681,6 @@ int ControllersTable::choiceFor (int row, int columnId) const
     switch (columnId)
     {
         case param:   return mapping.parameterIndex;
-        case channel: return indexForChannel (mapping.channel);
         case mode:    return static_cast<int> (mapping.mode);
         default:      break;
     }
@@ -702,7 +702,6 @@ void ControllersTable::commitChoice (int row, int columnId, int index)
     switch (columnId)
     {
         case param:   mapping.parameterIndex = index; break;
-        case channel: mapping.channel        = channelForIndex (index); break;
         case mode:    mapping.mode           = static_cast<Mode> (index); break;
         default:      return;
     }
@@ -796,7 +795,7 @@ juce::Component* ControllersTable::refreshComponentForCell (int row, int columnI
         return nullptr;
     }
 
-    if (columnId == channel || columnId == mode)
+    if (columnId == mode)
     {
         auto* cell = dynamic_cast<ChoiceCell*> (existing);
 
@@ -863,7 +862,7 @@ void ControllersTable::lookAndFeelChanged()
     {
         list->setColour (juce::ListBox::backgroundColourId, findColour (ReadOutField::backgroundColourId));
         list->setColour (juce::ListBox::outlineColourId,    findColour (ReadOutField::outlineColourId));
-        list->setOutlineThickness (1);
+        list->setOutlineThickness (metrics::tableOutline);
     }
 }
 
@@ -878,10 +877,22 @@ void ControllersTable::resized()
     // The frozen column carries its own header now, and `ListBox` puts it at
     // the top and starts the list beneath it — so the two sets of rows line up
     // without this having to reserve a strip and lay anything out in it.
-    frozenColumn.setBounds (bounds.removeFromLeft (metrics::tableFrozenColumnWidth));
+    // The parameter column takes the row's first third and the gap after it is
+    // the grid's own gutter, so the seam between the two lists falls in the same
+    // place as the gap between `delete` and `undo` below — at every width, since
+    // both are computed from the same six columns. It is also why this is the
+    // only column that grows when the panel is dragged wider: the scrolling
+    // columns are sized by their contents and keep what they have.
+    frozenColumn.setBounds (bounds.removeFromLeft (metrics::rowFirstThird (getWidth())));
 
     bounds.removeFromLeft (metrics::pageColumnGap);
     table.setBounds (bounds);
+
+    // The header is inside the outline, so its one column is the list's width
+    // less the outline on each side. Setting the full width instead would push
+    // the column's right-hand divider under the outline, where it is clipped.
+    if (frozenHeader != nullptr)
+        frozenHeader->setColumnWidth (param, frozenColumn.getWidth() - metrics::tableOutline * 2);
 }
 
 } // namespace microtonos::sidebar

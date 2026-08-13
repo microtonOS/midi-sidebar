@@ -27,7 +27,7 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     // for what to do when it does is in docs/right-click.md.
     parameterMenu.onMidiLearnRequested = [] (int) {};
 
-    sidebar.onPreferredWidthChanged = [this] { layOutSidebar (true); };
+    sidebar.onPreferredWidthChanged = [this] (bool animate) { layOutSidebar (animate); };
     sidebar.onPanic = [] { /* CC120 goes here once the processor sends MIDI. */ };
 
     showSampleTuning();
@@ -55,6 +55,20 @@ DemoEditor::DemoEditor (DemoProcessor& p)
         };
 
         pageAttachment->sendInitialUpdate();
+    }
+
+    // The dragged width, mirrored the same way as the page. One direction only:
+    // the sidebar clamps what it is given, so echoing the clamped result back
+    // into the parameter would rewrite what the user asked for every time the
+    // window was too narrow to honour it.
+    if (auto* widthParam = processor.apvts.getParameter ("panelWidth"))
+    {
+        panelWidthAttachment = std::make_unique<juce::ParameterAttachment> (
+            *widthParam,
+            [this] (float value) { sidebar.setPanelWidth (juce::roundToInt (value)); },
+            nullptr);
+
+        panelWidthAttachment->sendInitialUpdate();
     }
 
     // The two developer settings, bound the same way. Their initial update is
@@ -215,13 +229,14 @@ void DemoEditor::showSampleControllers()
     // relabelling themselves when a row is pointed at another parameter.
     page.setParameters (synth::parametersForSidebar());
 
-    // Figure 2 of docs/controllers.md, keeping its shape — one omni-off CC pair,
-    // one channel-specific CC, one polytouch row — with the synth's parameters
-    // in place of the clonewheel names the sketch still uses. The second one's
-    // LSB is left empty, which its `toggle` mode ignores anyway.
+    // Figure 2 of docs/controllers.md, keeping its shape — one CC pair with an
+    // LSB, one CC without, one polytouch row — with the synth's parameters in
+    // place of the clonewheel names the sketch still uses. Three different
+    // channels, so the column is visibly a channel rather than a constant. The
+    // second one's LSB is left empty, which its `toggle` mode ignores anyway.
     controllers::Mapping cutoff;
     cutoff.parameterIndex = synth::Index::cutoff;
-    cutoff.channel = controllers::omniOffChannel;
+    cutoff.channel = 1;
     cutoff.msb = 11;
     cutoff.lsb = 43;
     cutoff.mode = controllers::Mode::jump;
