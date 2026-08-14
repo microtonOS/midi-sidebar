@@ -1,66 +1,31 @@
 # Presets
 
+In Presets, the end-user ...
+
 <table>
     <tr>
-        <td colspan="6"><b>PRESETS</b></td>
+        <td><button>split</button></td>
+        <td><input value="220.00 Hz" /></td>
+        <td><input value="440.00 Hz" /></td>
     </tr>
     <tr>
-        <td colspan="3"><input type="text" value="220.00 Hz" style="width:2cm" /></td>
-        <td colspan="3"><input type="text" value="440.00 Hz" style="width:2cm" /></td>
-    </tr>
-    <tr>
-        <td colspan="2">
-            <button>split</button>
-        </td>
-        <td colspan="2">
-            <input type="radio" name="layer">lower</input>
-        </td>
-        <td colspan="2">
-            <input type="radio" name="layer">upper</input>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="6">STATUS</td>
-    </tr>
-    <tr>
-        <td colspan="6"><input type="text" value="Jimmie Smith" />
-    </tr>
-    <tr>
-        <td colspan="2">program</td>
-        <td><input type="number" value="1" style="width:1cm" /></td>
-        <td colspan="2">bank</td>
-        <td><input type="number" value="" style="width:1cm" /></td>
-    </tr>
-    <tr>
-        <td colspan="6">FILES</td>
-    </tr>
-    <tr>
-        <td colspan="3"><button style="width:3cm">load</button></td>
-        <td colspan="3"><button style="width:3cm">save</button></td>
-    </tr>
-    <tr>
-        <td colspan="2">include</td>
-        <td colspan="2"><input type="checkbox">controllers</input></td>
-        <td colspan="2"><input type="checkbox">tuning</input></td>
-    </tr>
-    <tr>
-        <td colspan="6">META</td>
-    </tr>
-    <tr>
-        <td colspan="2">author</td>
-        <td colspan="4"><input /></td>
-    </tr>
-    <tr>
-        <td colspan="2">comment</td>
-        <td colspan="4"><input /></td>
+        <td><button>on</button></td>
+        <td><input name="side" type="radio" />lower</td>
+        <td><input name="side" type="radio" />upper</td>
     </tr>
 </table>
 
-**Figure 1**.
+
+
+![](figures/presets.png)
+
+
+
+<!-- 
 
 > **Status.** The GUI below is built; see [What is built](#what-is-built) at the
 > end. Nothing behind it is — no file is written or read, and the split control
-> reports its state without anything acting on it.
+> reports its state without anything acting on it. -->
 
 1. When one note active both show that note's frequency.
 When several notes active the left shows the lowest frequency and the right shows the highest frequency.

@@ -1,69 +1,27 @@
 # Channels
 
-<table>
-    <tr>
-        <td colspan="4"><b>CHANNELS</b></td>
-    </tr>
-    <tr>
-        <td colspan="2"><input type="radio" name="omni">omni on</input></td>
-        <td colspan="2"><input type="radio" name="omni">omni off</input></td>
-    </tr>
-    <tr>
-        <td colspan="2"><input type="radio" name="omni">lower zone</input></td>
-        <td colspan="2"><input type="radio" name="omni">upper zone</input></td>
-    </td>
-    <tr>
-        <td colspan="4">FILTER</td>
-    </tr>
-    <tr>
-        <td>
-            <input type="checkbox" name="ch"> 1</input>
-        </td><td>
-            <input type="checkbox" name="ch"> 2</input>
-        </td><td>
-            <input type="checkbox" name="ch"> 3</input>
-        </td><td>
-            <input type="checkbox" name="ch"> 4</input>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <input type="checkbox" name="ch"> 5</input>
-        </td><td>
-            <input type="checkbox" name="ch"> 6</input>
-        </td><td>
-            <input type="checkbox" name="ch"> 7</input>
-        </td><td>
-            <input type="checkbox" name="ch"> 8</input>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <input type="checkbox" name="ch"> 9</input>
-        </td><td>
-            <input type="checkbox" name="ch">10</input>
-        </td><td>
-            <input type="checkbox" name="ch">11</input>
-        </td><td>
-            <input type="checkbox" name="ch">12</input>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <input type="checkbox" name="ch">13</input>
-        </td><td>
-            <input type="checkbox" name="ch">14</input>
-        </td><td>
-            <input type="checkbox" name="ch">15</input>
-        </td><td>
-            <input type="checkbox" name="ch">16</input>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="2">
-            <button>select all</button>
-        </td><td colspan="2">
-            <button>mute all</button>
-        </td>
-    </tr>
-</table>
+In Channels, the end-user can manage channel settings for notes (on and off), program changes, control changes and (channel and polyphonic) aftertouch, and pitchbend.
+
+![](figures/channels-omni.png)
+
+When omni is set to on, the plugin reads messages from multiple channels while ignoring the channel number itself.
+This setting overrides the channels set in [Controllers](controllers.md) (or via [MIDI learn](right-click.md)).
+Tunings are read from the unspecified channel.
+When off, each message only affects its corresponding channel as far as is possible.
+Not all parameters can be modulated on a per-channel basis.
+Note that program change messages are always interpreted as omni.
+
+The plugin listens to channels marked in the filter section.
+Messages and tunings on other channels are ignored.
+Use cases. Allow the muted channels to be used for a different plugin or a different instance of this plugin. Reduce the size of the tuning table.
+The select all and mute all are convenience buttons to reduce the number of clicks.
+
+![](figures/channels-mpe.png)
+
+When MPE is set to on, selected channels override the settings omni.
+Selected channels follow the [MPE specification](https://midi.org/mpe-midi-polyphonic-expression).
+The lower zone has 1 as the master channel and the upper zone has 16.
+A zone cannot contain gaps.
+
+Channels 1 to 16 are reserved for devices without MIDI 2.0 compatibility.
+MIDI 2.0 devices use the extended channels instead.

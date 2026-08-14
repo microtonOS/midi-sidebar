@@ -1,236 +1,77 @@
 # Tuning
 
-<!-- I have used allcaps bold, allcaps narrow, and all miniscule to indicate different header levels. I don't know if that make sense in the real ui. Then they should mayb all be allcaps. Is there a look and feel settings for allcaps, inital cap, all miniscule?
+In Tuning, the end-user can monitor tunings of individual notes, see the name, program number, and bank number, as well as the period.
+The end-user can edit which tuning standard to use.
+The end-user can choose between MTS ESP, MTS Sysex, <!-- MIDI 2.0, (maybe let MIDI 2.0 use remaining channels instead) --> tuning files, or standard.
+The user can set associated parameters as well as pitchbend sensitivity.
 
-There is no such setting. JUCE has no text-transform anywhere in Font, Label or
-LookAndFeel: a label draws the string it is given, so anything in capitals is in
-capitals because someone typed it that way. What is implemented is:
+MIDI Sidebar saves a table of frequencies per note per channel.
+In addition, there is a list frequencies per note for an *unspecified channel*.
+There can be multiple table+list pairs arranged in tuning programs and tuning banks.
 
-  Tuning     panel title, 15px bold, title case
-  STATUS     group title, uppercased, drawn into the frame's top edge
-  program    field label, 13px regular, lower case
+![](figures/tuning.png)
 
-which keeps your three levels while letting the top one stay title case. The
-frame carries the section far better than capitals alone did at this size, and
-the two titles are indented to the same place, so "Tuning" sits above the "S" of
-"STATUS" rather than above the frame around it. -->
+A value in cents (two decimals) indicating the interval between the lowest and highest currently active notes.
+0 c if a signle note and 'all notes off' if none.
+For large values a modulo over 1200 is handy to quickly identify the interval.
+1200 is the default value but can be edited.
+(The post-modulo indicator is empty if all notes off.)
 
-> **Status.** The GUI described below is built; see [What is built](#what-is-built)
-> at the end for what that does and does not include. Nothing behind it is —
-> no MTS ESP, no sysex, no `.scl` parsing.
+The status section shows the name of the tuning.
+Not all tuning standards allow naming (MTS Sysex has only partial support) and, if so, it says 'no name' (standard is '12edo A4=440 Hz').
+For tuning standards that allow tuning programs (and tuning banks) are MTS Sysex, <!-- MIDI 2.0, (maybe let MIDI 2.0 use remaining channels instead) --> <!-- TODO: double-check MIDI 2.0 --> and tuning files.
+Tunings files can be arranged in a directory to form a bank, and several such directories can be opened together.
+For these tuning standards the name is clickable and other tuning programs are selectable.
+If so, tuning programs and banks can also be explored numerically.
+A time stamp when the tuning was last updated is useful for seeing whether the plugin is connected to a tuning master of one sort or another.
 
-<table style="border: 0px">
-    <!-- The table is for layout, the table borders are to be ignored for example. Sizes are not to be taken literally. -->
-    <tr>
-        <td colspan="6"><b>TUNING</b></td>
-    </tr>
-    <tr>
-        <td colspan="6">
-            <input type="text" value="1902.98 c" style="width: 7cm" readonly />
-        </td>
-    </tr>
-    <tr>
-        <td>
-            mod
-        </td>
-        <td colspan="2">
-            <input type="number" value="1200" style="width: 1.4cm"/>
-        </td>
-        <td>
-            =
-        </td>
-        <td colspan="2">
-            <input type="text" value="702.98 c" style="width: 1.5cm" readonly/>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="6">
-            ---- STATUS --------
-        </td>
-    </tr>
-    <tr>
-        <td colspan="6">
-            <input type="text" value="Unnamed" style="width: 7cm" readonly />
-        </td>
-    </tr>
-    <tr>
-        <td colspan="2">
-            program
-        </td>
-        <td>
-            <input type="number" value="" style="width: 1.5cm" readonly>
-        </td>
-        <td colspan="2">
-            bank
-        </td>
-        <td>
-            <input type="number" value="" style="width: 1.5cm" readonly>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="2">
-            updated
-        </td>
-        <td colspan="4">
-            <input type="text" value="21:25:38" style="width: 5cm" />
-        </td>
-    </tr>
-    <tr>
-        <td colspan="6">
-            ---- PERIOD --------
-        </td>
-    </tr>
-    <tr>
-        <td colspan="3">
-            <input type="number" value="1200 c" style="width: 3cm"/>
-        </td>
-        <td colspan="3">
-            <select style="width: 3cm" readonly>
-                <option>inferred</option>
-                <option>specified</option>
-            </select>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="6">
-            ---- SETTINGS -------
-        </td>
-    </tr>
-    <tr>
-        <td colspan="3">
-            <select style="width: 3cm">
-                <option>MTS ESP</option>
-                <option>MTS sysex</option>
-                <option>MIDI 2.0</option>
-                <option>tuning file</option>
-                <!--<option>MPE</option>-->
-                <option>standard</option>
-            </select>
-        </td>
-        <td colspan="3">
-            <button>multichannel</button>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="3">
-            <input type="file" accept=".scl" style="width: 3cm"></input>
-        </td>
-        <td colspan="3">
-            <input type="radio" name="query">note on</input>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="3">
-            <input type="file" accept=".kbm" multiple style="width: 3cm"></input>
-        </td>
-        <td colspan="3">
-            <input type="radio" name="query">always</input>
-        </td>
-    </tr>
-</table>
+The period section shows the period of a tuning.
+For an equal division tuning, it is trivial—the step between two notes count as one period.
+So does the distance between three, and four, and so on.
+Therefore, the period indicator can be incremented or decremented among acceptable choices.
+For tuning with uneven step sizes that are nonetheless arranged in a pattern, e.g. repeating every 12th note, the period is the interval across the pattern, e.g. 1200 c.
+MTS ESP and some tuning files can specify the period.
+If they do, 'specified' is indicated (and the period cannot be incremented/decremented).
+Otherwise, the period is 'inferred'.
+Period inference merges all the channels and sorts the frequencies.
+By default the smallest possible period is shown.
+If no period is found the entire set of frequencies is taken as the period.
+<!-- TODO: specify the error in inference. think it should be 128**3 as per MTS Sysex standard but worth double-checking against the other standards. -->
+Use cases:
+A tonewheel organ has its drawbars tuned accrding to an underlying scale. To get the correct pitches for the higher notes, a period has to be inferred.
+Similar ideas could be applied to any synthesizer with numerous oscillators.
 
-**Figure 1**.
+In the settings page, the end-user sets up what tuning standard to use.
+The name of the tuning standard is selected from a menu.
+MTS ESP is used by default and then the plugin acts as an MTS ESP client and ignores other tuning data.
+If MTS Sysex is selected the plugin listens to the relevant sysex messages but ignores the MTS ESP master.
+If tuning files or standard is selected data of either kind is ignored.
 
+The 'open files' <!-- probably replace load with open consistently --> button is active for the tuning files. <!-- this I also want to rename to use plural consistently -->
+(It can also be used in MTS Sysex for `.syx` files.)
+A single `.scl` file sets the tuning for the unspecified channel.
+The end-user can select one `.scl` file and one or several `.kbm` files at the same time.
+The suffix `_i.kbm` is the mapping for the ith channel.
+Selecting one directory creates a bank with all the tuning files in that directory.
+`.scl` and `.kbm` files with the same prefix are taken to belong to the same program.
+As mentioned, a selection of several directories generates a set of banks.
+If the end-user want to check what files are selected, they can press 'open files' and see them marked.
 
-Consider the sketch above.<!--It is in the form of a table, but the table cells are only there to illustrate how the widgets should be laid out on an invisible grid. It is not to be visible in other words. The design choices of the html elements are of no importance whatsoever—the design should follow the rest of the plugin.-->
-Here follows comments on the layout, row by row:
+Tuning can be changed for a currently sounding note (always) or only applied to the next note on.
+This is a relevant setting for MTS ESP.
+For MTS Sysex messages the toggle cannot be set but works as an indicator.
+Otherwise, it has no effect.
 
-1. Title of indicating the tuning panel.
-2. The interval in cents between the lowest active note and the highest active note. Empty if no active notes.
-3. Modulo of the interval above. By default modulo over 1200 but can be set by the end-user. <!-- sounds correct to have the mod value unitless and the = value with unit? I mean it is a kind of division -->
-4. The tuning status box starts here.
-5. The name of the tuning. If unknown the name should be "Unnamed". An MTS ESP master can set a string as the name of the tuning. MTS SYSEX messages can set a 16 ASCII character name for some of the messages. `.scl` files can specify the name of a tuning at the top of the file. MPE and pitchbend do not provide a tuning name. MIDI 2.0 I don't know. STANDARD should be 12edo in general but maybe Gear60 or Gear50 for tuneBfree.
-6. Tuning program number and tuning bank number. Empty if unknown/unspecified.
-7. Time stamp of when tuning was last updated. If using MTS ESP queries will happen continuously (maybe several times per second), so this will look like a ticking clock. That way you see that it's active. However, it can also geneeralise to other systems. For sysex it would be when the last mts sysex message was received. for mpe when the last pitchbend was received (or really last pitchbend or note on or cc or aftertouch, ...). For tuning files, it would be when the file was loaded into the plugin.
-8. End of status box, Beginning of tuning period box.
-9. The scale period in cents. It can be specified in MTS ESP or `.scl` files (the last specified pitch basically acts as a specification of the period). The second widget indicates whether it was inferred <!-- see tuneBfree for the algorithm to infer the tuning period --> or specified, and nothing else — the end-user cannot set a period of their own.
-    - Inference rarely has one answer: any multiple of the repeating interval is a period, so 12edo admits 100c, 200c, and so on past 1200c. The left-hand widget is therefore a number box stepping through the candidates rather than a field to type in, which puts the values that are not periods out of reach instead of merely rejecting them. There are too many for a dropdown.
-    - Stepping through the candidates does **not** change the label: an inferred period stays inferred whichever of its candidates is in force. Picking one of the possibilities the plugin worked out is not the same as stating a period the tuning did not have.
-    - A specified period has nothing to choose between, so the box shows its value with the buttons disabled.
-10. Title marking the beginning of the microtuning settings section.
-11. Two columns.
-    - Left. Which of the microtuning encoding schemes used. For each the last state should be saved so that you can toggle back to it.
-    - Right. A popup window to select channels, see below.
-12. Two columns.
-    - Left. Upper is uploading the scale file, e.g. `.scl`. Should probably say SCALE somewhere. Lower is the mapping file. Should probably say "MAPPING" or "MAP". Can select directory of .kbm files or multi-selection of .kbm files. if so `_<i>.kbm` files will be attached to midi channel `<i>`. If there are several different files with different names but the same `_<i>.kbm` suffix, then the most recently selected one is prioritised. If there is a `x.kbm` suffix where `x` does not indicate a midi channel, then it is taken as a "generic channel". The last selected file for a "generic channel" is the prioritised one. The "generic channel" is any channel that is not specifically assigned. `.scl` files can be used without any `.kbm` file, if the `.kbm` files are underspecified, you can fall back to this, e.g. if there are channel files but no generic file, then you can fall back on that option for the "generic channel".[^PopUpWarning]
-    - Right. Here represented as radio buttons but really a toggle. If note on is checked, then pitches should only be updated on note on events. <!-- This is probably preferable for tuneBfree considering the building of the wavetable. --> If continuously is checked than a note that is already sounded can have its pitch changed. This is based after the MTS ESP convention but can be applied to mpe and midi 2.0 as well. Wrt sysex it's less clear that you need to specify this as the sysex messages themselves can specify which one it is, maybe let the note on option override continuous sysex messages? Not really applicable to tuning files.
+Pitchbend messages are never ignored, but sensitivity can be set, and a sensitivity of 0 is effectively ignoring them.
+<!-- IDEA
+Add a pitchbend quantization option.
+Quantization is to the tuning table+list.
+Quantisation can go from none at all to discrete steps and everything in between.
+I believe Autotune has an algorithm for the in-between, but I don't know how it works.
+My first thought is to use splines of different degrees and with derivative 0 at the frequencies in the tuning, but that seems to get sharp to quickly as you increase the degrees.
+If implemented, pitchbned should become its own section. -->
 
-
-Let us return to the popup window.
-There are a number of checkbox buttons to select one or more channels. (Technically it's possible to select no channels but this is unadvisable.)
-OMNI OFF is default. It means that each channel is handled separately according to it's corresponding `_<i>.kbm` file or corresponding MTS ESP channel.
-All other channels that are not specified are taken to be the "generic channel".
-If OMNI ON, then all channels are mapped to the "generic channel". This is `-1` in MTS ESP code—although I suspect that in the shared library, `-1` is really the same as `0` (MIDI channel 1).
-SELECT ALL selects all the channels
-DESELECT ALL removes all the selections.
-
-<table>
-    <tr>
-        <td>
-            <input type="radio" name="omni">omni on</bitton>
-        </td>
-        <td>
-            <input type="checkbox" name="ch"> 1</input>
-            <input type="checkbox" name="ch"> 2</input>
-            <input type="checkbox" name="ch"> 3</input>
-            <input type="checkbox" name="ch"> 4</input>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <input type="radio" name="omni">omni off</input>
-        </td>
-        <td>
-            <input type="checkbox" name="ch"> 5</input>
-            <input type="checkbox" name="ch"> 6</input>
-            <input type="checkbox" name="ch"> 7</input>
-            <input type="checkbox" name="ch"> 8</input>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <button>select all</button>
-        </td>
-        <td>
-            <input type="checkbox" name="ch"> 9</input>
-            <input type="checkbox" name="ch">10</input>
-            <input type="checkbox" name="ch">11</input>
-            <input type="checkbox" name="ch">12</input>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <button>deselect all</button>
-        </td>
-        <td>
-            <input type="checkbox" name="ch">13</input>
-            <input type="checkbox" name="ch">14</input>
-            <input type="checkbox" name="ch">15</input>
-            <input type="checkbox" name="ch">16</input>
-        </td>
-    </tr>
-</table>
-
-
-
-
-The space should be consistent between the widgets.
-The spaces above the two titles can be used as empty space if necessary, but it should be the same amount above each title.
-
-
-
-**Period Inference and Specification.**
-Seeing what the period is is actually not that important.
-What it is used for is to tune the drawbars, or, rather, to quantize them to the closest pitch in the scale.
-To do this, you simply have to merge all the midi channels into one list of frequencies.
-Then, you order this list according to ascending pitch (and maybe remove duplicate pitches?).
-(Now, it makes no sense to speak of a period with a negative number of cents.)
-For the lower pitches, you can simply set the drawbars according to the closest pitch of the available ones in the tuning.
-But for higher pitches, the drawbars may end up outside the tuning table.
-If a period is found, you can use this to extend the tuning table.
-Otherwise, you simply take the entire tuning table as a period.
-(Now, the period would simply be the distance between the lowest frequncy in the tuning table and the highest.)
-This is what I assume the code already does, but without the multichannel generalisation, is that right? Also I assume that it only works for exact periods?
+MIDI 2.0 can send per-note tuning messages and is free to set those for the extended channels beyond the first 16. <!-- I don't feel like I know enough about midi 2.0 to really know how to implement it. -->
 
 <!--
 Approximation. 5 cents is typically assumed to be less than the just-noticeable difference.
@@ -241,6 +82,7 @@ In more precise psychophysical experiments, you see that the just-noticeable dif
 This is probably overkill from the point of view of engineering.
 However, it would be good if you can look into both audio tools and psychophysics papers and geenrate a report on the matter. -->
 
+<!--
 
 ## What is built
 
@@ -319,3 +161,4 @@ that attaches; whether the settings become APVTS parameters, properties on
 `apvts.state`, or both, is still open — a file path is a poor fit for a
 parameter, an enumerated setting is a good one.
 
+-->

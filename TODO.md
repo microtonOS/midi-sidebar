@@ -2,6 +2,7 @@
 
 **High Priority**.
 
+- Decide on how greying out inactive components should work.
 - Check that skills are organised well and make suggestions on how they could be organsed better.
     - What is a good way for publishing skills. I could publish each skill as separate git repo, but that would be too many git repos. I could have them all in the same repo, but that removes modularity I need, so I don't love either of those solutions. Ig I could have different skills for different git organisations. That could work as a middle way, but I'm not super excited about it. Would be better if the directory structure was something like `skills/skill-package/specific-skill-[0-9][0-9]`
 - Does MIDI 2.0 have a way of naming tunings like MTS ESP and Sysex and Scala files?
@@ -17,6 +18,7 @@ Nothing on any page persists — this is true of all four now, not just tuning, 
 
 **Low Priority**.
 
+- Should `Sidebar` be changed to `SideBar` in similarity to `ToolBar` and `SidePanel`?
 - The param column in the table should have some kind of header design. JUCE does not by default provide a header column. Background colour is not very informative though, as it's covered in buttons, so the border between that part of the table and the rest of the table. I have not yet decided on the design though.
 - The headers in the table stll don't look the same as in the JUCE widgets demo. Arguably, they look more tasteful like this, so low priority, but the question remains why.
 - Decide what the tuning page does when the panel is shorter than it needs — it wants ~394px of editor height and the sidebar's minimum is ~~212px~~ 252px, so at small sizes its lower sections are cut off. Candidates in [tuning.md](docs/tuning.md#not-solved-small-heights): scroll, wrap the sections into two columns (needs a wider panel), or condense. The page is built out of section blocks so any of them is a layout change.

@@ -1,4 +1,4 @@
-# Right-click
+# Right-Click
 
 <select>
     <option disabled>FILTER CUTOFF</option>
