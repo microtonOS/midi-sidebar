@@ -1,8 +1,104 @@
 # TODO
 
+## Double-checks you asked for in the docs
+
+**`tuning.md:28-29` — "double check my interpretation is right".**
+It is right. CC 101 = 0 then CC 100 = 3 selects Tuning Program Select; CC 6 sets
+it; CC 96 and CC 97 step it; and 4 in place of 3 gives Tuning Bank Select. No
+correction needed.
+
+**`tuning.md:11-12` — "double check that 0.0061 c is less precise than MTS-ESP
+and MIDI 2.0 and Scala files".** Two of the three, but **not MIDI 2.0**:
+
+| | precision | vs 0.0061 c |
+|---|---|---|
+| MTS Sysex | 100/2¹⁴ = 0.0061 c | — |
+| MTS-ESP | `double` frequencies in Hz | far finer |
+| Scala | cents as decimal text; ratios to 2³¹−1 | far finer |
+| MIDI 2.0 Per-Note Controller #3, Pitch 7.25 | 100/2²⁵ ≈ 0.000003 c | far finer **if implemented in full** |
+| MIDI 2.0 Pitch 7.25, guaranteed floor | 9 fractional bits | **≈ 0.2 c — coarser** |
+| MIDI 2.0 Note On Attribute #3, Pitch 7.9 | 1/512 HCU, fixed | **≈ 0.2 c — coarser** |
+
+The catch is in UMP §7.4.15.2: "Support for all 25 bits of fractional pitch
+resolution is **not mandated**. However, at least 9 bits should be supported
+(strongly recommended)." And the Note On attribute form is *fixed* at 9 bits —
+the spec gives its accuracy as "approximately 0.2 cents" itself (§7.4.15.3).
+
+So "the precision is at least 0.0061 c — the limit for MTS Sysex" is not safe as
+written: a conforming MIDI 2.0 sender can be twenty times coarser. Suggested:
+
+> The precision is at least 0.0061 c, the limit for MTS Sysex. MTS-ESP and Scala
+> files are finer. MIDI 2.0 can be far finer still — its per-note pitch carries
+> 25 fractional bits — but only 9 of them are recommended rather than required,
+> so a MIDI 2.0 source may be no better than 0.2 c.
+
+**`tuning.md:85-86` and `channels.md` — "Can you do this?"**
+Half of it. Splitting the answer, because the two halves have different answers:
+
+- **Per-note tuning messages: yes, and they have names.** Registered Per-Note
+  Controller #3 (Pitch 7.25) sets a note's pitch and *persists* for subsequent
+  note ons, and the spec says outright that "a set of these messages for multiple
+  Note Numbers can be used to define a complete tuning table for any and all 128
+  Note Numbers" (§7.4.15.2). Note On with Attribute #3 (Pitch 7.9) does the same
+  for one note only. Both **override MTS** where present.
+- **Asking a device to use particular channels: no.** There is no mechanism for
+  it, and no "extended channels" to ask for. Addressing has exactly four
+  destinations — UMP Stream, Function Block, UMP Group, Channel (Appendix H,
+  Table 35) — and a MIDI 2.0 Channel Voice Message goes to a Channel within one
+  of 16 Groups. Nothing reserves Group 0 for MIDI 1.0 devices. A plugin also has
+  no route to *ask*: MIDI-CI negotiation needs a bidirectional connection, which
+  a plugin receiving MIDI from a host generally does not have.
+
+What is true and might be what you meant: a device speaking MIDI 1.0 and one
+speaking MIDI 2.0 can be kept apart because their **messages differ** — MIDI 1.0
+Channel Voice is Message Type `0x2`, MIDI 2.0 Channel Voice is `0x4` — not
+because they live on different channels. And one MTS tuning is per MIDI channel,
+whereas a Pitch 7.25 table is per channel too, so 16 groups would give 256
+independent tuning tables if a host ever presented them.
+
+This is a design decision rather than a fact, so I have not touched either
+sentence.
+
+## Docs findings still open
+
+Resolved ones have moved to [COMPLETED.md](COMPLETED.md). What is left needs a
+decision or a sentence from you; nothing here has been changed in the docs.
+
+**A. The MIDI 2.0 channel claim.** `channels.md` still ends "Channels 1 to 16 are
+reserved for devices without MIDI 2.0 compatibility. MIDI Sidebar asks MIDI 2.0
+devices to use the extended channels instead", and `tuning.md:85` says the same.
+Neither is possible as written — see the double-checks above for why, and for
+what *is* true. A design decision, so it is yours.
+
+**B. Two drafts waiting to be pasted.** Both are in the double-checks above:
+the RPN-as-control-changes sentence for `tuning.md` (you have already written
+your own version at line 28, which is correct — so this one may be closed), and
+the omni/MCM sentence for the `channels.md:2` comment, which you have also
+already written into the body. **Check whether either is still outstanding**; I
+think both are done and this item can go.
+
+**C. MPE pitch-bend sensitivity and the tuning page.** Corrected: MPE *defaults*
+sensitivity rather than forcing it (2 on the manager channel, 48 on members) and
+RPN 0 can change both at any time. Your suggestion in the `tuning.md` comment — a
+pitchbend section with 'global' and 'MPE member' — covers it. Say the word and I
+will draft against that.
+
+**D. Should the LSB column derive itself from the MSB?** The spec makes a 14-bit
+pair CC *n* and CC *n+32* with n ≤ 31 and nothing else, but you note the
+minilogue xd does not follow it. So: derive the LSB and forbid the rest, or leave
+it free and flag a mismatch? The second tolerates real hardware.
+
+**E. `figures/rail-compact.png` has no home.** `rail.png` is now in the README;
+the compact form — the rail below `metrics::regularBreakpoint`, where the volume
+control is a button rather than a strip — is still generated and unused.
+
+**F. Build the invalid-cell colour.** Per your reply: a `pageColours` id that is
+some kind of red whatever the theme is, plus the validation that turns a cell on.
+Nothing validates MSB/LSB against the protected list yet. The colour table in
+`appendices.md` has a comment marking where its row goes.
+
 **High Priority**.
 
-- All docs except docs/demo.md have been manually updated. Read, read the comments, learn about MIDI, suggest edits to docs and skills. AI agents should only do small edits like typos and the like to docs.
 - I'm frequently using 'toggle' to mean both a switch and a button that can be engaged or disengaged. The former should probably just be switch and the latter a toggle. Maybe there are more GUI termonology that I've misused? Check that I'm using words consistently in docs and skills. 
 - Decide on how greying out inactive components should work.
 - Check that skills are organised well and make suggestions on how they could be organsed better.
@@ -22,47 +118,51 @@ Nothing on any page persists — this is true of all four now, not just tuning, 
 - Should `Sidebar` be changed to `SideBar` in similarity to `ToolBar` and `SidePanel`?
 - The param column in the table should have some kind of header design. JUCE does not by default provide a header column. Background colour is not very informative though, as it's covered in buttons, so the border between that part of the table and the rest of the table. I have not yet decided on the design though.
 - The headers in the table stll don't look the same as in the JUCE widgets demo. Arguably, they look more tasteful like this, so low priority, but the question remains why.
-- Decide what the tuning page does when the panel is shorter than it needs — it wants ~394px of editor height and the sidebar's minimum is ~~212px~~ 252px, so at small sizes its lower sections are cut off. Candidates in [tuning.md](docs/tuning.md#not-solved-small-heights): scroll, wrap the sections into two columns (needs a wider panel), or condense. The page is built out of section blocks so any of them is a layout change.
+- Decide what the tuning page does when the panel is shorter than it needs — it wants ~394px of editor height and the sidebar's minimum is ~~212px~~ 252px, so at small sizes its lower sections are cut off. Candidates in [COMPLETED.md](COMPLETED.md#not-solved-small-heights): scroll, wrap the sections into two columns (needs a wider panel), or condense. The page is built out of section blocks so any of them is a layout change.
 - Improve the design of the demo page and include further demo options.
 
-<details>
-<summary>
-<b>Completed.</b>
-</summary>
+Completed items live in [COMPLETED.md](COMPLETED.md).
 
+## Ideas and questions moved out of the docs
 
-- From the presets page, rename the FILES group into FILE. remove the include tuning and include controllers options.
-- From the controllers page, remove the FILES section altogether. Replace it with an INSERT section. There should be 3 buttons: control change or CC is one button and is a rename of 'add' The other two or aftertouch and polytouch. Rename the editing section into EDIT. rename the remove button into 'delete'. The 'add' button is no longer necessary. Replace it with a redo and undo button. if those words cannot fit use these icons (but rotate them appropriately):
-```
-<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 48 48">
-	<path d="M0 0h48v48H0z" fill="none" />
-	<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="m18.629 32.542l9.958 9.958l9.958-9.958" />
-	<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M28.587 42.5V20.431c0-8.246-6.685-14.931-14.932-14.931h-4.2" />
-</svg>
-<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 48 48">
-	<path d="M0 0h48v48H0z" fill="none" />
-	<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M18.629 15.458L28.587 5.5l9.958 9.958" />
-	<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M28.587 5.5v22.069c0 8.246-6.685 14.931-14.932 14.931h-4.2" />
-</svg>
-```
+These were `<!-- -->` blocks in `docs/`. They are open work rather than
+documentation, so they live here and the docs no longer carry them.
 
-- The channels page is actually incorrect I realised. You should be able to have an upper or a lower zone MPE and still adjust the other channels with omni on and omni off. So, the first toglle should simply be omni and MPE. The second toggle on or off. The buttons underneath the channels should be select all or mute al while omni and lower zone or upper zone while MPE.
-- To not reinvent the wheel, add external content for juce development with agents. Some are suggested iin the Resources maybe there are more. Link to these in some reasonable way, is there a "git submodule" for skills? Can you include MCP tools in skills?
-- Give feedback on how it is written for an agent. what is clear what is not.
-- Doublecheck that claims are actually correct.
-    - Add suitable references to the skill files.
-- Check updates from juce 8 to juce 9.
-- If this project is a submodule to something already having JUCE as a submodule, then it shouldn't need a JUCE submodule of its own, right?
-- Make sure that the skills are shareable with repect to licensing and containing all the relevant information.
-- Rename the GitHub repo and this directory to `midi-sidebar`. The module inside is already renamed; this is the remaining half.
-- Decide whether the value bubble and the volume pop-up should look different. They are currently the same colour: `BubbleComponent::backgroundColourId` and `Sidebar::backgroundColourId` both resolve to `widgetBackground`.
-    - Related, and now documented as a gotcha in the juce-ui skill rather than fixed here: the bubble's *text* comes from `TooltipWindow::textColourId` (`highlightedText`), so in the Light scheme it is white on white and invisible. A JUCE bug — it reproduces in the DemoRunner. The demo has a Bubble text switch for trying the workaround. Giving the bubble `highlightedFill` as a background would fix the contrast *and* settle this item in one move, if that is the direction you want.
-- Compact-mode volume pop-up has only been checked in a headless render, never by clicking it in a real host.
-- The presets page is the one page left. It should reuse `ReadOutField`, `ChoiceStrip`, `juce::GroupComponent` sections and the six-column page grid rather than growing its own — that is what keeps the three from looking like three plugins — and follow the controllers page's height model, everything fixed except one flexible track, rather than the tuning page's all-fixed one.
-- What do `juce::TabbedComponent`s actually look like?
-- Add a tool for testing the gui. Now in `.claude/skills/juce-ui/scripts`: a project-agnostic `SnapshotTool.cpp`, a `add_snapshot_tool.cmake` helper, and a `snapshot.sh` wrapper. The `temporary` version was tuneBfree-specific, wrote into the CWD, and never pumped the message loop before painting.
-- Rename the JUCE module to `midi_sidebar` (was `microtonos_sidebar`). The C++ namespace stays `microtonos::sidebar` and the CMake alias stays `microtonos::`, because JUCE's own convention puts the *vendor* in the namespace — `juce::juce_gui_basics` — not the module name.
-- Check whether I specified the allows for the system's `/tmp` directory correctly in `settings.json`. They were removed: `permissions.allow` does not extend the OS sandbox that Bash runs under, so `Write(//tmp/**)` had no effect on a compiled tool. The session `$TMPDIR` is writable by default and is what the snapshot tool uses via `juce::File::getSpecialLocation (juce::File::tempDirectory)`.
-- Extract the page grid scaffolding. `TuningPage::resized` and `ControllersPage::resized` now contain the same twenty lines: the six columns with gutters, the row counter, `place` by content column, and `frame`. Two copies is the point at which the shape is known and a third would be careless, so this is worth doing before or with the presets page.
+**Let MIDI 2.0 use the remaining channels.** Appeared three times in
+`tuning.md` as "maybe let MIDI 2.0 use remaining channels instead", plus a
+"double-check MIDI 2.0" against the list of standards that support tuning
+programs and banks. Now answerable in part — see the double-checks above — but
+what the plugin *should* do is item A.
 
-</details>
+**Pitchbend quantization** (was `tuning.md`, IDEA). Quantize pitchbend to the
+tuning table and list, on a scale from none at all to discrete steps and
+everything in between. Autotune is believed to have an algorithm for the
+in-between; the first thought was splines of varying degree with derivative 0 at
+the tuning's frequencies, but that gets sharp too quickly as the degree rises. If
+implemented, pitchbend becomes its own section. *(Already listed under Low
+Priority; this is the detail behind it.)*
+
+**Just-noticeable difference, and compounding error** (was `tuning.md`). Five
+cents is the usual assumption for the JND and is what some tuner apps use. The
+problem for *periods* is that individually-inaudible errors compound. One fix is
+to correct for that. In careful psychophysics the JND is a function of both
+loudness and frequency, which is probably overkill for engineering — but a report
+surveying both audio tools and the psychophysics literature would settle it.
+
+**Custom right-click options for particular developers** (was `right-click.md`,
+inside the menu mockup). A developer might want to extend the parameter menu, for
+example with `not modulated` / `add modulation from >` / `remove modulation`
+below a separator. Worth deciding whether `onExtendMenu` is the whole answer.
+
+**Two more demo settings** (was `demo.md`), in rough order of usefulness: the
+animation speed, `Sidebar::setAnimationMilliseconds`, currently settable only in
+code and where 0 is a legitimate value worth being able to try; and a level
+generator so the meter has something to show without routing audio in.
+
+**Does MIDI 2.0 communicate parameter names directly?** `controllers.md` says so
+with an "I think?" attached. Partly: the mechanism is **MIDI-CI Property
+Exchange** — "a set of MIDI-CI Transactions by which one device may access
+properties from another device" (UMP §1.6.1) — not the protocol messages
+themselves, and like all MIDI-CI it needs a bidirectional connection. I have not
+read M2-101-UM, so the specifics are unverified; the sentence should probably
+name Property Exchange rather than "MIDI 2.0".

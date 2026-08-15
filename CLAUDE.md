@@ -2,7 +2,7 @@
 
 Read the [README](README.md) and the high and low priority sections of the [TODO](TODO.md).
 The README is written as if the software has already been finished even though that is not true.
-After a TODO has been completed remove it from high/low priority and place it in completed.
+After a TODO has been completed remove it from high/low priority and move it to [COMPLETED.md](COMPLETED.md). Do not read COMPLETED.md unless you need the history — the point of the split is that TODO.md is the file that needs acting on.
 
 GUI mockups in [docs](docs/) are HTML tables. The table is a layout device only —
 ignore its borders, its widget styling and its `cm` widths, all of which are

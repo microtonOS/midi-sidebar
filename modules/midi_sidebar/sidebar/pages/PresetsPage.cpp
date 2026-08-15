@@ -58,9 +58,9 @@ PresetsPage::PresetsPage()
     commentLabel.setJustificationType (juce::Justification::topLeft);
 
     for (auto* c : std::initializer_list<juce::Component*> {
-             &lowField, &highField, &splitButton, &onButton, &layerStrip,
+             &lowField, &highField, &splitButton, &activeButton, &layerStrip,
              &nameButton, &programStepper, &bankStepper,
-             &loadButton, &saveButton,
+             &openButton, &saveButton,
              &authorEditor, &commentEditor })
         addAndMakeVisible (*c);
 
@@ -74,11 +74,11 @@ PresetsPage::PresetsPage()
     };
 
     // Latching: this button *is* the split's state, not a command to toggle it.
-    onButton.setClickingTogglesState (true);
-    onButton.onClick = [this]
+    activeButton.setClickingTogglesState (true);
+    activeButton.onClick = [this]
     {
         if (onSplitToggled != nullptr)
-            onSplitToggled (onButton.getToggleState());
+            onSplitToggled (activeButton.getToggleState());
     };
 
     layerStrip.onChoice = [this] (int index)
@@ -105,7 +105,7 @@ PresetsPage::PresetsPage()
             onBankChosen (bank);
     };
 
-    loadButton.onClick = [this] { if (onLoadRequested != nullptr) onLoadRequested(); };
+    openButton.onClick = [this] { if (onOpenRequested != nullptr) onOpenRequested(); };
     saveButton.onClick = [this] { if (onSaveRequested != nullptr) onSaveRequested(); };
 
     authorEditor.setMultiLine (false);
@@ -169,7 +169,7 @@ void PresetsPage::setMeta (presets::Meta meta)
 
 void PresetsPage::setSplitActive (bool isActive)
 {
-    onButton.setToggleState (isActive, juce::dontSendNotification);
+    activeButton.setToggleState (isActive, juce::dontSendNotification);
 }
 
 void PresetsPage::setNotesActive (bool anyNotesActive)
@@ -217,8 +217,8 @@ void PresetsPage::lookAndFeelChanged()
     // the same trap ChoiceStrip answers for its chosen button.
     // Only the latching one has an on-state to colour. `split` is momentary and
     // stays an ordinary button.
-    onButton.setColour (juce::TextButton::buttonOnColourId, findColour (ChoiceStrip::selectedColourId));
-    onButton.setColour (juce::TextButton::textColourOnId,   findColour (ChoiceStrip::selectedTextColourId));
+    activeButton.setColour (juce::TextButton::buttonOnColourId, findColour (ChoiceStrip::selectedColourId));
+    activeButton.setColour (juce::TextButton::textColourOnId,   findColour (ChoiceStrip::selectedTextColourId));
 
     for (auto* label : { &programLabel, &bankLabel, &authorLabel, &commentLabel })
     {
@@ -268,7 +268,7 @@ void PresetsPage::resized()
         // control the tuning page's update mode uses.
         const auto row = grid.addRow (metrics::pageRowHeight);
 
-        grid.place (onButton,   row, 1, third);
+        grid.place (activeButton,   row, 1, third);
         grid.place (layerStrip, row, 1 + third, full - third);
     }
 
@@ -297,7 +297,7 @@ void PresetsPage::resized()
     {
         const auto row = grid.addRow (metrics::pageRowHeight);
 
-        grid.place (loadButton, row, 1, half);
+        grid.place (openButton, row, 1, half);
         grid.place (saveButton, row, rightHalf, half);
     }
 

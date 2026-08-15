@@ -1,6 +1,4 @@
 # Channels
-<!-- note that both omni and MPE have MIDI setup messages, channel mode and (N)RPN -->
-
 In Channels, the end-user can manage channel settings for notes (on and off), program changes, control changes and (channel and polyphonic) aftertouch, and pitchbend.
 
 ![](figures/channels-omni.png)
@@ -21,8 +19,16 @@ The select all and mute all are convenience buttons to reduce the number of clic
 
 When MPE is set to on, selected channels override the settings omni.
 Selected channels follow the [MPE specification](https://midi.org/mpe-midi-polyphonic-expression).
-The lower zone has 1 as the master channel and the upper zone has 16.
+This means that channel 1 or 16 is a manager channel.
+For the remaining member channels, CCs, pitchbend, and channel aftertouch are interpreted as omni off.
+Polyphonic aftertouch is ignored unless on a manager channel.
+The lower zone has 1 as the manager channel and the upper zone has 16.
 A zone cannot contain gaps.
 
-Channels 1 to 16 are reserved for devices without MIDI 2.0 compatibility.
-MIDI 2.0 devices use the extended channels instead.
+Omni is set by channel mode messages — CC 124 omni off, CC 125 omni on — on the
+receiver's basic channel. An MPE zone is set by the MPE Configuration Message,
+which is RPN 0/6: CC 101 value 0 followed by CC 100 value 6 selects it, CC 6
+gives the number of member channels, and the channel it is sent to (1 or 16)
+chooses the lower or upper zone.
+
+MIDI 2.0 messages are kept apart from MIDI 1.0 messages such that no channel clashes occur.

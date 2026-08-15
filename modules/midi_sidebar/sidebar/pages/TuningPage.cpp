@@ -103,7 +103,7 @@ TuningPage::TuningPage()
     for (auto* c : std::initializer_list<juce::Component*> {
              &intervalField, &modResultField, &nameButton,
              &programStepper, &bankStepper, &updatedField, &periodSourceField,
-             &schemeButton, &loadButton,
+             &schemeButton, &openButton,
              &updateStrip, &modEditor, &periodChooser, &pitchBendEditor })
         addAndMakeVisible (*c);
 
@@ -190,7 +190,7 @@ TuningPage::TuningPage()
             onSchemeChanged (static_cast<tuning::Scheme> (index));
     };
 
-    loadButton.onClick = [this] { if (onFilesRequested != nullptr) onFilesRequested(); };
+    openButton.onClick = [this] { if (onFilesRequested != nullptr) onFilesRequested(); };
 
     // The button says what it holds, and prompts when it holds nothing. A
     // separate label for the filename would need a column the panel has not
@@ -292,7 +292,11 @@ void TuningPage::setPitchBendCents (int cents)
     // Shown with its unit and typed without one, the same arrangement the
     // table's limits use; the editor's restriction is what keeps the two from
     // disagreeing, since a "c" cannot be typed back in.
-    pitchBendEditor.setText (juce::String (pitchBendCents) + " c", juce::dontSendNotification);
+    //
+    // Through `centsText` rather than printed here, so it obeys the two-decimal
+    // convention in docs/appendices.md like every other interval on the page.
+    // `getIntValue` reads "200.00 c" back as 200, so the round trip is unharmed.
+    pitchBendEditor.setText (centsText (pitchBendCents), juce::dontSendNotification);
 }
 
 void TuningPage::applyPitchBendCents()
@@ -315,7 +319,7 @@ void TuningPage::setLoadedSummary (const juce::String& summary)
 {
     // One line for however many files were chosen: the owner decides how to say
     // "a scale and four mappings" in the width of half a page.
-    loadButton.setButtonText (summary.isNotEmpty() ? summary : juce::String ("load files"));
+    openButton.setButtonText (summary.isNotEmpty() ? summary : juce::String ("open files"));
 }
 
 //==============================================================================
@@ -506,7 +510,7 @@ void TuningPage::resized()
         const auto secondRow = grid.addRow (metrics::pageRowHeight);
 
         grid.place (schemeButton, firstRow,  1, half);
-        grid.place (loadButton,   secondRow, 1, half);
+        grid.place (openButton,   secondRow, 1, half);
 
         grid.placeSpanning (updateStrip, firstRow, secondRow, rightHalf, half);
     }

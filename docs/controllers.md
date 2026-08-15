@@ -6,20 +6,15 @@ Regardless of how they were added, properties like parameter, MIDI channel, and 
 
 ![](figures/controllers-sorted.png)
 
+The monitor shows the last three MIDI messages, for example:
 
-<!-- TODO make sure these examples are followed in the monitor
-The monitor shows the last three MIDI messages, e.g.:
 - ch 1 CC 80 value 101
 - ch 3 pitchbend 2003
-- sysex bulk tuning dump
--->
-<!-- more examples:
+- Sysex bulk tuning dump
 - ch 2 note on 60 velocity 127
 - ch 16 polytouch 69 value 50
 - ch 15 PC 19
 - ch 14 aftertouch 120
--->
-
 
 The edit section contains a table with columns 'param' (parameter), 'ch' (channel), 'MSB' and 'LSB' (most significant byte and, optionally, least significant byte—two CC messages), 'mode', 'min', and 'max'.
 Each column can be ordered alphabetically/numerically or in the reverse order.
@@ -32,7 +27,7 @@ Unless, it is a simple host plugin, the parameters are ordered in categories in 
 
 Next is the channel (ch) column.
 A channel can be set between 1 and 16.
-For omni settings and MPE, see the [Channel](channels.md) menu.
+For omni settings and MPE, see the [Channels](channels.md) page.
 
 The MSB column is where the CC number, between 0 and 127, is added.
 Some controllers send two CC messages per continuous controller to increase precision.
@@ -49,7 +44,6 @@ Furthermore, the following CC numbers have protected functions:
 - 120 to 127 = channel mode messages
 
 When a disallowed MSB or LSB has been selected, the corresponding table cell is red, and the entire row is ignored.
-<!-- In the JUCE dialogs demo, the alert window with warning icon has an icon with a red colour. Not sure if it is part of the look and feel theme, but if it is, use that colour. -->
 
 ![](figures/controllers-table-full.png)
 
@@ -62,7 +56,6 @@ abruptly, such as while performing.
 - Scale: When you turn the knob, the parameter value will increase or decrease in a relative manner in the direction that it is turned. When you turn the knob and it reaches the full extent of its
 motion, it will operate proportionate to the maximum or minimum value of the parameter. Once
 the knob position matches the parameter value, the knob position and parameter value will subsequently be linked.
-
 
 Two more options ignore LSB (LSB values can still be set though):
 - Toggle: Whenever a controller emits a value at least 64, the toggle switches. min and max can be swapped for a polarity change.
@@ -80,18 +73,10 @@ The default messages added in the insert section:
 - Minimum is the lowest value possible
 - Maximum is the highest.
 
-
 To save a MIDI mapping, the end-user should save the state of the plugin. JUCE allows to do this and many hosts and DAWs do too.
 That way other data such as channels, programs, and banks is also saved.
 
+MIDI 2.0 devices communicate parameter names directly rather than through CC messages.
 
 [^korg]: [Korg. *Minilogue XD—Owner's Manual*.](https://www.korg.com/us/support/download/manual/0/811/4277/)
 
-
-
-
-<!-- 
-
-> **Status.** The GUI below is built; see [What is built](#what-is-built) at the
-> end. Nothing behind it is — no MIDI is read, and none of the five modes does
-> anything yet. They are choices the table can express. -->

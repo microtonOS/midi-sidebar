@@ -67,7 +67,7 @@ public:
     std::function<void (std::optional<int>)> onProgramChosen;
     std::function<void (std::optional<int>)> onBankChosen;
 
-    /** The `on` button: whether the split is active at all. */
+    /** The `active` button: whether the split is active at all. */
     std::function<void (bool)> onSplitToggled;
 
     /** The `split` button: set the split point. The flag is what the button was
@@ -81,7 +81,7 @@ public:
     /** After an author or comment edit has been committed, never mid-keystroke. */
     std::function<void (presets::Meta)> onMetaEdited;
 
-    std::function<void()> onLoadRequested;
+    std::function<void()> onOpenRequested;
     std::function<void()> onSaveRequested;
 
     //==========================================================================
@@ -101,7 +101,7 @@ public:
 private:
     //==========================================================================
     /** Rows that never change height: frequencies, split, name, the program and
-        bank labels, their steppers, load/save, and author. One fewer since the
+        bank labels, their steppers, open/save, and author. One fewer since the
         include toggles went: a preset carries the whole state, so there was
         nothing left to choose. */
     static constexpr int fixedRows = 7;
@@ -127,10 +127,10 @@ private:
         while notes are held. It sits on the frequency row because that row is
         the split point — the button and the two numbers are one statement.
 
-        `on` is the *state*: whether the split applies at all. It sits on the
+        `active` is the *state*: whether the split applies at all. It sits on the
         layer row because that row is what the split is doing — which side is
         live, and whether it is live in the first place. */
-    juce::TextButton splitButton { "split" }, onButton { "on" };
+    juce::TextButton splitButton { "split" }, activeButton { "active" };
     ChoiceStrip layerStrip;
 
     bool notesActive = false;
@@ -148,7 +148,7 @@ private:
     NumberStepper bankStepper { "bank", metrics::highestBank };
     juce::Label programLabel, bankLabel, authorLabel, commentLabel;
 
-    juce::TextButton loadButton { "load" }, saveButton { "save" };
+    juce::TextButton openButton { "open" }, saveButton { "save" };
 
     juce::TextEditor authorEditor, commentEditor;
 

@@ -265,19 +265,22 @@ void DemoEditor::showSampleControllers()
 
     page.setMappings ({ cutoff, resonance, vibrato });
 
-    // Figure 1's line and one before it, newest first. The page does not
+    // The examples docs/controllers.md gives, newest first. The page does not
     // compose these — see the note in ControllersState.h — so the phrasing is
     // the *host's*, and this is the demo standing in for it: every number said
     // with what it is, since the columns that used to explain them are gone.
-    // "cc 11" already says the message is a control change, so the word itself
-    // would only repeat the column heading that went with them.
+    //
+    // The doc's wording is followed exactly, including `CC` upper case (it is
+    // upper case in every one of that document's fifteen other uses), the note
+    // *number* rather than a name, and `velocity` rather than `value` on a note
+    // on. Where the demo and the doc disagreed, the doc is the specification.
     //
     // The second line carries an LSB, which is the longest thing the monitor
-    // has to show and the reason it is two lines rather than one. Nothing
+    // has to show and the reason it is three lines rather than one. Nothing
     // generates these yet; see docs/demo.md.
-    page.setMessages ({ "ch 16  cc 11  value 98",
-                        "ch 16  cc 11  lsb 43  value 98",
-                        "ch 15  note on  A4  value 102" });
+    page.setMessages ({ "ch 1  CC 80  value 101",
+                        "ch 16  CC 11  LSB 43  value 98",
+                        "ch 2  note on  60  velocity 127" });
 
 }
 

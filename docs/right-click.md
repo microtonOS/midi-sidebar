@@ -8,23 +8,17 @@
     <option disabled>view in sidebar</option>
     <option>MIDI learn</option>
     <option disabled>unlearn</option>
-    <!-- particular developers might want cusom options like
-    <hr />
-    <option disabled>not modulated</option>
-    <option>add modulation from ></option>
-    <option disabled>remove modulation</option>
-    -->
 </select>
 
 'info' expands into a short text explaining what the parameter is
 
 'not assigned' changes to the appropriate summary of the assignment, e.g.
-- channel 2 MSB 80
+- ch 2 MSB 80
 - multiple assignments
-- channel 1 polytouch
+- ch 1 polytouch
 
-'view in sidebar' highlights the relevant row(s) in the menu and expands the right page (if necessary).
+'view in sidebar' highlights the relevant row(s) in the table and expands the right page (if necessary).
 
-'MIDI learn' automatic assignment of MSB for CC or aftertouch/polytouch. If MPE is on, assigned to omni off, else to the recorded channel.
+'MIDI learn' automatic assignment of MSB for CC or aftertouch/polytouch. 
 
 'unlearn' remove (latest) mapping.

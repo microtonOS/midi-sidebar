@@ -17,8 +17,8 @@ the bug the second one works around only shows up in one of the themes.
 
 The outlined rectangle marked *host plugin content* is where the plugin
 embedding the sidebar would draw its own UI. It is there for its own sake — it
-is what makes the sidebar's [overlaying](sidebar.md#placement-and-expansion)
-visible, since a panel that covers nothing looks the same as one that pushes
+is what makes the sidebar's overlaying visible, since a panel that covers
+nothing looks the same as one that pushes
 content aside — and the developer settings go inside it because that rectangle
 is exactly the space this project does not own.
 
@@ -107,19 +107,6 @@ snapshot.sh --target SidebarDemo_snapshot -- --param theme=Light --param edge=Ri
 The choice lists live in one place, `demo/DemoSettings.h`, so the index the
 parameter stores and the index the buttons use cannot come to mean two different
 things.
-
-<!-- The four themes are JUCE's own (LookAndFeel_V4::getDarkColourScheme and
-friends) rather than palettes of ours. The module derives all of its colours
-from the nine in whichever scheme it is given, so this is a real test of that
-claim: if a theme comes out wrong, a colour has been hardcoded somewhere it
-should not be. That is worth more than the ability to switch themes. -->
-
-<!-- Two settings that could join these later, in rough order of usefulness:
-the animation speed (Sidebar::setAnimationMilliseconds, currently only settable
-in code, and 0 is a legitimate value worth being able to try), and a level
-generator so the meter has something to show without routing audio in. Neither
-is needed to look at the layout, which is what the demo is for now. -->
-
 
 MUCH OF THE ABOVE IS AI GENERATED WITHOUT AN APPROPRIATE DOCS EDITING SKILL.
 

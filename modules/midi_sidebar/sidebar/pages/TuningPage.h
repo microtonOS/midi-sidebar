@@ -174,7 +174,7 @@ private:
 
     /** One button, one chooser. Two — a scale and its mapping — meant two trips
         through a file dialog to describe one tuning. */
-    juce::TextButton loadButton;
+    juce::TextButton openButton;
 
     juce::TextEditor pitchBendEditor;
     ChoiceStrip updateStrip;
