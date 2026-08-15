@@ -1,4 +1,5 @@
 # Channels
+<!-- note that both omni and MPE have MIDI setup messages, channel mode and (N)RPN -->
 
 In Channels, the end-user can manage channel settings for notes (on and off), program changes, control changes and (channel and polyphonic) aftertouch, and pitchbend.
 

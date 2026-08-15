@@ -50,6 +50,14 @@ public:
     void setSplitActive (bool isActive);
     void setLayer (presets::Layer layer);
 
+    /** Whether anything is sounding, which is what the `split` button acts on.
+
+        With nothing held it sets the split from the two frequency boxes; with
+        notes held there is a second reading — take the split from what is
+        sounding — and the button says `update?` to ask which one was meant. The
+        page cannot know this for itself, so the owner pushes it in. */
+    void setNotesActive (bool anyNotesActive);
+
     //==========================================================================
     //  Intent out.
 
@@ -59,7 +67,15 @@ public:
     std::function<void (std::optional<int>)> onProgramChosen;
     std::function<void (std::optional<int>)> onBankChosen;
 
+    /** The `on` button: whether the split is active at all. */
     std::function<void (bool)> onSplitToggled;
+
+    /** The `split` button: set the split point. The flag is what the button was
+        showing when it was pressed — false for `split`, true for `update?` —
+        so the owner knows whether it was asked to take the point from the
+        frequency boxes or from the notes being held. */
+    std::function<void (bool fromSoundingNotes)> onSplitPointRequested;
+
     std::function<void (presets::Layer)> onLayerChanged;
 
     /** After an author or comment edit has been committed, never mid-keystroke. */
@@ -104,8 +120,20 @@ private:
 
     ReadOutField lowField, highField;
 
-    juce::TextButton splitButton { "split" };
+    /** Two buttons, one under the other, and the distinction is worth keeping
+        straight because both used to be one control.
+
+        `split` is an *action*: it sets the split point, and reads `update?`
+        while notes are held. It sits on the frequency row because that row is
+        the split point — the button and the two numbers are one statement.
+
+        `on` is the *state*: whether the split applies at all. It sits on the
+        layer row because that row is what the split is doing — which side is
+        live, and whether it is live in the first place. */
+    juce::TextButton splitButton { "split" }, onButton { "on" };
     ChoiceStrip layerStrip;
+
+    bool notesActive = false;
 
     /** Declared before the widgets that sit inside them: a group is only a
         frame, and what draws on top is decided by the order children were

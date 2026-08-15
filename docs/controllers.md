@@ -48,9 +48,12 @@ Furthermore, the following CC numbers have protected functions:
 - 96 to 101 = RPN and NRPN-related messages
 - 120 to 127 = channel mode messages
 
+When a disallowed MSB or LSB has been selected, the corresponding table cell is red, and the entire row is ignored.
+<!-- In the JUCE dialogs demo, the alert window with warning icon has an icon with a red colour. Not sure if it is part of the look and feel theme, but if it is, use that colour. -->
+
 ![](figures/controllers-table-full.png)
 
-The front panel knobs can operate in one of three modes:[^korg]
+Modes:[^korg]
 - Jump: When you turn the knob, the parameter value will jump to the value indicated by the knob.
 Since this makes it easy to hear the results while editing, we recommend that you use this setting.
 - Catch: Turning the knob will not change the parameter value until the knob position matches the
@@ -78,6 +81,8 @@ The default messages added in the insert section:
 - Maximum is the highest.
 
 
+To save a MIDI mapping, the end-user should save the state of the plugin. JUCE allows to do this and many hosts and DAWs do too.
+That way other data such as channels, programs, and banks is also saved.
 
 
 [^korg]: [Korg. *Minilogue XD—Owner's Manual*.](https://www.korg.com/us/support/download/manual/0/811/4277/)

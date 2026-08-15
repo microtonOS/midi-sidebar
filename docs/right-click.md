@@ -20,7 +20,6 @@
 
 'not assigned' changes to the appropriate summary of the assignment, e.g.
 - channel 2 MSB 80
-- omni on MSB 11 LSB 43
 - multiple assignments
 - channel 1 polytouch
 

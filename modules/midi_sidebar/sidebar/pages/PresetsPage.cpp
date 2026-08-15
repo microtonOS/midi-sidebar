@@ -58,18 +58,27 @@ PresetsPage::PresetsPage()
     commentLabel.setJustificationType (juce::Justification::topLeft);
 
     for (auto* c : std::initializer_list<juce::Component*> {
-             &lowField, &highField, &splitButton, &layerStrip,
+             &lowField, &highField, &splitButton, &onButton, &layerStrip,
              &nameButton, &programStepper, &bankStepper,
              &loadButton, &saveButton,
              &authorEditor, &commentEditor })
         addAndMakeVisible (*c);
 
-    // Latching: the button *is* the split's state, not a command to toggle it.
-    splitButton.setClickingTogglesState (true);
+    // Momentary: pressing it sets the split point. What it means depends on what
+    // it is showing, which is why the label goes out with the call rather than
+    // the owner having to remember what it pushed in.
     splitButton.onClick = [this]
     {
+        if (onSplitPointRequested != nullptr)
+            onSplitPointRequested (notesActive);
+    };
+
+    // Latching: this button *is* the split's state, not a command to toggle it.
+    onButton.setClickingTogglesState (true);
+    onButton.onClick = [this]
+    {
         if (onSplitToggled != nullptr)
-            onSplitToggled (splitButton.getToggleState());
+            onSplitToggled (onButton.getToggleState());
     };
 
     layerStrip.onChoice = [this] (int index)
@@ -160,7 +169,20 @@ void PresetsPage::setMeta (presets::Meta meta)
 
 void PresetsPage::setSplitActive (bool isActive)
 {
-    splitButton.setToggleState (isActive, juce::dontSendNotification);
+    onButton.setToggleState (isActive, juce::dontSendNotification);
+}
+
+void PresetsPage::setNotesActive (bool anyNotesActive)
+{
+    if (anyNotesActive == notesActive)
+        return;
+
+    notesActive = anyNotesActive;
+
+    // The question mark is the point: with notes held, pressing this would take
+    // the split from them rather than from the boxes, and the label is the only
+    // warning that the same button now does a different thing.
+    splitButton.setButtonText (notesActive ? "update?" : "split");
 }
 
 void PresetsPage::setLayer (presets::Layer layer)
@@ -193,8 +215,10 @@ void PresetsPage::lookAndFeelChanged()
     // sidebar. Left to LookAndFeel_V4 a toggled TextButton is drawn *darker*
     // than its neighbours, which on a dark theme looks like the disabled one —
     // the same trap ChoiceStrip answers for its chosen button.
-    splitButton.setColour (juce::TextButton::buttonOnColourId, findColour (ChoiceStrip::selectedColourId));
-    splitButton.setColour (juce::TextButton::textColourOnId,   findColour (ChoiceStrip::selectedTextColourId));
+    // Only the latching one has an on-state to colour. `split` is momentary and
+    // stays an ordinary button.
+    onButton.setColour (juce::TextButton::buttonOnColourId, findColour (ChoiceStrip::selectedColourId));
+    onButton.setColour (juce::TextButton::textColourOnId,   findColour (ChoiceStrip::selectedTextColourId));
 
     for (auto* label : { &programLabel, &bankLabel, &authorLabel, &commentLabel })
     {
@@ -224,22 +248,28 @@ void PresetsPage::resized()
     constexpr auto pair = metrics::pageLabelColumns;
     constexpr auto rightHalf = 1 + half;
 
-    //  Frequencies and split ---------------------------------------------------
+    //  The split ---------------------------------------------------------------
+    //  Two rows of thirds, and the first column of each is a button: `split`
+    //  over the two frequencies that are the split point, `on` over the pair
+    //  that says which side of it is live. The sketch draws both rows as three
+    //  equal cells, so the frequencies are thirds rather than halves and line up
+    //  under the buttons beside them.
     {
-        const auto row = grid.addRow (metrics::pageRowHeight);
-
-        grid.place (lowField,  row, 1, half);
-        grid.place (highField, row, rightHalf, half);
-    }
-
-    {
-        // The sketch's thirds: split, then lower and upper. The pair is one
-        // strip rather than two buttons, so it reads as the single either-or it
-        // is — the same control the tuning page's update mode uses.
         const auto row = grid.addRow (metrics::pageRowHeight);
 
         grid.place (splitButton, row, 1, third);
-        grid.place (layerStrip,  row, 1 + third, full - third);
+        grid.place (lowField,    row, 1 + third, third);
+        grid.place (highField,   row, 1 + third * 2, third);
+    }
+
+    {
+        // `lower`/`upper` is one strip spanning the last two thirds rather than
+        // two buttons, so it reads as the single either-or it is — the same
+        // control the tuning page's update mode uses.
+        const auto row = grid.addRow (metrics::pageRowHeight);
+
+        grid.place (onButton,   row, 1, third);
+        grid.place (layerStrip, row, 1 + third, full - third);
     }
 
     //  Status -----------------------------------------------------------------

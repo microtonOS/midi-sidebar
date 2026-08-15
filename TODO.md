@@ -2,12 +2,12 @@
 
 **High Priority**.
 
+- All docs except docs/demo.md have been manually updated. Read, read the comments, learn about MIDI, suggest edits to docs and skills. AI agents should only do small edits like typos and the like to docs.
+- I'm frequently using 'toggle' to mean both a switch and a button that can be engaged or disengaged. The former should probably just be switch and the latter a toggle. Maybe there are more GUI termonology that I've misused? Check that I'm using words consistently in docs and skills. 
 - Decide on how greying out inactive components should work.
 - Check that skills are organised well and make suggestions on how they could be organsed better.
     - What is a good way for publishing skills. I could publish each skill as separate git repo, but that would be too many git repos. I could have them all in the same repo, but that removes modularity I need, so I don't love either of those solutions. Ig I could have different skills for different git organisations. That could work as a middle way, but I'm not super excited about it. Would be better if the directory structure was something like `skills/skill-package/specific-skill-[0-9][0-9]`
 - Does MIDI 2.0 have a way of naming tunings like MTS ESP and Sysex and Scala files?
-- In tmp, there is also an audio testing file. put this in juce, well unless you think there should be a juce-dsp or whether a similar script already exists in a more developed form for some other developer.
-- add the continuous controller names to the reference for midi.
 - Attach the volume fader to its APVTS parameter. Both are already in dB over the same range with the same floor, so this is small — the sidebar just needs to expose the fader, or take a value + callback so the module stays free of `juce_audio_processors`.
 **Further explanation**.
 The obstacle: Sidebar owns the fader as a private member and the module has no juce_audio_processors dependency, so it cannot hold a SliderAttachment. Either the module exposes the Slider& (cheap, leaks a widget into the API) or it takes a value + onVolumeChanged callback and the demo bridges to a ParameterAttachment (keeps the seam, one more moving part). Everything else already lines up: DemoProcessor's volume parameter is dB over the same range with the same metrics::floorDb
@@ -18,6 +18,7 @@ Nothing on any page persists — this is true of all four now, not just tuning, 
 
 **Low Priority**.
 
+- Pitchbend quantization, see docs/tuning.md.
 - Should `Sidebar` be changed to `SideBar` in similarity to `ToolBar` and `SidePanel`?
 - The param column in the table should have some kind of header design. JUCE does not by default provide a header column. Background colour is not very informative though, as it's covered in buttons, so the border between that part of the table and the rest of the table. I have not yet decided on the design though.
 - The headers in the table stll don't look the same as in the JUCE widgets demo. Arguably, they look more tasteful like this, so low priority, but the question remains why.

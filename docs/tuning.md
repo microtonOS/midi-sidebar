@@ -21,9 +21,10 @@ The status section shows the name of the tuning.
 Not all tuning standards allow naming (MTS Sysex has only partial support) and, if so, it says 'no name' (standard is '12edo A4=440 Hz').
 For tuning standards that allow tuning programs (and tuning banks) are MTS Sysex, <!-- MIDI 2.0, (maybe let MIDI 2.0 use remaining channels instead) --> <!-- TODO: double-check MIDI 2.0 --> and tuning files.
 Tunings files can be arranged in a directory to form a bank, and several such directories can be opened together.
-For these tuning standards the name is clickable and other tuning programs are selectable.
+For these tuning standards the name is clickable and other tuning programs (and banks) are selectable.
 If so, tuning programs and banks can also be explored numerically.
 A time stamp when the tuning was last updated is useful for seeing whether the plugin is connected to a tuning master of one sort or another.
+<!-- tuning program and bank can also be changed with (N)RPN messages somehow, but I don't recall exactly how, the sidebar should respond to these. >
 
 The period section shows the period of a tuning.
 For an equal division tuning, it is trivial—the step between two notes count as one period.
@@ -38,7 +39,7 @@ By default the smallest possible period is shown.
 If no period is found the entire set of frequencies is taken as the period.
 <!-- TODO: specify the error in inference. think it should be 128**3 as per MTS Sysex standard but worth double-checking against the other standards. -->
 Use cases:
-A tonewheel organ has its drawbars tuned accrding to an underlying scale. To get the correct pitches for the higher notes, a period has to be inferred.
+A tonewheel organ has its drawbars tuned according to an underlying scale. To get the correct pitches for the higher notes, a period has to be inferred.
 Similar ideas could be applied to any synthesizer with numerous oscillators.
 
 In the settings page, the end-user sets up what tuning standard to use.
