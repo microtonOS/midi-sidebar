@@ -6,6 +6,14 @@ an agent asked to look at the TODO should not have to load this at all.
 
 Newest at the top within each batch.
 
+- Finding F: the invalid-cell colour is built. `pageColours::invalidColourId` is
+  the module's one colour not derived from the scheme — a fixed red pulled a
+  fifth of the way toward the theme's text so it belongs to the page — painted as
+  a wash behind the number so it stays readable. Validation is three tiers in
+  `controllers::CcStatus`: only 98-101 and 120-127 turn a cell red, and the
+  MSB/LSB clash marks *both* cells and both rows, as docs/controllers.md says.
+  The colour has its row in appendices.md.
+
 - Docs findings resolved with you: 'master channel' swept (the only other
   instance was `tuning.md:71`, now fixed); `right-click.md`'s stale omni-off
   sentence; the polytouch-on-member-channels override; the glossary additions

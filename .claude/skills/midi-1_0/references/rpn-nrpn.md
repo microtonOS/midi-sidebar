@@ -40,6 +40,30 @@ to deselect, so a stray data entry cannot move whatever was last addressed.
 <!-- The 127/127 null convention is not in Table IIIa; it is widely implemented
 and appears in later MMA documents. Verify before citing it as normative. -->
 
+## The rules, and the defaults they hand you
+
+p17 numbers six. Four decide how a receiver should behave before anyone has
+configured anything:
+
+- **NRPN reception "should be disabled on power-up** to avoid confusion between
+  different machines", though transmitting them "should be safe at any time"
+  (rule 2). RPN reception, being a standardised list, "may be enabled on
+  power-up" (rule 5). So the safe default is *answer RPNs, ignore NRPNs until
+  told otherwise* — the spec's advice, not a design taste.
+- **Wait for both bytes.** A receiver "should wait until it receives both the LSB
+  and MSB for a parameter number to ensure that it is operating on the correct
+  parameter" (rule 3) — but must also cope with a sender that transmits only one
+  (rule 4), which is why senders are told to send both whenever a new parameter
+  is selected.
+- **A parameter keeps its value.** "Once a new Parameter Number is chosen, that
+  parameter retains its old value until a new Data Entry, Data Increment, or Data
+  Decrement is received" (rule 6). Selecting is neither reading nor clearing.
+
+`juce::MidiRPNDetector` already implements the first three: it returns on the MSB
+once a parameter number is set, returns again with a 14-bit value on each
+following LSB, and copes with a sender that never sends one. Reach for it before
+writing a parser.
+
 ## Registered parameters
 
 Table IIIa lists five, and lists them **LSB first** — the MSB is `00` for all of
@@ -63,6 +87,25 @@ document. Cite them to their own specifications:
 
 CA-025, *Master Fine & Coarse Tuning*, renamed RPN 01 and 02 to **Channel** Fine
 and Coarse Tuning; Table IIIa still uses the older names.
+
+### What 01 and 02 can express
+
+Both are displacements from A440, and p18 gives their arithmetic. Worth having
+because the two are often assumed to be a coarse/fine pair over one range, and
+they are not — they overlap:
+
+| RPN | resolution | range |
+|---|---|---|
+| `01` Fine Tuning | 100/8192 cents ≈ 0.0122 c | −8192 … +8191 of those units, so ±100 c |
+| `02` Coarse Tuning | 100 cents | −64 … +63 semitones |
+
+So Fine Tuning covers a whole semitone either way, and Coarse Tuning covers more
+than five octaves; the two are not a coarse/fine pair over one range but two
+ranges that overlap. Centre is `40H` in the MSB for both.
+
+For a microtonal application, note that Fine Tuning's 0.0122 c is **twice as
+coarse** as MTS SysEx's key-based 0.0061 c, and it is per *channel* rather than
+per key — a different tool for a different job.
 
 ### Tuning program and bank
 

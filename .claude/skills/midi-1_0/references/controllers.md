@@ -93,9 +93,44 @@ pragmatic, not wrong.
 The six in bold are one mechanism, not six controls — see
 [rpn-nrpn](rpn-nrpn.md).
 
-<!-- CC 88, High Resolution Velocity Prefix, is defined in CA-031 and is NOT in
-Table III of the 4.2.1 specification, which lists 85-90 as undefined. Read CA-031
-before citing it. Likewise the other CA/RP controller documents. -->
+## Two controllers that modify the next note
+
+Most control changes set a state that persists. These two do not: each is a
+*prefix* to whatever note comes next on that channel, and is then spent. Reading
+them as ordinary knobs is how they get implemented wrongly.
+
+### CC 84, Portamento Control
+
+"The single Portamento Control message only affects the next Note-On received on
+the matching channel (in other words, it is reset after the Note-On)" (p17). Its
+value is the *source* key the next note glides from.
+
+### CC 88, High Resolution Velocity Prefix
+
+Not in Table III — 4.2.1 lists 85–90 as undefined — because it was added later by
+**CA-031**, *CC #88 High Resolution Velocity Prefix*, which is the document to
+cite for it.
+
+```
+Bn 58 vv     vv = the LOW 7 bits of the next Note On / Note Off velocity
+```
+
+The velocity byte in the *following* Note On or Note Off carries the **high** 7
+bits, so the two together make 14. Four details decide whether an implementation
+is right:
+
+- It affects **only the next** Note On/Off on the matching channel, and "there
+  may be other MIDI messages in between".
+- After that note is parsed, the receiver "should clear" the low 7 bits of its
+  velocity register — otherwise one gesture's fine value leaks into the next
+  note, the same trap as an unreset controller LSB.
+- **The smallest 14-bit velocity is `0080H`, not zero.** This exists to protect
+  the running-status shortcut where `9n kk 00` means Note Off: the low bit of the
+  upper byte is 1, matching the softest ordinary Note On. So the range is
+  **16,256 steps, not 16,384** — and if `9n kk 00` does arrive it is still a Note
+  Off, with the preceding `Bn 58 xx` having no effect.
+- A receiver that does not know the message ignores it and uses the 7 bits,
+  which is why sending it is safe.
 
 ## Values
 

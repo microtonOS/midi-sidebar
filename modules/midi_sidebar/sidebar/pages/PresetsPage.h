@@ -145,7 +145,7 @@ private:
         by side do not fit half a page. */
     ChoiceButton nameButton { "preset name" };
     NumberStepper programStepper { "program", metrics::highestProgram };
-    NumberStepper bankStepper { "bank", metrics::highestBank };
+    NumberStepper bankStepper { "bank", metrics::highestPresetBank };
     juce::Label programLabel, bankLabel, authorLabel, commentLabel;
 
     juce::TextButton openButton { "open" }, saveButton { "save" };

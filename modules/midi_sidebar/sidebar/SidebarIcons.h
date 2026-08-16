@@ -73,6 +73,39 @@ inline constexpr const char* channels = R"SVG(
 </svg>
 )SVG";
 
+//==============================================================================
+//  Markers drawn beside a parameter's name in the controllers table, saying
+//  what a controller aimed at it would reach. See docs/controllers.md.
+//
+//  Both keep the `M0 0h48v48H0z` box path the source drawings carry. It has no
+//  stroke and no fill, so it draws nothing — but it holds the drawable's bounds
+//  at the full 48×48, which is what makes the two scale to the same size when
+//  `drawWithin` fits them into a cell. Without it each would be scaled from its
+//  own ink, and the globe would come out larger than the notes.
+
+/** Note-specific: three notes, so the mark reads as "per note" at a glance. */
+inline constexpr const char* perNote = R"SVG(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path d="M0 0h48v48H0z" fill="none" />
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
+        d="M42.5 5.795h-4.747l.301 22.711m-8.83-12.992h-4.747l.301 22.712m-6.88-32.431h-4.746l.3 22.711" />
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
+        d="M5.5 28.506a3.977 3.977 0 1 0 7.953.004v-.004a3.977 3.977 0 1 0-7.953-.004zm11.326 9.72a3.977 3.977 0 1 0 7.952.005v-.005a3.977 3.977 0 1 0-7.952-.002zm13.276-9.72a3.977 3.977 0 1 0 7.953.004v-.004a3.977 3.977 0 1 0-7.953-.004z" />
+</svg>
+)SVG";
+
+/** Global: a globe, for a parameter that belongs to the whole plugin rather
+    than to one side of a keyboard split. */
+inline constexpr const char* global = R"SVG(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path d="M0 0h48v48H0z" fill="none" />
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
+        d="M24 2.5v43c-6.573 0-11.902-9.626-11.902-21.5S17.427 2.5 24 2.5S35.902 12.126 35.902 24S30.573 45.5 24 45.5M45.5 24h-43m40.12-10.75H5.38m37.24 21.5H5.38" />
+  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
+        d="M2.5 24c0 11.874 9.626 21.5 21.5 21.5S45.5 35.874 45.5 24S35.874 2.5 24 2.5S2.5 12.126 2.5 24" />
+</svg>
+)SVG";
+
 /** Volume: a speaker with radiating arcs. */
 inline constexpr const char* volume = R"SVG(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">

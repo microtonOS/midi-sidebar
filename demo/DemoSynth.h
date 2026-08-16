@@ -66,6 +66,12 @@ namespace synth
         juce::NormalisableRange<float> range;
         float defaultValue = 0.0f;
 
+        /** How far a controller aimed at this reaches, which the sidebar marks
+            beside the name — see docs/controllers.md. A real plugin knows this
+            about itself; the demo states it so the two markers have something to
+            appear on. */
+        controllers::Scope scope = controllers::Scope::split;
+
         bool isChoice() const noexcept { return ! choices.isEmpty(); }
     };
 
@@ -112,7 +118,8 @@ namespace synth
           "Where the filter starts taking harmonics away. Everything above this "
           "frequency is progressively quieter, so lowering it darkens the tone "
           "without changing the note.",
-          {}, frequencyRange (20.0f, 20000.0f, 1000.0f), 2000.0f },
+          {}, frequencyRange (20.0f, 20000.0f, 1000.0f), 2000.0f,
+          controllers::Scope::perNote },
 
         // No unit: resonance is the filter's quality factor, Q, which is a ratio
         // of frequencies and so a bare number. The letter names the quantity,
@@ -126,17 +133,20 @@ namespace synth
           "How much the filter emphasises the frequencies right at the cutoff, "
           "its quality factor Q. High values ring; at the top the filter begins "
           "to whistle at its own cutoff frequency.",
-          {}, { 0.1f, 10.0f }, 0.7f },
+          {}, { 0.1f, 10.0f }, 0.7f,
+          controllers::Scope::perNote },
 
         { "lfoTarget", "LFO target", {},
           "Which of the two modulations you hear. Both keep their own rate and "
           "intensity, so switching back finds the settings you left rather than "
           "the ones you just made.",
-          { "filter", "pitch" }, {}, 0.0f },
+          { "filter", "pitch" }, {}, 0.0f,
+          controllers::Scope::global },
 
         { "filterLfoRate", "Filter LFO rate", "Hz",
           "How fast the filter's cutoff sweeps up and down.",
-          {}, frequencyRange (0.05f, 20.0f, 2.0f), 2.0f },
+          {}, frequencyRange (0.05f, 20.0f, 2.0f), 2.0f,
+          controllers::Scope::global },
 
         { "filterLfoDepth", "Filter LFO intensity", "%",
           "How far the filter's cutoff sweeps. At zero the LFO is still running "
@@ -146,7 +156,8 @@ namespace synth
         { "pitchLfoRate", "Pitch LFO rate", "Hz",
           "How fast the pitch wavers. Vibrato lives between about four and seven "
           "of these.",
-          {}, frequencyRange (0.05f, 20.0f, 5.0f), 5.0f },
+          {}, frequencyRange (0.05f, 20.0f, 5.0f), 5.0f,
+          controllers::Scope::global },
 
         { "pitchLfoDepth", "Pitch LFO intensity", "%",
           "How far the pitch wavers. Small amounts read as vibrato and large "
@@ -167,7 +178,7 @@ namespace synth
         juce::Array<controllers::Parameter> parameters;
 
         for (const auto& control : controls())
-            parameters.add ({ control.name, control.unit, control.info });
+            parameters.add ({ control.name, control.unit, control.info, control.scope });
 
         return parameters;
     }

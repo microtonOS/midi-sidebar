@@ -28,13 +28,17 @@ namespace layout
         volume strip showing — and above the tallest page's natural height, so
         the demo does not open on a page that is already clipped.
 
-        The controllers page is the one to clear. It has no natural height —
-        its table is a flexible track — so what this clears is its *minimum*
-        plus a few rows of table, which is what makes the demo open on a table
-        with room in it rather than on one at its floor. That minimum grew when
-        MPE became a section of its own and shrank again when the files
-        section left it. */
-    inline constexpr int defaultHeight = 470;
+        The **tuning** page is now the one to clear, and it is the tallest thing
+        in the plugin: four framed sections and eleven rows of content come to
+        436px, plus the panel's title row and insets, so about 484. 500 leaves a
+        little over. It took this over from the controllers page when pitch bend
+        became a section of its own.
+
+        Note what this does *not* fix. The sidebar's minimum height is still
+        `metrics::railMinHeight`, far below what the tuning page needs, so the
+        page is still clipped whenever the window is small — see the item in
+        TODO.md. All this decides is where the demo opens. */
+    inline constexpr int defaultHeight = 500;
     inline constexpr int maxWidth      = 1600;
     inline constexpr int maxHeight     = 1200;
 

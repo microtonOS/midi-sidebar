@@ -231,12 +231,29 @@ namespace metrics
         begins. */
     inline constexpr int incDecTextBoxWidth = 73;
 
-    /** The largest program and bank a stepper offers. Programs are 1..128 in
-        MIDI; banks are addressed by two 7-bit controllers, but nothing here has
-        a use for more than 128 of them either, and a stepper is the wrong
-        control for stepping through sixteen thousand. */
+    /** The largest program and bank a stepper offers.
+
+        **Programs are 128 everywhere.** A program change carries one 7-bit
+        byte, and a tuning program is selected by RPN 0/3 whose data entry is
+        also one byte.
+
+        **Banks are not.** The two are addressed by different mechanisms and the
+        numbers genuinely differ, which is why there are two constants:
+
+        - a *preset* bank is CC 0 and CC 32 together, fourteen bits, and the
+          specification says outright that this "allows 16,384 banks to be
+          specified" (Complete MIDI 1.0 Detailed Specification 4.2.1, p13);
+        - a *tuning* bank is RPN 0/4, one data-entry byte, so 128 — "tt =
+          Tuning Bank number (1-128)" (MIDI Tuning Updated Specification,
+          Changing Tuning Programs).
+
+        A stepper is admittedly the wrong control for walking to sixteen
+        thousand one press at a time, but the field is typed into as well, and a
+        ceiling that lies about the protocol is worse than a slow one. */
     inline constexpr int highestProgram = 128;
-    inline constexpr int highestBank    = 128;
+
+    inline constexpr int highestPresetBank = 128 * 128;
+    inline constexpr int highestTuningBank = 128;
 
     //==========================================================================
     //  The editing table.
@@ -294,6 +311,16 @@ namespace metrics
         outlines share a pixel, and a column measured for the header has this
         much less room than the list is wide. */
     inline constexpr int tableOutline = 1;
+
+    /** The scope marker drawn at the right of a parameter's cell — the notes
+        glyph or the globe; see docs/controllers.md.
+
+        Square, and a little under the row height so it reads as a mark on the
+        row rather than as a second control in it. The inset keeps it inside the
+        button's own rounded corner, which is where a centred label never
+        reaches. */
+    inline constexpr int markerSize  = 12;
+    inline constexpr int markerInset = 4;
 
     /** The largest a continuous controller number can be, 7 bits. Named because
         sorting needs somewhere to put the rows that have none, and "one past
@@ -476,6 +503,18 @@ namespace shades
         colour rather than a derived one and looks pasted on over a dark
         theme. */
     inline constexpr float headerLift = 0.25f;
+
+    /** How far the invalid colour is pulled toward the theme's text colour.
+
+        Not a quietening — an invalid cell should be noticed — but a fixed red on
+        a dark panel is shrill in a way nothing else in the sidebar is, because
+        it is the only colour that does not come from the scheme. A fifth of the
+        way keeps the hue unmistakable while letting it sit on the page. */
+    inline constexpr float invalidBlend = 0.2f;
+
+    /** How solid the wash behind an invalid cell is. Behind a number that still
+        has to be read, so it marks the cell without competing with it. */
+    inline constexpr float invalidFill = 0.4f;
 }
 
 //==============================================================================
@@ -492,8 +531,21 @@ namespace pageColours
     enum ColourIds
     {
         sectionTitleColourId   = 0x1a10500,  ///< A section's name.
-        sectionOutlineColourId = 0x1a10501   ///< The frame drawn around it.
+        sectionOutlineColourId = 0x1a10501,  ///< The frame drawn around it.
+
+        /** A cell holding something the plugin cannot use — see
+            docs/controllers.md. The one colour in this module that is *not*
+            derived from the scheme, because it has to read as red whatever the
+            theme is; everything else follows `windowBackground` and friends. */
+        invalidColourId        = 0x1a10502
     };
+
+    /** The hue the invalid colour is built from, before it is blended toward the
+        scheme's own text colour so it does not glare in a dark theme. Chosen
+        rather than taken from JUCE: `LookAndFeel_V4::drawAlertBox` uses a
+        hardcoded `0x66ff2a00` and `V2` a hardcoded `0x55ff5555`, neither of them
+        a scheme colour, so there was nothing to inherit. */
+    inline const juce::Colour invalidHue { 0xffcc2222 };
 }
 
 //==============================================================================

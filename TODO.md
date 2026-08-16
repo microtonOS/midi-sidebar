@@ -92,12 +92,9 @@ it free and flag a mismatch? The second tolerates real hardware.
 the compact form — the rail below `metrics::regularBreakpoint`, where the volume
 control is a button rather than a strip — is still generated and unused.
 
-**F. Build the invalid-cell colour.** Per your reply: a `pageColours` id that is
-some kind of red whatever the theme is, plus the validation that turns a cell on.
-Nothing validates MSB/LSB against the protected list yet. The colour table in
-`appendices.md` has a comment marking where its row goes.
-
 **High Priority**.
+
+- Master volume has a Universal Real Time SysEx of its own — Device Control, sub-ID `04 01`, a 14-bit value — and the plugin's volume is the master volume rather than MIDI's per-channel one. So that message should reach the same fader CC 7 does. CC 7 stays mapped to it as well, by your decision; the two are then two ways in to one control, which is worth a sentence in docs/controllers.md once it is built. The built-in row is named `Volume` rather than `Channel Volume` for the same reason.
 
 - I'm frequently using 'toggle' to mean both a switch and a button that can be engaged or disengaged. The former should probably just be switch and the latter a toggle. Maybe there are more GUI termonology that I've misused? Check that I'm using words consistently in docs and skills. 
 - Decide on how greying out inactive components should work.

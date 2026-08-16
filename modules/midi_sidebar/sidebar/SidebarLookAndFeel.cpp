@@ -81,6 +81,13 @@ void SidebarLookAndFeel::registerColours (juce::LookAndFeel& target, const Colou
     target.setColour (ChoiceStrip::selectedColourId,     accent);
     target.setColour (ChoiceStrip::selectedTextColourId, accent.contrasting());
 
+    // The one colour that is not derived from the scheme: invalid has to be red
+    // in all four themes, and no scheme colour is reliably red. Interpolated a
+    // little toward the theme's text so it belongs to the page rather than
+    // glaring off it — the hue survives, the shrillness does not.
+    target.setColour (pageColours::invalidColourId,
+                      pageColours::invalidHue.interpolatedWith (text, shades::invalidBlend));
+
     // Table headers. `LookAndFeel_V2` hardcodes these four in its own colour
     // table — a pale blue-white with black text — and `LookAndFeel_V4` never
     // touches them, so a header is the one part of a V4 plugin that ignores the

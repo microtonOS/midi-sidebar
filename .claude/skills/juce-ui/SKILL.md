@@ -367,6 +367,21 @@ looking at; follow the link once you recognise it.
   three of JUCE's four schemes and lighter in the fourth, so "away from this one"
   is not "away from the other one". See [look and feel](references/look-and-feel.md#colours).
 
+- **A menu item's icon insists on being to the left of the text.**
+  `PopupMenu::Item::image` draws in the tick's gutter and takes no justification.
+  A mark on the other side needs a `PopupMenu::CustomComponent` that calls
+  `drawPopupMenuItem` itself. See
+  [popups](references/popups.md#an-items-image-goes-in-the-left-gutter-and-only-there).
+
+- **An icon drawn on a button is fine until the button narrows, then the label
+  slides over it.** `TextButton` centres its text, so it spreads outwards into
+  whatever you drew at a fixed inset. Measure it.
+  See [widgets](references/widgets.md#buttons).
+
+- **A label sits where the layout put it while its control moves away.** A label
+  attached with `attachToComponent` follows its owner and must not also be placed
+  in the grid. See [widgets](references/widgets.md#buttons).
+
 - **A button is there, is labelled, and nothing can find it by name.** It was
   default-constructed and labelled with `setButtonText`, which sets the text but
   not the *component* name. Accessibility, name lookups and the snapshot tool's

@@ -76,6 +76,50 @@ Layouts:
 - Nested dropdown menu.
 - Dropdown menu with custom items rather than plain text.
 
+#### An item's image goes in the left gutter, and only there
+
+`PopupMenu::Item::image` is the easy way to put a glyph on a row, and it always
+draws it **before** the text, in the column JUCE reserves for the tick.
+`LookAndFeel_V4::drawPopupMenuItem` decides that, and there is no option, no
+justification argument and no way to ask for the other side.
+
+If a design wants the mark *after* the name — a scope marker, a badge, a warning
+— the row has to draw itself. The cost is small if you let the LookAndFeel keep
+doing the rest:
+
+```cpp
+class IconMenuItem final : public juce::PopupMenu::CustomComponent
+{
+    void getIdealSize (int& w, int& h) override
+    {
+        // Ask for the standard row, then widen it. Skip the second step and the
+        // menu sizes itself to the text, leaving the glyph off the edge.
+        getLookAndFeel().getIdealPopupMenuItemSize (text, false, 0, w, h);
+        w += iconSize + margin * 2;
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        // Background, highlight, tick and text stay JUCE's, so a decorated row
+        // and a plain one cannot drift apart.
+        getLookAndFeel().drawPopupMenuItem (g, getLocalBounds(), false, true,
+                                            isItemHighlighted(), isTicked, false,
+                                            text, {}, nullptr, nullptr);
+        // …then draw the glyph wherever you actually wanted it.
+    }
+};
+```
+
+Two things that bite:
+
+- **Use the custom component for every row, not only the decorated ones.** A menu
+  drawn by two paths is a menu whose rows can disagree about their height.
+- **`Item::image` is a `std::unique_ptr<Drawable>`**, so the menu takes
+  ownership. A caller keeping one drawable per kind and reusing it across items
+  must hand over `icon->createCopy()` each time, not the pointer.
+
+`isItemHighlighted()` is what makes the row light up under the pointer; forget it
+and the menu looks dead.
 
 ### `CallOutBox`
 

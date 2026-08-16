@@ -50,6 +50,25 @@ struct ControllersTable::ChoiceCell final : public juce::Component
         button.setName (owner.nameFor (columnId));
         button.setItems (owner.itemsFor (columnId), owner.separatorFor (columnId));
         button.setSelectedIndex (owner.choiceFor (row, columnId));
+
+        // Only the parameter column is marked. The menu asks per item so the
+        // glyph beside a name while choosing is the one that stays after.
+        if (columnId == ControllersTable::param)
+        {
+            button.iconForItem = [this] (int i) { return owner.markerForParameter (i); };
+            button.setIcon (owner.markerFor (row));
+        }
+
+        // A built-in row that has not been pointed at a host parameter shows
+        // what it does instead. `setSelectedIndex (-1)` leaves the button with
+        // no item to name, so the text is set afterwards and would otherwise
+        // read as the button's empty prompt.
+        if (const auto builtin = owner.builtinFor (row);
+            builtin != controllers::Builtin::none && columnId == ControllersTable::param
+            && owner.choiceFor (row, columnId) < 0)
+        {
+            button.setButtonText (controllers::builtinName (builtin));
+        }
     }
 
     void resized() override { button.setBounds (getLocalBounds().reduced (metrics::tableCellInset)); }
@@ -106,7 +125,34 @@ struct ControllersTable::NumberCell final : public juce::Component
         const juce::ScopedValueSetter<bool> guard (updating, true);
 
         label.setText (owner.textFor (row, columnId), juce::dontSendNotification);
-        setEnabled (! (columnId == ControllersTable::lsb && owner.ignoresLsb (row)));
+
+        // Two reasons a number cell is read-only: the mode ignores the LSB, or
+        // this is a built-in row's MSB — the number is what the row *is*, so
+        // editing it would turn bank select into something else while still
+        // calling itself bank select.
+        const auto fixedMsb = columnId == ControllersTable::msb
+                           && owner.builtinFor (row) != controllers::Builtin::none;
+
+        setEnabled (! fixedMsb
+                    && ! (columnId == ControllersTable::lsb && owner.ignoresLsb (row)));
+
+        // Cheap enough to ask on every refresh, and asking here rather than in
+        // paint keeps the answer stable while the cell is on screen.
+        invalid = owner.isCellInvalid (row, columnId);
+        repaint();
+    }
+
+    /** Behind the label, not over it: the number has to stay readable, and a
+        wash is what says "this cell" where a border would compete with the
+        table's own dividers. See docs/controllers.md. */
+    void paint (juce::Graphics& g) override
+    {
+        if (! invalid)
+            return;
+
+        g.setColour (findColour (pageColours::invalidColourId)
+                         .withMultipliedAlpha (shades::invalidFill));
+        g.fillRect (getLocalBounds().reduced (metrics::tableCellInset));
     }
 
     void resized() override { label.setBounds (getLocalBounds().reduced (metrics::tableCellInset)); }
@@ -115,6 +161,7 @@ struct ControllersTable::NumberCell final : public juce::Component
     juce::Label label;
     int row = 0, columnId = 0;
     bool updating = false;
+    bool invalid = false;
 };
 
 //==============================================================================
@@ -221,7 +268,10 @@ void ControllersTable::setParameters (juce::Array<controllers::Parameter> newPar
 
 void ControllersTable::setMappings (juce::Array<controllers::Mapping> newMappings)
 {
-    mappings = std::move (newMappings);
+    // The three built-in rows are added here rather than expected from the
+    // owner: they are the sidebar's own functions, so a consumer that did not
+    // supply them would silently lose bank select and volume.
+    mappings = withBuiltins (std::move (newMappings));
 
     // The owner replacing the whole list is not an edit, so there is nothing to
     // undo back to — and undoing *into* a list the owner has since replaced
@@ -324,7 +374,16 @@ void ControllersTable::removeLatestMappingFor (int parameterIndex)
             continue;
 
         pushUndo();
-        mappings.remove (i);
+
+        // Unlearning a built-in row gives it its function back rather than
+        // taking the row away — the same rule the delete button follows, and
+        // for the same reason: all three always exist. Without this, "unlearn"
+        // on a re-pointed CC 7 would remove the sidebar's volume handling.
+        if (const auto builtin = mappings[i].builtin; builtin != Builtin::none)
+            mappings.set (i, defaultsFor (builtin));
+        else
+            mappings.remove (i);
+
         refreshRows();
         changed();
         return;
@@ -336,13 +395,81 @@ void ControllersTable::removeSelectedMapping()
     if (mappings.isEmpty())
         return;
 
+    const auto selected = mappingIndexFor (table.getSelectedRow());
+    const auto index    = selected >= 0 ? selected : mappings.size() - 1;
+
+    if (! juce::isPositiveAndBelow (index, mappings.size()))
+        return;
+
     pushUndo();
 
-    const auto selected = mappingIndexFor (table.getSelectedRow());
-    mappings.remove (selected >= 0 ? selected : mappings.size() - 1);
+    // A built-in row is reset rather than removed — the table always has all
+    // three, so deleting one would leave the sidebar unable to answer bank
+    // select at all. Reset restores every field, not only the parameter: a row
+    // that still had somebody's channel and mode on it would not be reset in
+    // any sense the word carries.
+    if (const auto builtin = mappings[index].builtin; builtin != Builtin::none)
+        mappings.set (index, defaultsFor (builtin));
+    else
+        mappings.remove (index);
 
     refreshRows();
     changed();
+}
+
+const juce::Drawable* ControllersTable::markerForParameter (int parameterIndex) const
+{
+    if (! juce::isPositiveAndBelow (parameterIndex, parameters.size()))
+        return nullptr;
+
+    switch (parameters[parameterIndex].scope)
+    {
+        case Scope::perNote: return perNoteMarker.get();
+        case Scope::global:  return globalMarker.get();
+        case Scope::split:   break;
+    }
+
+    return nullptr;
+}
+
+const juce::Drawable* ControllersTable::markerFor (int row) const
+{
+    const auto* parameter = parameterFor (row);
+
+    // A built-in row has no host parameter to ask while it is still doing its
+    // own job, so its scope comes from what that job reaches. Point it at a
+    // parameter and the parameter's own scope takes over, which is right: the
+    // row is then that parameter's, and CC 7 is only how it is reached.
+    const auto scope = parameter != nullptr ? parameter->scope
+                                            : builtinScope (builtinFor (row));
+
+    switch (scope)
+    {
+        case Scope::perNote: return perNoteMarker.get();
+        case Scope::global:  return globalMarker.get();
+        case Scope::split:   break;
+    }
+
+    // The usual case is unmarked. A glyph on every row would be a column of
+    // furniture saying "normal", and the two that matter would stop standing
+    // out — which is the whole job of a marker.
+    return nullptr;
+}
+
+controllers::Builtin ControllersTable::builtinFor (int row) const
+{
+    const auto index = mappingIndexFor (row);
+
+    return juce::isPositiveAndBelow (index, mappings.size()) ? mappings[index].builtin
+                                                             : Builtin::none;
+}
+
+bool ControllersTable::selectionIsBuiltin() const
+{
+    const auto index = mappingIndexFor (table.getSelectedRow());
+
+    return juce::isPositiveAndBelow (index, mappings.size())
+        && mappings[index].builtin != Builtin::none;
 }
 
 void ControllersTable::changed()
@@ -539,6 +666,59 @@ bool ControllersTable::ignoresLsb (int row) const
 
     const auto m = mappings[mapping].mode;
     return m == Mode::toggle || m == Mode::increment;
+}
+
+bool ControllersTable::isCellInvalid (int row, int columnId) const
+{
+    if (columnId != msb && columnId != lsb)
+        return false;
+
+    const auto index = mappingIndexFor (row);
+
+    if (index < 0)
+        return false;
+
+    const auto& mapping = mappings[index];
+
+    // A touch row has no controller numbers at all, so neither cell can be
+    // wrong; `paintCell` writes the source's name across the pair instead.
+    if (mapping.source != Source::control)
+        return false;
+
+    const auto number = columnId == msb ? mapping.msb : mapping.lsb;
+
+    // Empty is not invalid. An LSB is optional, and an MSB that has not been
+    // filled in yet is incomplete rather than wrong — `add` leaves one exactly
+    // so.
+    if (! number.has_value())
+        return false;
+
+    if (isCcUnavailable (*number))
+        return true;
+
+    // "If a CC is already used as an MSB, it cannot also be used as an LSB. If
+    // so, both the MSB and the LSB are marked in red and both rows are ignored"
+    // — docs/controllers.md. So the test is symmetric: an LSB is wrong if any
+    // row uses that number as an MSB, and *that* row's MSB is wrong for the
+    // same reason. Marking only the LSB would leave the other row looking fine
+    // while being ignored, which is the worse half of the pair to hide.
+    const auto clashesWith = [this, number] (int otherColumn)
+    {
+        for (const auto& other : mappings)
+        {
+            if (other.source != Source::control)
+                continue;
+
+            const auto& theirs = otherColumn == msb ? other.msb : other.lsb;
+
+            if (theirs.has_value() && *theirs == *number)
+                return true;
+        }
+
+        return false;
+    };
+
+    return clashesWith (columnId == lsb ? msb : lsb);
 }
 
 //==============================================================================
@@ -826,6 +1006,11 @@ void ControllersTable::selectedRowsChanged (int lastRowSelected)
     // Mirrored, not scrolled to: the frozen column's position is the table's,
     // and moving it here would fight the scroll tie below.
     frozenColumn.selectRow (lastRowSelected, true, true);
+
+    // The delete button says `reset` on a built-in row, so the page has to be
+    // told whenever the selection moves — not only when the mappings change.
+    if (onSelectionChanged != nullptr)
+        onSelectionChanged();
 }
 
 //==============================================================================
@@ -864,6 +1049,16 @@ void ControllersTable::lookAndFeelChanged()
         list->setColour (juce::ListBox::outlineColourId,    findColour (ReadOutField::outlineColourId));
         list->setOutlineThickness (metrics::tableOutline);
     }
+
+    // Rebuilt rather than repainted: `replaceColour` bakes the colour into the
+    // Drawable, so a theme change has to reparse. This is the caching trap the
+    // juce-ui skill describes, and the reason these live on the table instead
+    // of on each cell.
+    const auto marker = findColour (ReadOutField::textColourId)
+                            .withMultipliedAlpha (shades::readOnly);
+
+    perNoteMarker = icons::load (icons::perNote, marker);
+    globalMarker  = icons::load (icons::global,  marker);
 }
 
 void ControllersTable::resized()

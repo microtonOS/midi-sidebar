@@ -22,6 +22,68 @@ namespace microtonos::sidebar
 
     `onClick` belongs to this class; use `onChoice` instead.
 */
+//==============================================================================
+/** A menu row that draws its glyph at the **right** edge.
+
+    `PopupMenu::Item::image` exists and is much less work, but it puts the image
+    in the left gutter — the column JUCE reserves for the tick — and
+    docs/controllers.md puts the mark after the name, not before it. There is no
+    option for that, so the row is drawn here instead.
+
+    Everything except the glyph is still the LookAndFeel's: `drawPopupMenuItem`
+    paints the background, the highlight, the tick and the text exactly as it
+    would for an ordinary item, so a marked row and an unmarked one cannot
+    drift apart.
+*/
+class IconMenuItem final : public juce::PopupMenu::CustomComponent
+{
+public:
+    IconMenuItem (juce::String itemText, bool ticked, const juce::Drawable* iconToDraw)
+        : text (std::move (itemText)), isTicked (ticked), icon (iconToDraw)
+    {
+    }
+
+    void getIdealSize (int& idealWidth, int& idealHeight) override
+    {
+        // Asked of the LookAndFeel so the row is the height every other row is,
+        // then widened by the glyph and its margins — otherwise the menu sizes
+        // itself to the text and the mark hangs off the edge.
+        getLookAndFeel().getIdealPopupMenuItemSize (text, false, 0, idealWidth, idealHeight);
+
+        idealWidth += metrics::markerSize + metrics::markerInset * 2;
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        getLookAndFeel().drawPopupMenuItem (g, getLocalBounds(),
+                                            false,                 // isSeparator
+                                            true,                  // isActive
+                                            isItemHighlighted(),
+                                            isTicked,
+                                            false,                 // hasSubMenu
+                                            text, {},
+                                            nullptr,               // the left-gutter image, deliberately not used
+                                            nullptr);
+
+        if (icon == nullptr)
+            return;
+
+        const auto area = getLocalBounds().reduced (metrics::markerInset)
+                                          .removeFromRight (metrics::markerSize)
+                                          .withSizeKeepingCentre (metrics::markerSize, metrics::markerSize);
+
+        icon->drawWithin (g, area.toFloat(), juce::RectanglePlacement::centred, 1.0f);
+    }
+
+private:
+    juce::String text;
+    bool isTicked = false;
+    const juce::Drawable* icon = nullptr;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IconMenuItem)
+};
+
+//==============================================================================
 class ChoiceButton final : public juce::TextButton
 {
 public:
@@ -47,6 +109,26 @@ public:
         refreshText();
     }
 
+    /** A glyph to draw beside item `i`, or nullptr for none.
+
+        Asked per item as the menu is built rather than stored, because the
+        drawables belong to whoever owns the list — a table keeps one of each
+        and hands the same pointer to every cell. `PopupMenu` takes a *copy*, so
+        nothing here has to outlive the menu.
+
+        The same glyph is drawn on the button itself, so a mark seen while
+        choosing is the mark seen afterwards. */
+    std::function<const juce::Drawable* (int)> iconForItem;
+
+    /** The glyph for what is currently selected, drawn at the right of the
+        button. Separate from `iconForItem` because a button can show something
+        that is not in its list — a built-in row's name, say. */
+    void setIcon (const juce::Drawable* icon)
+    {
+        if (std::exchange (selectedIcon, icon) != icon)
+            repaint();
+    }
+
     /** Silent by default: this is normally the owner saying what the value is,
         and reporting that back would be an echo. */
     void setSelectedIndex (int index, juce::NotificationType notification = juce::dontSendNotification)
@@ -66,7 +148,46 @@ public:
     /** Called only when the end-user picks from the menu. */
     std::function<void (int)> onChoice;
 
+    //==========================================================================
+    /** The base class draws the background and the centred label; this adds the
+        glyph at the right, **and drops it when the label has grown into that
+        space**.
+
+        A `TextButton` centres its text, so as the panel narrows the label
+        spreads outwards and would slide underneath a mark drawn at a fixed
+        inset. Clipping the label instead would be worse: the name is the thing
+        you are reading, and the mark is a footnote to it. So the mark is what
+        gives way — it is a property of the row, still visible in the menu and
+        at any width where both fit. */
+    void paint (juce::Graphics& g) override
+    {
+        juce::TextButton::paint (g);
+
+        if (selectedIcon == nullptr)
+            return;
+
+        const auto area = iconArea();
+
+        // Centred text, so it spreads both ways from the middle. `+ inset` is
+        // the breathing space that keeps a glyph from touching a descender.
+        const auto font      = getLookAndFeel().getTextButtonFont (*this, getHeight());
+        const auto textWidth = juce::GlyphArrangement::getStringWidth (font, getButtonText());
+        const auto textRight = (getWidth() + textWidth) * 0.5f + (float) metrics::markerInset;
+
+        if (textRight > (float) area.getX())
+            return;
+
+        selectedIcon->drawWithin (g, area.toFloat(), juce::RectanglePlacement::centred, 1.0f);
+    }
+
 private:
+    juce::Rectangle<int> iconArea() const
+    {
+        return getLocalBounds().reduced (metrics::markerInset)
+                               .removeFromRight (metrics::markerSize)
+                               .withSizeKeepingCentre (metrics::markerSize, metrics::markerSize);
+    }
+
     void refreshText()
     {
         setButtonText (juce::isPositiveAndBelow (selectedIndex, items.size()) ? items[selectedIndex]
@@ -83,7 +204,18 @@ private:
             if (i == separatorIndex)
                 menu.addSeparator();
 
-            menu.addItem (i + 1, items[i], true, i == selectedIndex);
+            juce::PopupMenu::Item item (items[i]);
+
+            item.itemID   = i + 1;
+            item.isTicked = i == selectedIndex;
+
+            // Every row gets the custom component once any of them might carry a
+            // glyph, not only the marked ones: a menu drawn by two different
+            // paths is a menu whose rows can disagree about their height.
+            if (iconForItem != nullptr)
+                item.customComponent = new IconMenuItem (items[i], item.isTicked, iconForItem (i));
+
+            menu.addItem (std::move (item));
         }
 
         // A SafePointer, not `this`: these are used as table cells, and a table
@@ -116,6 +248,7 @@ private:
     }
 
     juce::StringArray items;
+    const juce::Drawable* selectedIcon = nullptr;
     int selectedIndex = -1;
     int separatorIndex = -1;
 

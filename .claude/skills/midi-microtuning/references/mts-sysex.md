@@ -192,6 +192,13 @@ Bn 64 04 65 00 61 7F      (data decrement)
 `n` is the basic channel number, `tt` the program or bank number (documented as 1–128 in the
 specification, transmitted as 0–127).
 
+**128 is the ceiling, and a data entry LSB cannot raise it.** CC 38 is the LSB of data entry and a
+registered parameter can take fourteen bits that way, so the question comes up. It changes nothing
+here: the specification says it "provides for 128 tuning memory locations (programs)" and calls that
+a maximum, its own examples send only CC 6, and the dump messages below carry a *single* byte for
+the program and a single byte for the bank — so a sender adding an LSB would be selecting something
+the dump format has no way to name.
+
 This tuning Bank Number is deliberately separate from the Program Change Bank Select (CC #00),
 though an instrument may link them if a tuning bank is stored alongside a patch bank.
 If the instrument has no such program or bank, it should ignore the message.

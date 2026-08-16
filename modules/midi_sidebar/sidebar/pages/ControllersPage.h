@@ -107,6 +107,7 @@ private:
     //==========================================================================
     /** Enables the two history buttons from what the table can actually do. */
     void refreshHistory();
+    void refreshDeleteButton();
 
     /** A framed section: its title band, its content, the padding under it, and
         the row gaps that separate all three. */

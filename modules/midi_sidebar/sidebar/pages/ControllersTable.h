@@ -74,12 +74,22 @@ public:
     void addMapping (controllers::Source source = controllers::Source::control);
 
     /** Removes the selected row, or the last one when nothing is selected, so
-        the button is never dead while there is something to remove. */
+        the button is never dead while there is something to remove — except for
+        the three built-ins, which are restored to their defaults instead,
+        because the table always has all three. */
     void removeSelectedMapping();
+
+    /** True when the selection is a built-in row, so the page can label its
+        button `reset` rather than `delete`. */
+    bool selectionIsBuiltin() const;
 
     /** Called after any edit, insertion or removal, never while one is in
         progress. */
     std::function<void()> onMappingsChanged;
+
+    /** Called when the selected row changes, so a button whose label depends on
+        what is selected can follow it. */
+    std::function<void()> onSelectionChanged;
 
     //==========================================================================
     //  Undo, over the mappings and nothing else.
@@ -180,6 +190,27 @@ private:
         the mapping, it just has no effect. */
     bool ignoresLsb (int row) const;
 
+    /** Which built-in a row is, or `none`. Asked by the cells: the parameter
+        cell names it, and the MSB cell refuses to be edited because of it. */
+    controllers::Builtin builtinFor (int row) const;
+
+    /** The glyph marking how far this row's parameter reaches, or nullptr for
+        the unmarked case. Owned by the table and rebuilt on a theme change, so
+        a cell borrows it rather than parsing an SVG of its own every repaint. */
+    const juce::Drawable* markerFor (int row) const;
+
+    /** The same glyph by *parameter* rather than by row, for the menu items —
+        which are parameters, and exist before any row points at one. */
+    const juce::Drawable* markerForParameter (int parameterIndex) const;
+
+    /** True when this cell holds a controller number the plugin cannot use, so
+        the cell is washed red and the row does nothing. Two ways in, both from
+        docs/controllers.md: the number is one of the eleven that are not
+        control changes at all, or an LSB duplicates an MSB already mapped.
+
+        Public because the cell components ask it; see `NumberCell::paint`. */
+    bool isCellInvalid (int row, int columnId) const;
+
     /** What drives the row. `control` for anything out of range, so a caller
         never has to check the row first. */
     controllers::Source sourceFor (int row) const;
@@ -236,6 +267,11 @@ private:
         it is then drawn by the LookAndFeel, exactly like the one beside it. */
     SortingHeader* frozenHeader = nullptr;
     SortingHeader* tableHeader  = nullptr;
+
+    /** One of each, not one per cell: the glyphs are the same in every row, and
+        recolouring one means reparsing its SVG — a theme-change job rather than
+        a paint-time one. */
+    std::unique_ptr<juce::Drawable> perNoteMarker, globalMarker;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ControllersTable)
 };

@@ -52,6 +52,7 @@ top of JUCE's own, registered in `SidebarLookAndFeel::registerColours`.
 | `ReadOutField::outlineColourId` | text, hairline alpha | its border |
 | `pageColours::sectionTitleColourId` | text | a section's name |
 | `pageColours::sectionOutlineColourId` | text, hairline alpha | the frame drawn around it |
+| `pageColours::invalidColourId` | **not derived** — a fixed red, blended a fifth toward the text | a cell holding a controller number the plugin cannot use |
 
 Two notes on why these are derived rather than chosen. `windowBackground` is
 *darker* than `widgetBackground` in the dark, midnight and grey schemes and

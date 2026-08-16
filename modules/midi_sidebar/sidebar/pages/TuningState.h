@@ -100,6 +100,16 @@ namespace tuning
         is MIDI's own default. */
     inline constexpr int defaultPitchBendCents = 200;
 
+    /** The default for MPE member channels: 48 semitones.
+
+        Not a choice of ours. On receiving an MPE Configuration Message a
+        receiver sets the manager channel to 2 semitones and every member
+        channel to 48 — MIDI Polyphonic Expression, M1-100-UM v1.1, §2.2.5. The
+        same section then allows both to be changed with RPN 0 at any time, so
+        these are starting points rather than fixed values, which is why they are
+        editable at all. `juce::MPEZone` uses the same two defaults. */
+    inline constexpr int defaultMemberPitchBendCents = 48 * 100;
+
     /** RPN 0's semitone count is a 7-bit field, so 127 semitones is the largest
         range the message can express — the protocol's ceiling rather than a
         judgement about what is musical. */

@@ -25,6 +25,9 @@ Tunings files can be arranged in a directory to form a bank, and several such di
 For these tuning standards the name is clickable and other tuning programs (and banks) are selectable.
 If so, tuning programs and banks can also be explored numerically.
 Tuning program and bank also respond to registered parameter numbers. Tuning Program Select is RPN 0/3 (CC 101 value 0 followed by CC 100 value 3, CC 6 set the value while CCs 96 and 97 step it) and Tuning Bank Select is RPN 0/4 (4 instead of 3).
+There are 128 tuning banks at most.
+
+
 A time stamp when the tuning was last updated is useful for seeing whether the plugin is connected to a tuning master of one sort or another.
 
 The period section shows the period of a tuning.

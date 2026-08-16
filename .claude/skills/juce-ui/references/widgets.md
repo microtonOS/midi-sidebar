@@ -323,6 +323,40 @@ before handing it over or it lands at zero and the list looks headerless.
 
 Note that although `Slider::IncDecButtons` behaves like a slider, its graphical appearance is that of a pair of buttons, which is why it is placed in this section.
 
+**A `TextButton` centres its text, so anything else you draw on it gets slid
+under.** Put an icon or a badge at a fixed inset from the right edge and it looks
+right until the button narrows: the label spreads outwards from the middle and
+walks straight over it. Nothing warns you, because the label is drawn by
+`drawButtonText` and your decoration afterwards.
+
+Measure before drawing, and let the *decoration* give way rather than clipping
+the label — the label is what is being read:
+
+```cpp
+const auto font  = getLookAndFeel().getTextButtonFont (*this, getHeight());
+const auto width = juce::GlyphArrangement::getStringWidth (font, getButtonText());
+
+// Centred, so it spreads both ways from the middle.
+if ((getWidth() + width) * 0.5f + margin > (float) iconArea.getX())
+    return;
+```
+
+Ask the LookAndFeel for the font rather than assuming one: an override may be
+scaling it to the button height, which is exactly the case where the text is
+widest relative to the button.
+
+**A label above a control is `Label::attachToComponent`, not a layout row.**
+
+```cpp
+programLabel.attachToComponent (&programStepper, false);   // false = above
+```
+
+The label then positions itself over its owner and follows it, so it must **not**
+be placed in the grid — the grid places the control and reserves the row above,
+and the label finds it. Placing both is the mistake, and it leaves the label
+where the layout put it while the control moves out from under it. `true` puts
+the label on the left instead.
+
 **A button has a name as well as a text, and they are only the same by
 accident.** `Button (const String& name)` sets the *component* name and the
 button text from the one argument, so `TextButton { "load" }` gives both. The

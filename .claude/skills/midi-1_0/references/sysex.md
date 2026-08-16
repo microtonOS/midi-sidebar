@@ -88,7 +88,41 @@ One documented exception: the original Bulk Dump (`sub-ID#2 = 01`) was ambiguous
 enough that manufacturers implemented its checksum differently, and receivers are
 now recommended to **ignore** it on that message alone.
 
+## Device Control: Master Volume and Master Balance
+
+Universal **Real Time**, sub-ID#1 `04` (p57). Both are 14-bit, LSB first:
+
+```
+F0 7F <device id> 04 01 vv vv F7     Master Volume;  00 00 = off
+F0 7F <device id> 04 02 bb bb F7     Master Balance; 00 00 = hard left,
+                                                     7F 7F = hard right
+```
+
+They exist "to produce the same effect as volume and balance controls on a stereo
+amplifier … so that one Master Volume control can simultaneously fade out all the
+layers in a sound module". The clue to their design is in the first sentence of
+the section: **they address *devices*, where CC 7 and CC 8 address *channels***.
+
+### The three scalars
+
+This is the part worth knowing, because it settles a question that looks like a
+conflict and is not. A conforming device "must internally track three volume and
+two balance scalars":
+
+1. one received on **its own ID** — "which matches its knob on the front panel;
+   if no knob or if knob is not scanned then power up default is set at full
+   volume";
+2. one received on the **broadcast ID `7F`**, the All Call;
+3. one from **channel messages**, i.e. CC 7 and CC 8.
+
+They multiply rather than compete: "each virtual/channel-based instrument can be
+individually mixed, then a device could be individually scaled, and then all
+devices could be brought down together without forgetting their individual
+levels." So a plugin answering both a Master Volume SysEx and CC 7 is doing the
+right thing — the two are different layers of one mix, and implementing only one
+of them loses a layer.
+
 <!-- Not yet read from their own documents: Table VIIb (manufacturer ID
 assignments), the Device Inquiry and File Dump message layouts, MIDI Show
-Control, MIDI Machine Control, and Device Control (Master Volume and Balance).
-All are listed in the 4.2.1 contents at pp34-58. -->
+Control and MIDI Machine Control. All are listed in the 4.2.1 contents at
+pp34-58. -->

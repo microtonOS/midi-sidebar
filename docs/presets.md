@@ -30,6 +30,7 @@ If the preset name is clicked, a menu appears to choose between different preset
 (The name can be edited whenever the file is saved, see below.)
 In addition, preset program numbers and preset bank numbers can be incremented and decremented.
 These numbers also respond to program change messages and bank select control change (CC0 and CC32).
+The two controllers together address 16384 banks, which is the range of the bank stepper here and of the bank select row of the [controllers](controllers.md) table.
 
 In the file section, the end-user can open or save a preset file.
 The default format is `.xml` but the developer may use their own format.

@@ -42,7 +42,8 @@ ControllersPage::ControllersPage()
     redoButton  .onClick = [this] { table.redo(); };
 
     table.onMappingsChanged = [this] { if (onMappingsChanged != nullptr) onMappingsChanged(); };
-    table.onHistoryChanged  = [this] { refreshHistory(); };
+    table.onHistoryChanged   = [this] { refreshHistory(); };
+    table.onSelectionChanged = [this] { refreshDeleteButton(); };
 
     refreshHistory();
 }
@@ -105,6 +106,17 @@ void ControllersPage::refreshHistory()
     // harder to aim at than one with a greyed button in it.
     undoButton.setEnabled (table.canUndo());
     redoButton.setEnabled (table.canRedo());
+
+    refreshDeleteButton();
+}
+
+void ControllersPage::refreshDeleteButton()
+{
+    // The three built-in rows cannot be removed — the sidebar would then have no
+    // way to answer bank select — so on those the button restores the row's
+    // defaults instead, and says which of the two it is about to do. A mixed
+    // selection reads `reset`, the less destructive of the two words.
+    deleteButton.setButtonText (table.selectionIsBuiltin() ? "reset" : "delete");
 }
 
 //==============================================================================

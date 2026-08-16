@@ -263,7 +263,16 @@ void DemoEditor::showSampleControllers()
     vibrato.min = 1.0;
     vibrato.max = 3.0;
 
-    page.setMappings ({ cutoff, resonance, vibrato });
+    // A deliberately broken row, so the invalid wash is visible in the figures
+    // and cannot regress unnoticed. CC 120 is All Sound Off — a Channel Mode
+    // Message, not a control change at all — which is one of the eleven numbers
+    // `controllers::isCcUnavailable` refuses under any setting.
+    controllers::Mapping broken;
+    broken.parameterIndex = synth::Index::filterLfoRate;
+    broken.channel = 3;
+    broken.msb = 120;
+
+    page.setMappings ({ cutoff, resonance, vibrato, broken });
 
     // The examples docs/controllers.md gives, newest first. The page does not
     // compose these — see the note in ControllersState.h — so the phrasing is

@@ -52,6 +52,11 @@ public:
         `tuning::highestPitchBendCents`. */
     void setPitchBendCents (int cents);
 
+    /** The per-note range for MPE member channels, in cents. MPE's own default
+        is 48 semitones against the global 2 — see
+        `tuning::defaultMemberPitchBendCents`. */
+    void setMemberPitchBendCents (int cents);
+
     /** Shown on the load button. Empty means nothing is loaded, which the
         button draws as a prompt rather than as a filename. */
     void setLoadedSummary (const juce::String& summary);
@@ -72,6 +77,7 @@ public:
     std::function<void (tuning::UpdateMode)> onUpdateModeChanged;
     std::function<void (double)> onModDivisorChanged;
     std::function<void (int)> onPitchBendCentsChosen;
+    std::function<void (int)> onMemberPitchBendCentsChosen;
 
     /** The period the end-user stepped to, in cents — always one of the
         candidates handed in by `setPeriod`, never a value they invented. */
@@ -92,15 +98,17 @@ public:
     */
     static constexpr int getNaturalHeight() noexcept
     {
-        // Counted from the grid `resized` builds: nine rows of content, and for
-        // each of the three groups a title band above its rows and a padding
+        // Counted from the grid `resized` builds: eleven rows of content, and
+        // for each of the four groups a title band above its rows and a padding
         // track below them.
-        constexpr int contentRows = 10;     // interval, mod, name, the program
+        constexpr int contentRows = 11;     // interval, mod, name, the program
                                             // and bank labels, their steppers,
-                                            // updated, period, scheme, and the
-                                            // two rows the load buttons and the
-                                            // update choices share
-        constexpr int groups = 3;           // status, period, settings
+                                            // updated, period, scheme, the two
+                                            // rows the load button and the
+                                            // update choices share, and the
+                                            // pitch-bend label row and its
+                                            // editors
+        constexpr int groups = 4;           // status, period, settings, pitch bend
         constexpr int tracks = contentRows + groups * 2;
 
         return contentRows * metrics::pageRowHeight
@@ -128,14 +136,15 @@ private:
     tuning::Status   status;
     tuning::Period   period;
 
-    int pitchBendCents = tuning::defaultPitchBendCents;
+    int pitchBendCents       = tuning::defaultPitchBendCents;
+    int memberPitchBendCents = tuning::defaultMemberPitchBendCents;
 
 
     /** The labels naming a field beside or above it. Collected so that the one
         thing they share — font, colour, alignment — is applied in a loop rather
         than six times. */
     juce::Label modLabel, equalsLabel, programLabel, bankLabel, updatedLabel,
-                pitchBendLabel;
+                pitchBendLabel, memberPitchBendLabel;
 
     juce::StringArray availableNames;
 
@@ -151,14 +160,14 @@ private:
         after these draws on top of them, which is the whole arrangement.
 
         The interval and modulo at the top have no frame, as specified. */
-    juce::GroupComponent statusGroup, periodGroup, settingsGroup;
+    juce::GroupComponent statusGroup, periodGroup, settingsGroup, pitchBendGroup;
 
     //  Status section. The name opens a menu of the tunings on offer; program
     //  and bank are stepped rather than read, with their labels above them —
     //  inc/dec buttons and a label side by side do not fit half a page.
     ChoiceButton nameButton { "tuning name" };
     NumberStepper programStepper { "program", metrics::highestProgram };
-    NumberStepper bankStepper { "bank", metrics::highestBank };
+    NumberStepper bankStepper { "bank", metrics::highestTuningBank };
     ReadOutField updatedField;
 
     //  Period section. The chooser steps through `choices` rather than holding
@@ -176,8 +185,14 @@ private:
         through a file dialog to describe one tuning. */
     juce::TextButton openButton;
 
-    juce::TextEditor pitchBendEditor;
     ChoiceStrip updateStrip;
+
+    /** Pitch bend section. Two ranges, because MPE keeps two: `global` is the
+        manager channel and every non-MPE channel — a pitch wheel, in practice —
+        while `MPE member` is the per-note bend on the member channels. See
+        docs/tuning.md, and `tuning::defaultMemberPitchBendCents` for why the
+        two defaults differ. */
+    juce::TextEditor pitchBendEditor, memberPitchBendEditor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TuningPage)
 };
