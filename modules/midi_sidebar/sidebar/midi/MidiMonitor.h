@@ -113,6 +113,27 @@ namespace midiMonitor
                 return "Sysex  master volume";
             }
 
+            // The two CA-025 added. Shown with their displacement for the same
+            // reason the volume is: the sidebar acts on them, so what they asked
+            // for is worth reading.
+            if (sub1 == 0x04 && sub2 == 0x03)
+            {
+                if (const auto cents = deviceControl::masterFineTuningFrom (m))
+                    return "Sysex  master fine tuning  "
+                         + juce::String (*cents, 2) + " c";
+
+                return "Sysex  master fine tuning";
+            }
+
+            if (sub1 == 0x04 && sub2 == 0x04)
+            {
+                if (const auto cents = deviceControl::masterCoarseTuningFrom (m))
+                    return "Sysex  master coarse tuning  "
+                         + juce::String (*cents / 100.0, 0) + " st";
+
+                return "Sysex  master coarse tuning";
+            }
+
             if (sub1 == 0x04 && sub2 == 0x02) return "Sysex  master balance";
             if (sub1 == 0x09)                 return "Sysex  general MIDI";
 

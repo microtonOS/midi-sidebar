@@ -79,9 +79,7 @@ public:
         ignored, and an empty list shows the placeholder. */
     void setMessages (juce::StringArray messages);
 
-    /** What the monitor currently reads, which is the message stream or — while
-        learning — what learning is hearing. The counterpart to `setMessages`,
-        and the only way to see which of the two is showing. */
+    /** What the monitor currently reads. The counterpart to `setMessages`. */
     const juce::String& getMonitorText() const noexcept { return monitor.getValue(); }
 
     //==========================================================================
@@ -94,6 +92,10 @@ public:
         own, and the two halves meet in `observeLearn`. Calling this again for
         another parameter abandons the first, which is what choosing `MIDI
         learn` twice should do.
+
+        Puts up a modal window — "Move controller!", then "Release controller!"
+        once something has moved — rather than taking the monitor over, so the
+        incoming stream stays readable while the gesture is made.
 
         The name shown is looked up here rather than passed in: the page already
         holds the parameter list, and a caller supplying its own name would be a
@@ -111,8 +113,8 @@ public:
     void cancelLearn();
 
     /** Told when learning ends, so the owner can disarm its router — with the
-        mapping if one was learned, or nothing if it timed out. The row itself
-        has already been added by then. */
+        mapping if one was learned, or nothing if it timed out or was cancelled.
+        The row itself has already been added by then. */
     std::function<void (std::optional<controllers::Mapping>)> onLearnFinished;
 
     //==========================================================================
@@ -156,16 +158,23 @@ private:
 
     void timerCallback() override;
 
-    /** Decides, adds the row if there is one to add, and stops. */
-    void finishLearn();
-
-    /** The monitor's single writer: the learning lines while learning, the
-        message stream otherwise. The stream carries on accumulating either
-        way, so the monitor comes back current rather than stale. */
+    /** Writes the message stream to the field. Learning no longer takes the
+        monitor over — it puts a window up instead, so the stream stays visible
+        while a controller is being moved, which is the point. */
     void refreshMonitor();
 
+    /** Called by `LearnWindow` on the message thread once its wait has ended,
+        however it ended. The one place learning is torn down. */
+    void learnWindowClosed (bool userPressedCancel);
+
+    class LearnWindow;
+
     MidiLearner learner;
-    juce::String learningName;
+
+    /** Self-deleting, per `ThreadWithProgressWindow`'s convention, so this is a
+        borrowed pointer cleared in `learnWindowClosed`. */
+    LearnWindow* learnWindow = nullptr;
+
     bool waitingForFirst = false;
 
     /** A framed section: its title band, its content, the padding under it, and
@@ -190,13 +199,16 @@ private:
         and knows nothing about messages. */
     juce::StringArray messages;
 
-    /** One button per kind of row, labelled from `controllers::sourceNames` so
-        the button and the cell it produces cannot drift apart. `CC` makes the
-        ordinary sort; `AT` and `PT` make rows that have no controller number at
-        all and say so in the cell where one would be. */
-    juce::TextButton ccButton         { controllers::sourceNames[0] },
-                     aftertouchButton { controllers::sourceNames[1] },
-                     polytouchButton  { controllers::sourceNames[2] };
+    /** One button per kind of row. `CC` makes the ordinary sort, with an MSB
+        and maybe an LSB; the other two make rows that have no controller number
+        at all and say so across those two columns instead.
+
+        Literals rather than `controllers::sourceNames`, which the *cells* use:
+        the cell for an ordinary row holds a number, so its entry there is
+        "control" and would be the wrong word on a button that adds one. */
+    juce::TextButton ccButton { "CC" },
+                     aftertouchButton { "aftertouch" },
+                     polytouchButton { "polytouch" };
 
     /** Undo and redo read as words at a third of the panel, so the arrows
         docs/controllers.md offers as a fallback are not needed. */

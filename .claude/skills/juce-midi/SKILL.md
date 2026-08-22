@@ -48,6 +48,16 @@ wrong for the whole of that time and shows no sign of changing.
   whichever word it picks — pick the spec's for your own names and expect the
   seam.
 
+## Checking any of this
+
+None of JUCE's MIDI classes needs a plugin, a host or a window, so a parser
+built on them can be exercised in a console app.
+`juce-guide/scripts/add_check_app.cmake` makes that a CTest target;
+`juce-guide/scripts/check.sh` runs one ad hoc. Byte sequences to feed them —
+RPN and NRPN, the MPE configuration message, Master Volume, and a 14-bit sweep
+in both byte orders — come from
+[midi-1_0/scripts/midi_vectors.py](../midi-1_0/scripts/midi_vectors.py).
+
 ## What JUCE is not
 
 `MidiRPNDetector` is a parser for the (N)RPN *idiom*, not a general

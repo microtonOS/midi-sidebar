@@ -6,6 +6,56 @@ an agent asked to look at the TODO should not have to load this at all.
 
 Newest at the top within each batch.
 
+- **Master and channel tuning applies under `MTS Sysex` only.** The deciding
+  argument was that a scheme carrying its own pitch reference should not have it
+  silently overridden: MTS ESP has a master that owns absolute pitch, a `.kbm`
+  states a reference note *and* its frequency, and "standard" means A440 by
+  definition. Only the scheme that reads its tuning from the MIDI stream also
+  takes its displacement from that stream.
+
+  The case against is recorded in TODO.md rather than lost, because it is a good
+  one: GM2 **requires** Scale/Octave Tuning Adjust (§4.7) *and* all four
+  displacements together, so a conforming device must compose them; scale/octave
+  tuning carries no absolute reference at all, being offsets from equal
+  temperament; MTS frequencies are encoded as *semitone plus fraction*, relative
+  to a note grid that a displacement moves; and the minilogue xd keeps a scale
+  and a global Master Tune orthogonal in exactly that way — it even reduces a
+  128-note bulk dump to a relative scale, discarding the absolute anchor.
+
+- **Master and channel tuning.** The two Device Control system exclusives
+  CA-025 added — Master Fine (`04 03`, 14 bits, ±100 c in steps of 0.0122 c) and
+  Master Coarse (`04 04`, 7 bits, ±64 semitones, and its "LSB is always 0" is
+  enforced rather than assumed) — plus RPN 01 and 02, which the same document
+  renamed from *Master* to **Channel** Fine and Coarse Tuning. All four are
+  displacements from A440 and are **summed**, which is CA-025's own rule.
+
+  Applied as an offset at query time rather than folded into `TuningTable`, for
+  two reasons: a displacement is not part of a tuning — the same table sounds at
+  a different pitch under a different master tuning — and RPN 01 steps by
+  0.0122 c where an MTS frequency field steps by 0.0061 c, so baking it in would
+  lose precision.
+
+  **Not applied under MTS ESP.** There an external master is the authority on
+  absolute pitch and every other client is asking that same master, so a local
+  displacement would put this plugin out of tune with all of them; a user wanting
+  A=442 sets it on the master, and the frequencies handed to us already carry it.
+
+- **The default tuning name is `12edo`**, not `12edo A4=440 Hz`, and is now the
+  fallback for *every* scheme including MTS ESP — a master with no scale name and
+  a plugin with no tuning are both playing equal temperament, which is more use
+  than the word "Unnamed". The reference pitch left the name because it is not
+  fixed there: master and channel tuning move it, and the presets page shows the
+  frequencies actually sounding.
+
+- **`checks/`, run by `ctest`.** Six console apps over the module's logic
+  headers, `enable_testing()` at the top level. They exist because an earlier
+  round of the same suites was written into a session temp directory, passed, and
+  was gone the next day: a check that is not a build target is not a check.
+  Reusable *fixtures* went to the skills instead —
+  `midi-1_0/scripts/midi_vectors.py`, `midi-microtuning/scripts/mts_sysex.py`
+  (which encodes as well as decodes, since nothing off the shelf does both) and
+  `scales.py` — with the CMake harness in `juce-guide/scripts/`.
+
 - **The tuning page reads real tunings.** Four pure headers in
   `sidebar/tuning/`: `TuningTable` (128 frequencies per channel plus the
   unspecified list, each `optional` so *unmapped* is distinct from silent),

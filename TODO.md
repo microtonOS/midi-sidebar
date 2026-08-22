@@ -93,6 +93,46 @@ control is a button rather than a strip — is still generated and unused.
 
 **High Priority**.
 
+- **Name the `MTS Sysex` tuning standard something truer.** It now reads more
+  than system exclusive: the tuning RPNs (0/3 program, 0/4 bank) are MTS but are
+  not sysex, and master and channel tuning arrive there too and are not MTS at
+  all — they are core MIDI and CA-025 Device Control.
+
+  `MTS` is the smaller fix and is right about the tuning itself. **`MIDI`** is
+  the honest one, and makes the four read as *sources* — MIDI, MTS ESP, files,
+  standard, i.e. where the tuning comes from. `MIDI tuning` if the bare word is
+  too broad inside a MIDI plugin. Touches `tuning::Scheme`, `schemeNames`,
+  docs/tuning.md and the figures.
+
+- **Pitch-bend sensitivity may want to move to the channels page.** Staying on
+  the tuning page for now, by your call, and the reasoning is worth keeping
+  because the two specifications pull opposite ways:
+
+  - **MPE forbids per-channel variation.** §2.2.5: "Member Channels within the
+    same Zone **shall not** have different Pitch Bend Sensitivity values. A
+    receiver **shall** apply the last Pitch Bend Sensitivity message received on
+    any Member Channel to all Member Channels in the Zone." So the current two
+    fields are conformant rather than simplified, and a per-member-channel UI
+    would let the end-user build an illegal state.
+  - **Core MIDI and GM2 assume per-channel.** RPN 0 is an ordinary channel
+    message with no uniformity rule. Under Omni On there is one instrument so it
+    does not arise; under Omni Off each channel is its own part and per-channel
+    is normal. GM2 §3.4.1 requires it per channel, default 2 semitones, "shall be
+    able to accommodate at least ±12", rhythm channels excepted. Mode 4 has its
+    own escape hatch — a controller on the channel *one below* the Basic Channel
+    is a Global Controller affecting all voices, "though not all receivers may
+    provide this function".
+
+  So per-channel is only wanted for the non-MPE case, and the channels page is
+  the only page with a per-channel UI — it also already owns the manager/member
+  distinction the two tuning-page fields currently duplicate. Worth doing as **one**
+  change: moving it without adding per-channel values buys nothing.
+
+  One gap in the present fields either way: MPE's rule is **per Zone**, and there
+  can be two. Strictly there are up to four values — lower manager, lower
+  members, upper manager, upper members — and with both zones active the
+  specification permits the two zones to differ.
+
 - I'm frequently using 'toggle' to mean both a switch and a button that can be engaged or disengaged. The former should probably just be switch and the latter a toggle. Maybe there are more GUI termonology that I've misused? Check that I'm using words consistently in docs and skills. 
 - Decide on how greying out inactive components should work.
 - Check that skills are organised well and make suggestions on how they could be organsed better.
@@ -136,6 +176,40 @@ Nothing on any page persists — this is true of all four now, not just tuning, 
   it only sets a **default** that the end-user can step away from, and it changes
   nothing that sounds. A tuning that states its own period never reaches
   inference at all.
+
+- **Two MPE zones at once.** MPE allows both — a Lower Zone anchored at manager
+  channel 1 growing up, an Upper Zone anchored at 16 growing down — and says
+  outright that "any MIDI Channels not assigned to any Zone remain available for
+  conventional use" (M1-100-UM v1.1, §2.2.1). So two devices with ordinary
+  channels between them is the specification's own model, not a workaround.
+
+  The page models **one** zone with a lower/upper selector, which Appendix A.2
+  explicitly allows: "many MPE Devices only support one MPE Zone. These Devices
+  might only use the Lower Zone or might provide a way for the user to choose
+  which Zone to use." So this is a conformant implementation level rather than a
+  gap, and Lower by default "provides the widest interoperability".
+
+  What is actually lost is the second device's *zone semantics*: its channels can
+  be selected as plain ones, but its manager channel stops being one, so a bend
+  or pressure sent there no longer applies to all its members and the per-note
+  versus zone pitch-bend split goes with it.
+
+  `juce::MPEZoneLayout` already models both zones, and `midiFilter::layoutFor` is
+  the single place that assumes one — it currently calls `clearAllZones()` and
+  then activates exactly one, which is where that assumption would be lifted — plus `channels::Setup`, which holds one
+  `zone` and one `zoneEdge` rather than a pair. Two further rules to honour when
+  it is built: no channel may belong to two zones, and an MCM that overlaps
+  reassigns those channels to the newer zone, deactivating the older one if that
+  leaves it with no members.
+
+- **Stop sounding notes when the zone changes.** §2.2.3 is a `shall`: "when a
+  receiver changes its Zone configurations, the receiver shall stop all Sounding
+  Notes and reset all controls to reasonable default values on each Channel
+  entering or leaving MPE control." It is phrased about the *receiver's*
+  configuration, so it covers the end-user moving the selector as well as an
+  incoming MCM — and the plugin does neither, because it sends no MIDI at all
+  yet. `onPanic` is still the stub `/* CC120 goes here once the processor sends
+  MIDI. */`, and this wants the same machinery.
 
 - Pitchbend quantization, see docs/tuning.md.
 - Should `Sidebar` be changed to `SideBar` in similarity to `ToolBar` and `SidePanel`?

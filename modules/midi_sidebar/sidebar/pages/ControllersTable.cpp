@@ -116,6 +116,12 @@ struct ControllersTable::NumberCell final : public juce::Component
 
         label.setText (owner.textFor (row, columnId), juce::dontSendNotification);
 
+        // The LSB cell is disabled where the mode ignores it — the two
+        // threshold modes read a single byte against 64, so a low byte would be
+        // a number with no effect. Disabled rather than hidden: it is still
+        // part of the mapping and comes back when the mode changes.
+        setEnabled (! (columnId == ControllersTable::lsb && owner.ignoresLsb (row)));
+
         // Cheap enough to ask on every refresh, and asking here rather than in
         // paint keeps the answer stable while the cell is on screen.
         invalid = owner.isCellInvalid (row, columnId);
@@ -163,8 +169,8 @@ ControllersTable::ControllersTable()
     auto& header = table.getHeader();
     const auto fixed = juce::TableHeaderComponent::visible;
 
-    // Sortable where an order means something. The channel, the controller
-    // number and the mode all have one: the numbers count, and the other two
+    // Sortable where an order means something. The channel, the two controller
+    // numbers and the mode all have one: the numbers count, and the other two
     // follow their own menus — which is what makes the sorted table read in the
     // same order as the menu you picked from.
     //
@@ -179,15 +185,13 @@ ControllersTable::ControllersTable()
     // pixel saved here is one the scrolling area gets, which at the panel's
     // minimum width is the difference between seeing three columns and four.
     //
-    // The two numbers share `tableCcWidth`: two digits and a sort arrow is the
+    // The three numbers share `tableCcWidth`: two digits and a sort arrow is the
     // same shape whether the number is a channel or a controller. `ch` rather
     // than `channel` for the same reason — the column is as wide as its values,
-    // and the values are 1 to 16. `CC` holds `AT` and `PT` on the rows that
-    // have no number, which is why `controllers::sourceNames` is abbreviated:
-    // spelling `polytouch` out would have made this the widest column in the
-    // table for the sake of two rows in a hundred.
+    // and the values are 1 to 16.
     header.addColumn ("ch",      channel, metrics::tableCcWidth,    0, -1, sortable);
-    header.addColumn ("CC",      cc,      metrics::tableCcWidth,    0, -1, sortable);
+    header.addColumn ("MSB",     msb,     metrics::tableCcWidth,    0, -1, sortable);
+    header.addColumn ("LSB",     lsb,     metrics::tableCcWidth,    0, -1, sortable);
     header.addColumn ("mode",    mode,    widthForContents ("mode", itemsFor (mode), true), 0, -1, sortable);
     header.addColumn ("min",     minimum, metrics::tableLimitWidth, 0, -1, fixed);
     header.addColumn ("max",     maximum, metrics::tableLimitWidth, 0, -1, fixed);
@@ -392,14 +396,32 @@ void ControllersTable::removeSelectedMapping()
     if (mappings.isEmpty())
         return;
 
-    const auto selected = mappingIndexFor (table.getSelectedRow());
-    const auto index    = selected >= 0 ? selected : mappings.size() - 1;
+    // **Every** selected row, not the first. The table is multi-select — MIDI
+    // learn leaves several rows selected on purpose — so removing one and
+    // leaving the rest looks like the button half worked.
+    juce::Array<int> doomed;
 
-    if (! juce::isPositiveAndBelow (index, mappings.size()))
+    const auto selected = table.getSelectedRows();
+
+    for (int i = 0; i < selected.size(); ++i)
+        if (const auto index = mappingIndexFor (selected[i]); index >= 0)
+            doomed.addIfNotAlreadyThere (index);
+
+    // Nothing selected still removes the last row, so the button is never dead
+    // while there is something to remove.
+    if (doomed.isEmpty())
+        doomed.add (mappings.size() - 1);
+
+    doomed.sort();
+
+    if (! juce::isPositiveAndBelow (doomed.getLast(), mappings.size()))
         return;
 
     pushUndo();
-    mappings.remove (index);
+
+    // Backwards, so each removal leaves the lower indices where they were.
+    for (int i = doomed.size(); --i >= 0;)
+        mappings.remove (doomed[i]);
 
     refreshRows();
     changed();
@@ -459,8 +481,8 @@ void ControllersTable::changed()
 
 bool ControllersTable::isSortable (int columnId) noexcept
 {
-    return columnId == param || columnId == channel || columnId == cc
-        || columnId == mode;
+    return columnId == param || columnId == channel || columnId == msb
+        || columnId == lsb   || columnId == mode;
 }
 
 void ControllersTable::cycleSort (int columnId)
@@ -549,11 +571,12 @@ void ControllersTable::applyOrdering()
             // The channel's own value *is* its menu position — see
             // `channelForIndex` — so counting sorts omni on, omni off, 1 … 16.
             case channel: return mappings[a].channel < mappings[b].channel;
-            case cc:      return ccKey (mappings[a].cc) < ccKey (mappings[b].cc);
+            case msb:     return ccKey (mappings[a].msb) < ccKey (mappings[b].msb);
+            case lsb:     return ccKey (mappings[a].lsb) < ccKey (mappings[b].lsb);
 
             // Likewise the mode: the enum's order is the menu's order, so this
-            // groups the rows that behave alike and keeps the two threshold
-            // modes together at one end.
+            // groups the rows that behave alike and keeps the two that ignore
+            // the LSB together at one end.
             case mode:    return (int) mappings[a].mode < (int) mappings[b].mode;
             case param:   return nameOf (a).compareIgnoreCase (nameOf (b)) < 0;
             default:      break;
@@ -632,9 +655,20 @@ controllers::Source ControllersTable::sourceFor (int row) const
     return index >= 0 ? mappings[index].source : Source::control;
 }
 
+bool ControllersTable::ignoresLsb (int row) const
+{
+    const auto mapping = mappingIndexFor (row);
+
+    if (mapping < 0)
+        return false;
+
+    const auto m = mappings[mapping].mode;
+    return m == Mode::toggle || m == Mode::increment;
+}
+
 bool ControllersTable::isCellInvalid (int row, int columnId) const
 {
-    if (columnId != cc)
+    if (columnId != msb && columnId != lsb)
         return false;
 
     const auto index = mappingIndexFor (row);
@@ -644,23 +678,53 @@ bool ControllersTable::isCellInvalid (int row, int columnId) const
 
     const auto& mapping = mappings[index];
 
-    // A touch row has no controller number at all, so its cell cannot be wrong;
-    // `paintCell` writes `AT` or `PT` into it instead.
+    // A touch row has no controller numbers at all, so neither cell can be
+    // wrong; `paintCell` writes the source's name across the pair instead.
     if (mapping.source != Source::control)
         return false;
 
-    // Empty is incomplete rather than wrong — `add` leaves a row exactly so.
-    if (! mapping.cc.has_value())
+    const auto number = columnId == msb ? mapping.msb : mapping.lsb;
+
+    // Empty is not invalid. An LSB is optional, and an MSB that has not been
+    // filled in yet is incomplete rather than wrong — `add` leaves one exactly
+    // so.
+    if (! number.has_value())
         return false;
 
-    // The whole test. There used to be a second half, checking that no other
-    // row had claimed this number as its low byte; with one controller number
-    // per mapping there are no low bytes to clash with.
+    if (isCcUnavailable (*number))
+        return true;
+
+    // "If a CC is already used as an MSB, it cannot also be used as an LSB. If
+    // so, both the MSB and the LSB are marked in red and both rows are ignored"
+    // — docs/controllers.md. Any number may be a low byte here, which is the
+    // freedom this table adds over the specification, but a number cannot be
+    // *both* halves at once: the register would then reset itself on every
+    // message it received.
     //
-    // **Two rows sharing a number is not an error.** The same controller aimed
-    // at two parameters is a thing people want, and `MidiRouter::process`
+    // Symmetric, so the other row is marked too. Marking only one would leave
+    // its partner looking fine while being ignored, which is the worse half of
+    // the pair to hide.
+    //
+    // **Two rows sharing an MSB is still fine.** The same controller aimed at
+    // two parameters is a thing people want, and `MidiRouter::process`
     // deliberately does not stop at the first match.
-    return isCcUnavailable (*mapping.cc);
+    const auto clashesWith = [this, number] (int otherColumn)
+    {
+        for (const auto& other : mappings)
+        {
+            if (other.source != Source::control)
+                continue;
+
+            const auto& theirs = otherColumn == msb ? other.msb : other.lsb;
+
+            if (theirs.has_value() && *theirs == *number)
+                return true;
+        }
+
+        return false;
+    };
+
+    return clashesWith (columnId == lsb ? msb : lsb);
 }
 
 //==============================================================================
@@ -686,7 +750,8 @@ juce::String ControllersTable::textFor (int row, int columnId) const
     switch (columnId)
     {
         case channel: return juce::String (mapping.channel);
-        case cc:      return ccText (mapping.cc);
+        case msb:     return ccText (mapping.msb);
+        case lsb:     return ccText (mapping.lsb);
         case minimum: return withUnit (mapping.min);
         case maximum: return withUnit (mapping.max);
         default:      break;
@@ -707,7 +772,8 @@ juce::String ControllersTable::editableTextFor (int row, int columnId) const
     switch (columnId)
     {
         case channel: return juce::String (mapping.channel);
-        case cc:      return mapping.cc.has_value() ? juce::String (*mapping.cc) : juce::String();
+        case msb:     return mapping.msb.has_value() ? juce::String (*mapping.msb) : juce::String();
+        case lsb:     return mapping.lsb.has_value() ? juce::String (*mapping.lsb) : juce::String();
         case minimum: return numberText (mapping.min);
         case maximum: return numberText (mapping.max);
         default:      break;
@@ -747,7 +813,8 @@ void ControllersTable::commitText (int row, int columnId, const juce::String& te
                                                           trimmed.getIntValue());
                       break;
 
-        case cc:      mapping.cc = asCc(); break;
+        case msb:     mapping.msb = asCc(); break;
+        case lsb:     mapping.lsb = asCc(); break;
         // Clamped and snapped to what the target can take. A limit outside the
         // parameter's own range would ask a controller to drive it somewhere it
         // cannot go, and a fractional value typed into an integer parameter — a
@@ -863,12 +930,12 @@ void ControllersTable::paintRowBackground (juce::Graphics& g, int, int, int, boo
         g.fillAll (findColour (ChoiceStrip::selectedColourId).withAlpha (shades::selectedRow));
 }
 
-void ControllersTable::paintCell (juce::Graphics& g, int row, int columnId, int width, int height, bool)
+void ControllersTable::paintCell (juce::Graphics& g, int row, int columnId, int, int height, bool)
 {
-    // Every cell holds a widget, except the one a touch row replaces with a
-    // word — that is left empty by `refreshComponentForCell` so this can draw
-    // into it.
-    if (columnId != cc)
+    // Every cell holds a widget, except the two that a touch row replaces with
+    // one word — those are left empty by `refreshComponentForCell` so that this
+    // can draw into them.
+    if (columnId != msb && columnId != lsb)
         return;
 
     const auto source = sourceFor (row);
@@ -876,18 +943,24 @@ void ControllersTable::paintCell (juce::Graphics& g, int row, int columnId, int 
     if (source == Source::control)
         return;
 
-    // This used to draw one word across *two* cells, shifted left by the MSB
-    // column's width in the second so the halves met — a TableListBox cannot
-    // span columns and clips each cell to itself. With one controller column
-    // and `AT` / `PT` short enough to fit it, there is nothing left to span.
-    const auto inset = metrics::tableCellInset + metrics::labelTextInset;
+    // **One word across two columns**, which is what the sketch draws and what
+    // a TableListBox has no way of expressing: it does not span columns, and a
+    // cell's component is clipped to its own cell. So the same string is drawn
+    // into both cells, shifted left by the MSB column's width in the second,
+    // and each cell's own clip keeps its half. The halves meet exactly, because
+    // the columns are adjacent and the shift is that column's width.
+    auto& header = table.getHeader();
+
+    const auto msbWidth = header.getColumnWidth (msb);
+    const auto span     = msbWidth + header.getColumnWidth (lsb);
+    const auto inset    = metrics::tableCellInset + metrics::labelTextInset;
 
     // Read-only, and drawn like the monitor's read-outs rather than like an
     // editable cell: there is nothing here to type into.
     g.setColour (findColour (ReadOutField::textColourId).withMultipliedAlpha (shades::readOnly));
     g.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
     g.drawText (sourceNames[static_cast<int> (source)],
-                inset, 0, width - inset * 2, height,
+                (columnId == msb ? 0 : -msbWidth) + inset, 0, span - inset * 2, height,
                 juce::Justification::centredLeft, true);
 }
 
@@ -922,7 +995,7 @@ juce::Component* ControllersTable::refreshComponentForCell (int row, int columnI
 
     // A touch row has no controller numbers, so those two cells hold nothing —
     // `paintCell` draws the source's name across the pair instead.
-    if (columnId == cc && sourceFor (row) != Source::control)
+    if ((columnId == msb || columnId == lsb) && sourceFor (row) != Source::control)
     {
         delete existing;
         return nullptr;
@@ -954,11 +1027,35 @@ juce::Component* ControllersTable::refreshComponentForCell (int row, int columnI
     return cell;
 }
 
-void ControllersTable::selectedRowsChanged (int lastRowSelected)
+void ControllersTable::listBoxItemClicked (int row, const juce::MouseEvent& e)
 {
-    // Mirrored, not scrolled to: the frozen column's position is the table's,
-    // and moving it here would fight the scroll tie below.
-    frozenColumn.selectRow (lastRowSelected, true, true);
+    // A click in the frozen column, on the space beside a parameter button
+    // rather than on it. Routed to the table so that *one* list decides what is
+    // selected — clicking there used to move the frozen column's own selection
+    // and leave the table's alone, which is how the two came to disagree.
+    selectRowFromCell (row, e.mods);
+}
+
+void ControllersTable::selectedRowsChanged (int)
+{
+    // **The whole set, not the last row.** This used to mirror
+    // `lastRowSelected` alone, so a multi-row selection — which is what
+    // `selectMappingsFor` makes after MIDI learn — showed as one row in the
+    // frozen column while the table held several. The two views then disagreed
+    // about what was selected, and anything reading the selection got whichever
+    // list it happened to ask.
+    //
+    // Not scrolled to: the frozen column's position is the table's, and moving
+    // it here would fight the scroll tie.
+    if (syncingSelection)
+        return;
+
+    const juce::ScopedValueSetter<bool> guard (syncingSelection, true);
+
+    const auto rows = table.getSelectedRows();
+
+    if (frozenColumn.getSelectedRows() != rows)
+        frozenColumn.setSelectedRows (rows, juce::dontSendNotification);
 }
 
 //==============================================================================
@@ -1007,6 +1104,23 @@ void ControllersTable::lookAndFeelChanged()
 
     perNoteMarker = icons::load (icons::perNote, marker);
     globalMarker  = icons::load (icons::global,  marker);
+}
+
+void ControllersTable::paint (juce::Graphics& g)
+{
+    // **The rectangle the two lists sit on.** Both paint an opaque background of
+    // their own — `ListBox::backgroundColourId`, set in `lookAndFeelChanged` —
+    // so the only part of this that shows is the seam between them.
+    //
+    // Filled with the colour their *outlines* are drawn in, so the gap reads as
+    // one thick divider inside a single table rather than as space between two
+    // widgets: the frozen column's right hairline, this, and the table's left
+    // hairline meet as one continuous line.
+    //
+    // A background rather than a measured strip because there is then no
+    // coordinate to keep in step with `resized` — move the columns and the seam
+    // follows by itself.
+    g.fillAll (findColour (ReadOutField::outlineColourId));
 }
 
 void ControllersTable::resized()

@@ -92,8 +92,22 @@ Setting them afterwards is asymmetric (§2.2.5):
   individually**, which the spec recommends because it "improves compatibility
   with all MIDI Devices".
 
-Member Channels in one zone shall not have different sensitivities; a receiver
-applies the last value it saw on any member to all of them.
+**But the members must all agree**, and this is a `shall`:
+
+> Member Channels within the same Zone **shall not** have different Pitch Bend
+> Sensitivity values. A receiver **shall** apply the last Pitch Bend Sensitivity
+> message received on any Member Channel to all Member Channels in the Zone.
+
+So sending to every member individually is a *compatibility* measure, not a way
+of giving them different ranges. Two consequences worth designing around:
+
+- **A per-member-channel control is wrong.** An interface offering one range per
+  member channel lets the end-user build a state the specification forbids. One
+  value per zone is the correct model, not a simplification of it.
+- **It is per Zone, and there can be two.** A lower and an upper zone may hold
+  *different* member sensitivities, so the full picture is up to four numbers:
+  lower manager, lower members, upper manager, upper members. A single
+  "member" setting quietly assumes one zone.
 
 Two further notes from the same section. MPE devices may limit themselves to a
 whole number of semitones between 0 and 96 — and even at 96, 14-bit pitch bend
@@ -114,6 +128,19 @@ released note (§2.2.6).
   on the Manager Channel "at the discretion of the implementer, to preserve
   compatibility with non-MPE-aware Devices".
 - **In MIDI Mode 4, the MIDI 1.0 Global Channel shall not be used** (§2.2.4.2).
+
+## What MPE says about everything else: nothing
+
+Appendix E, Table 5, *MIDI Messages Used on MPE Channels*, is the place to check
+before assuming MPE has an opinion. It has a single row reading **"All other RPN
+messages"**, marked **O — Optional** on Manager and Member channels, both Tx and
+Rx. NRPN is the same.
+
+So MPE mandates RPN 6, gives RPN 0 its own section, and defines **no zone
+semantics at all** for the rest. Channel Fine and Coarse Tuning (RPN 01 and 02),
+in particular, are neither required nor described — there is no specification
+answer to borrow about how they interact with zones, and a design decision there
+is genuinely yours to make.
 
 ## Modes
 

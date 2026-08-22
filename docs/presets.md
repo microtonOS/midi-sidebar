@@ -11,6 +11,7 @@ They can view and write metadata.
 The end-user can create a keyboard split by pressing the split button.
 When engaged, notes are turned off and muted.
 The indicated frequencies are those of the lowest and highest active notes.
+> These are the frequencies actually sounding, so they include any master or channel tuning displacement as well as the scale — which is why the [tuning](tuning.md) page's name is just the scale ('12edo') and carries no reference pitch.
 If the indicated frequencies are equal, then that is the frequency for a hard split point.
 If they are different, they indicate the lower and upper bounds of a crossfade.
 The frequencies can also be set directly in the text fields.

@@ -170,7 +170,8 @@ void DemoProcessor::handleAsyncUpdate()
     juce::Array<juce::MidiMessage> candidates;
     juce::Array<juce::MidiMessage> tuning;
     juce::Array<juce::MidiRPNMessage> parameters;
-    std::optional<double> volumeDb;
+    std::optional<double> volumeDb, fineCents, coarseCents;
+    std::optional<MidiRouter::Result::MpeConfiguration> mcm;
 
     {
         const juce::ScopedLock lock (matchLock);
@@ -182,6 +183,23 @@ void DemoProcessor::handleAsyncUpdate()
         mappings = mappingsForApply;
 
         std::swap (volumeDb, pendingMasterVolumeDb);
+        std::swap (fineCents, pendingMasterFineCents);
+        std::swap (coarseCents, pendingMasterCoarseCents);
+        std::swap (mcm, pendingMpeConfiguration);
+    }
+
+    // An MPE Configuration Message reconfigures the zone the router filters by,
+    // and the channels page has to be told so the matrix shows it. Applied here
+    // rather than in the router because the conversion from a member *count* to
+    // the page's *edge* is the page's arithmetic, not the wire's.
+    if (mcm.has_value())
+    {
+        const auto setup = channels::withMpeConfiguration (router.getChannels(),
+                                                           mcm->zone, mcm->memberChannels);
+        router.setChannels (setup);
+
+        if (onChannelsChanged != nullptr)
+            onChannelsChanged (setup);
     }
 
     // Tuning first: parsing a sysex and stepping a tuning program both allocate,
@@ -198,9 +216,6 @@ void DemoProcessor::handleAsyncUpdate()
     for (const auto& rpn : parameters)
         tuningMoved = tuningSource.handleRpn (rpn) || tuningMoved;
 
-    if (tuningMoved && onTuningChanged != nullptr)
-        onTuningChanged();
-
     // Reported before the matches are applied: a row learned from these is not
     // in `mappings` yet, and adding it comes back through setMappings.
     if (! candidates.isEmpty() && onLearnCandidates != nullptr)
@@ -208,6 +223,21 @@ void DemoProcessor::handleAsyncUpdate()
 
     if (volumeDb.has_value() && onMasterVolume != nullptr)
         onMasterVolume (*volumeDb);
+
+    if (fineCents.has_value())
+    {
+        tuningSource.setMasterFineCents (*fineCents);
+        tuningMoved = true;
+    }
+
+    if (coarseCents.has_value())
+    {
+        tuningSource.setMasterCoarseCents (*coarseCents);
+        tuningMoved = true;
+    }
+
+    if (tuningMoved && onTuningChanged != nullptr)
+        onTuningChanged();
 
     for (const auto& match : arrived)
     {
@@ -226,7 +256,7 @@ void DemoProcessor::handleAsyncUpdate()
         const auto range   = parameter->getNormalisableRange();
         const auto current = (double) range.convertFrom0to1 (parameter->getValue());
 
-        if (const auto target = midiMapper::valueFor (mapping, match.message, current))
+        if (const auto target = midiMapper::valueFor (mapping, match.value, match.highest, current))
         {
             // Snapped as well as clamped: a controller sweeping a bank number
             // should land on banks, not between them. The mapping's own limits
@@ -316,7 +346,8 @@ void DemoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     // message-thread work.
     if (! routed.matches.isEmpty() || ! routed.learnCandidates.isEmpty()
         || ! routed.tuningSysex.isEmpty() || ! routed.parameters.isEmpty()
-        || routed.masterVolumeDb.has_value())
+        || routed.masterVolumeDb.has_value() || routed.masterFineCents.has_value()
+        || routed.masterCoarseCents.has_value() || routed.mpeConfiguration.has_value())
     {
         if (const juce::ScopedTryLock lock (matchLock); lock.isLocked())
         {
@@ -334,6 +365,15 @@ void DemoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
             if (routed.masterVolumeDb.has_value())
                 pendingMasterVolumeDb = routed.masterVolumeDb;
+
+            if (routed.masterFineCents.has_value())
+                pendingMasterFineCents = routed.masterFineCents;
+
+            if (routed.masterCoarseCents.has_value())
+                pendingMasterCoarseCents = routed.masterCoarseCents;
+
+            if (routed.mpeConfiguration.has_value())
+                pendingMpeConfiguration = routed.mpeConfiguration;
 
             triggerAsyncUpdate();
         }

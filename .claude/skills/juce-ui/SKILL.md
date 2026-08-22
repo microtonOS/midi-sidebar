@@ -430,6 +430,12 @@ To look at the GUI you have built, use the snapshot tool in
 window, no screen capture — so it works headless and inside a sandbox. Never use
 the operating system's screenshot utility.
 
+To *assert* on non-visual behaviour rather than look at it — a layout
+calculation, a widget's state machine — build a console app around the header
+instead: `juce-guide/scripts/add_check_app.cmake` makes one a CTest target and
+`juce-guide/scripts/check.sh` runs one ad hoc. Neither needs a window, so both
+work in the same headless conditions the snapshot tool does.
+
 
 ### Role Models
 tiagolr's RipplerX ([GitHub](https://github.com/tiagolr/ripplerx)) is a beautiful opensource plugin in the simple but elegant style.

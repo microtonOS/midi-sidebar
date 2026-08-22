@@ -64,6 +64,20 @@ once a parameter number is set, returns again with a 14-bit value on each
 following LSB, and copes with a sender that never sends one. Reach for it before
 writing a parser.
 
+### None of them is required
+
+Worth stating outright, because the table below reads like a contract and is not
+one. **MIDI 1.0 never says a device must implement any RPN.** The strongest word
+anywhere near the subject is rule 5's — reception of Registered Parameter Numbers
+"**may** be enabled on power-up" — which is permission, not obligation. There is
+no `shall` for RPN 0, or 1, or any of them.
+
+So a receiver that ignores RPN 0 entirely is conformant with MIDI 1.0, and a
+sender cannot assume its pitch-bend range was heard. Where a requirement does
+exist it comes from a profile on top: **General MIDI 2 requires RPN 00, 01, 02
+and 05** — see [general-midi](general-midi.md). MPE requires RPN 6 and treats
+RPN 0 specially, and marks everything else Optional; see [mpe](mpe.md).
+
 ## Registered parameters
 
 Table IIIa lists five, and lists them **LSB first** — the MSB is `00` for all of

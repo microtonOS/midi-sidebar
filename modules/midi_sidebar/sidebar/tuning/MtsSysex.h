@@ -22,7 +22,7 @@ namespace microtonos::sidebar
     every MTS format — but `MTSClient::freq()` opens with `if
     (!global.isOnline()) return localTunings[note].freq`, so a connected MTS-ESP
     master always wins and the sysex table is only a fallback. docs/tuning.md
-    says selecting MTS Sysex "ignores the MTS ESP master", and there is no API to
+    says selecting MIDI 1.0 "ignores the MTS-ESP master", and there is no API to
     turn the master off. So the two schemes need two independent sources, and
     this is the one we own. Nothing else off the shelf does the job either: Surge's
     tuning-library has no sysex at all, `tschiemer/midimessage` marks MTS TODO,

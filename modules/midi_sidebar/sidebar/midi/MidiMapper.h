@@ -35,6 +35,60 @@ namespace midiMapper
     /** The largest value a 7-bit controller sends. */
     inline constexpr int highestValue = 127;
 
+    /** The largest value an MSB and an LSB together send. */
+    inline constexpr int highestPairValue = 128 * 128 - 1;
+
+    //==========================================================================
+    /** Where one mapping's controller currently is.
+
+        **A register, not a pair.** The specification does not describe a 14-bit
+        controller as two messages belonging together; it describes a receiver
+        holding a high byte and a low byte, where the value is
+        `(msb << 7) | lsb`. That is why a lone MSB is legal, and why "if only the
+        LSB has changed in value, the LSB may be sent without re-sending the MSB"
+        is legal too (Complete MIDI 1.0 Detailed Specification 4.2.1, p12).
+
+        Two rules from the same page, and they are the whole of this:
+
+        - an **LSB refines the last MSB** — it updates the low byte and nothing
+          else;
+        - **a new MSB resets the LSB to zero**, so a fine value from an earlier
+          gesture cannot leak into the next coarse one.
+
+        Because the two write to different places, order does not otherwise
+        matter. Only the reset makes it matter at all — which is exactly why
+        hardware that sends its low byte *first* cannot work here: the MSB that
+        follows wipes it every time. See
+        `.claude/skills/midi-1_0/references/real-devices.md`.
+
+        A mapping with no LSB simply never has `applyLsb` called on it, and its
+        value stays 7-bit. */
+    struct Register
+    {
+        int msb = 0;
+        int lsb = 0;
+
+        /** True once an MSB has arrived. Until then a lone LSB has nothing to
+            refine, and acting on it would drive the parameter from the bottom
+            of its range. */
+        bool started = false;
+
+        void applyMsb (int value)
+        {
+            msb = value;
+            lsb = 0;        // the reset: p12
+            started = true;
+        }
+
+        void applyLsb (int value) { lsb = value; }
+
+        /** The combined value, and how large it can be. A mapping with no LSB
+            number reports seven bits, so `valueFor` scales against the right
+            maximum and a 7-bit controller still reaches the top of its range. */
+        int valueOf (bool hasLsb) const { return hasLsb ? (msb << 7) | lsb : msb; }
+        static int highestOf (bool hasLsb) { return hasLsb ? highestPairValue : highestValue; }
+    };
+
     /** How close `catch` has to be before it takes over, as a fraction of the
         controller's travel. One step of a 7-bit controller: any tighter and a
         knob swept quickly would step straight over the value and never catch. */
@@ -68,15 +122,22 @@ namespace midiMapper
                 return m.isAftertouch();
 
             case controllers::Source::control:
-                return m.isController()
-                    && mapping.cc.has_value()
-                    && m.getControllerNumber() == *mapping.cc;
+                if (! m.isController())
+                    return false;
+
+                // Either byte drives the row. Which of the two it was is the
+                // register's business, not this one's.
+                return (mapping.msb.has_value() && m.getControllerNumber() == *mapping.msb)
+                    || (mapping.lsb.has_value() && m.getControllerNumber() == *mapping.lsb);
         }
 
         return false;
     }
 
-    /** The controller value a message carries, 0..127, whatever kind it is. */
+    /** The controller value a message carries, 0..127, whatever kind it is.
+
+        For a control change this is one *byte* — the register above is what
+        turns a pair of them into a value. */
     inline int valueOf (const juce::MidiMessage& m)
     {
         if (m.isController())      return m.getControllerValue();
@@ -99,15 +160,22 @@ namespace midiMapper
         is a feature and nothing here sorts them.
     */
     inline std::optional<double> valueFor (const controllers::Mapping& mapping,
-                                           const juce::MidiMessage& m,
+                                           int raw, int highest,
                                            double current)
     {
-        const auto raw  = valueOf (m);
         const auto span = mapping.max - mapping.min;
 
-        // Where the controller is, as a fraction of its travel.
-        const auto position = (double) raw / (double) highestValue;
+        // Where the controller is, as a fraction of its travel. `highest` is
+        // 127 for a lone MSB or a touch message and 16383 for an MSB with an
+        // LSB, so the fraction means the same thing either way and the two
+        // threshold modes below can still read a 7-bit value out of it.
+        const auto position = (double) raw / (double) juce::jmax (1, highest);
         const auto target   = mapping.min + span * position;
+
+        // The coarse byte on its own, which is what a switch reads: the
+        // specification's threshold is a 7-bit 64, and an LSB has no bearing on
+        // whether a pedal is down.
+        const auto coarse = highest > highestValue ? raw >> 7 : raw;
 
         switch (mapping.mode)
         {
@@ -146,7 +214,7 @@ namespace midiMapper
                 // "Whenever a controller emits a value at least 64, the toggle
                 // switches." Which end it lands on is decided by which it is
                 // nearer, so a reversed pair reverses the polarity for free.
-                if (raw < switchThreshold)
+                if (coarse < switchThreshold)
                     return {};
 
                 const auto midpoint = (mapping.min + mapping.max) * 0.5;
@@ -160,7 +228,7 @@ namespace midiMapper
                 // so one step is one hundred-and-twenty-seventh of the travel —
                 // and a reversed pair counts downwards, which is what
                 // docs/controllers.md means by decrement.
-                if (raw < switchThreshold)
+                if (coarse < switchThreshold)
                     return {};
 
                 const auto step = span / (double) highestValue;

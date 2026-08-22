@@ -30,6 +30,19 @@ namespace channels
         the whole of the difference. */
     enum class Zone { lower, upper };
 
+    /** Where each zone's manager channel is. Not a preference: MPE fixes them —
+        "The Lower Zone is controlled by Manager Channel 1 … The Upper Zone is
+        controlled by Manager Channel 16" (M1-100-UM v1.1, §2.2.1) — and they are
+        also the only two channels an MPE Configuration Message is ever sent on,
+        which is how the message says which zone it means. */
+    inline constexpr int lowerManagerChannel = 1;
+    inline constexpr int upperManagerChannel = 16;
+
+    /** The MPE Configuration Message is RPN 6 — four control changes, not a
+        message of its own. Sent on a manager channel, its data entry MSB is the
+        number of **member** channels for that zone, and zero deactivates it. */
+    inline constexpr int mpeConfigurationRpn = 6;
+
     /** The page asks two questions rather than showing one four-way switch:
         *which* of the two settings you are looking at, and whether it is on.
         The buttons under the channels then belong to whichever is showing. */
@@ -114,6 +127,39 @@ namespace channels
             return mpeOn ? channelsForZone (zone, zoneEdge) : noChannels;
         }
     };
+
+    //==========================================================================
+    /** This setup with an MPE Configuration Message applied.
+
+        The message names a zone by the channel it arrived on and a **count** of
+        member channels; the page holds an *edge*, which is the channel the zone
+        reaches to. A lower zone with `mm` members occupies 1…1+mm, an upper zone
+        16-mm…16 — so the conversion is the inverse of `midiFilter::layoutFor`'s,
+        and both live beside their own type rather than being done at call sites.
+
+        `mm = 0` deactivates the zone. The edge is *kept* rather than zeroed, for
+        the same reason `zoneEdge` survives the zone being switched off by hand:
+        turning it back on should restore what was set up, not a default.
+
+        **Single zone.** MPE allows both at once, with any channels left over
+        "available for conventional use" (§2.2.1); the page models one, which
+        Appendix A.2 explicitly allows — "many MPE Devices only support one MPE
+        Zone … might provide a way for the user to choose which Zone to use". So
+        an MCM for the other zone *moves* the zone rather than adding one, which
+        follows §2.2.1's rule that the most recent message takes precedence. See
+        TODO.md for supporting two.
+    */
+    inline Setup withMpeConfiguration (Setup setup, Zone zone, int memberChannels)
+    {
+        setup.zone  = zone;
+        setup.mpeOn = memberChannels > 0;
+
+        if (memberChannels > 0)
+            setup.zoneEdge = zone == Zone::lower ? 1 + memberChannels
+                                                 : numChannels - memberChannels;
+
+        return setup;
+    }
 }
 
 } // namespace microtonos::sidebar

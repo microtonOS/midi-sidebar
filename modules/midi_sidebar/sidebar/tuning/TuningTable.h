@@ -176,8 +176,13 @@ namespace standardTuning
     inline constexpr double referenceHz   = 440.0;
     inline constexpr int    referenceNote = 69;
 
-    /** The name docs/tuning.md:22 asks for when a scheme carries none. */
-    inline const juce::String name { "12edo A4=440 Hz" };
+    /** What every scheme falls back to when it carries no name of its own.
+
+        Just the scale. The reference pitch is not in it because it is not fixed
+        here — master and channel tuning displace the whole instrument from A440
+        — and because the presets page shows the sounding frequencies anyway,
+        which is the honest place to read a pitch off. */
+    inline const juce::String name { "12edo" };
 
     inline double frequencyFor (int note)
     {

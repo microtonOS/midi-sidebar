@@ -20,7 +20,7 @@ namespace microtonos::sidebar
     what `TableHeaderComponent` does, and it satisfies half of what
     docs/controllers.md asks for — but nothing anywhere pins a column. So this is
     two views of one list side by side: a `ListBox` holding the parameter column,
-    and a `TableListBox` holding the five that scroll, with their vertical
+    and a `TableListBox` holding the six that scroll, with their vertical
     scrolling tied together.
 
     Being both models at once is deliberate rather than clever. `ListBoxModel`
@@ -70,9 +70,9 @@ public:
 
         The source is an argument rather than a column because it decides what
         the rest of the row means: an aftertouch or polytouch row has no
-        controller number, so its `CC` cell holds `AT` or `PT` instead. That is
-        why docs/controllers.md gives those two their own buttons beside `add`
-        instead of a menu inside the table. */
+        controller number, so its MSB and LSB cells are replaced by the word
+        itself. That is why docs/controllers.md gives those two their own buttons
+        beside `add` instead of a menu inside the table. */
     void addMapping (controllers::Source source = controllers::Source::control);
 
     /** Appends a mapping that already knows what it is — what `MIDI learn`
@@ -81,7 +81,7 @@ public:
         had just been editing. Its limits are set from the parameter's range. */
     void addMapping (controllers::Mapping mapping);
 
-    /** Removes the selected row, or the last one when nothing is selected, so
+    /** Removes every selected row, or the last one when nothing is selected, so
         the button is never dead while there is something to remove. */
     void removeSelectedMapping();
 
@@ -118,6 +118,7 @@ public:
     }
 
     //==========================================================================
+    void paint (juce::Graphics&) override;
     void resized() override;
     void lookAndFeelChanged() override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
@@ -129,6 +130,7 @@ public:
     //  ListBoxModel — the frozen parameter column.
     void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
     juce::Component* refreshComponentForRow (int row, bool selected, juce::Component* existing) override;
+    void listBoxItemClicked (int row, const juce::MouseEvent&) override;
 
     //  TableListBoxModel — the columns that scroll.
     void paintRowBackground (juce::Graphics&, int row, int width, int height, bool selected) override;
@@ -142,7 +144,7 @@ private:
     /** Column ids, which `TableListBox` needs to be 1-based. `param` is not one
         of the table's columns — it is the frozen list beside it — but it shares
         the numbering so that one set of accessors can answer for every cell. */
-    enum ColumnId { param = 1, channel, cc, mode, minimum, maximum };
+    enum ColumnId { param = 1, channel, msb, lsb, mode, minimum, maximum };
 
     struct ChoiceCell;
     struct NumberCell;
@@ -182,6 +184,11 @@ private:
     /** True for the columns worth ordering; see the note where they are
         declared. */
     static bool isSortable (int columnId) noexcept;
+
+    /** True when the row's mode ignores the LSB, which the two threshold modes
+        do. The cell is disabled rather than hidden: the number is still part of
+        the mapping, it just has no effect. */
+    bool ignoresLsb (int row) const;
 
     /** The glyph marking how far this row's parameter reaches, or nullptr for
         the unmarked case. Owned by the table and rebuilt on a theme change, so
@@ -244,6 +251,11 @@ private:
     juce::Array<controllers::Mapping> mappings;
 
     /** Display order over `mappings`, rebuilt whenever either changes. */
+    /** True while the frozen column's selection is being brought into line with
+        the table's. Both lists share this one model, so setting the follower
+        re-enters `selectedRowsChanged` through its own model. */
+    bool syncingSelection = false;
+
     juce::Array<int> displayOrder;
 
     /** Which column is sorting the table, or 0 for none — and none means the

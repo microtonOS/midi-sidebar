@@ -109,6 +109,14 @@ public:
         the editor can push the new state at the page. */
     std::function<void()> onTuningChanged;
 
+    /** Called on the message thread when an MPE Configuration Message has
+        reconfigured the zone, so the channels page can show it. */
+    std::function<void (channels::Setup)> onChannelsChanged;
+
+    /** What the router is filtering by. The editor reads it to apply an MCM and
+        writes it back; the channels page owns it while a window is open. */
+    channels::Setup getChannels() const { return router.getChannels(); }
+
     /** The lowest and highest notes currently held, with the channels they
         arrived on, or nothing when the keyboard is empty. Drives the tuning
         page's interval and the presets page's frequency pair. */
@@ -144,6 +152,8 @@ private:
     juce::Array<juce::MidiMessage> pendingTuningSysex;
     juce::Array<juce::MidiRPNMessage> pendingParameters;
     std::optional<double> pendingMasterVolumeDb;
+    std::optional<double> pendingMasterFineCents, pendingMasterCoarseCents;
+    std::optional<MidiRouter::Result::MpeConfiguration> pendingMpeConfiguration;
 
     /** Which notes are down, one bit per note per channel. Written on the audio
         thread and read on the message thread; `std::atomic` per channel rather

@@ -37,7 +37,7 @@ namespace periodInference
     /** How close two ratios must be to count as equal. tuneBfree's value, on
         the *ratio* rather than on the frequencies, so it means the same thing
         at every octave. About 0.0000017 cents — far below anything audible, and
-        below MTS sysex's own 0.0061 c resolution, so it is testing arithmetic
+        below MTS's own 0.0061 c resolution, so it is testing arithmetic
         rather than perception. */
     inline constexpr double ratioTolerance = 1.0e-6;
 

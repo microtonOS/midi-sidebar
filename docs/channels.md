@@ -31,4 +31,12 @@ which is RPN 0/6: CC 101 value 0 followed by CC 100 value 6 selects it, CC 6
 gives the number of member channels, and the channel it is sent to (1 or 16)
 chooses the lower or upper zone.
 
+> Receiving one updates this page: the channel it arrived on selects the zone, and its member count sets how far the zone reaches, so the matrix redraws to show the new layout.
+> It is read even on a channel the filter is muting, since a plugin set to one zone is usually not listening to the other's manager channel and could otherwise never be reconfigured onto it.
+> A count of zero switches MPE off while keeping the edge, so turning it back on restores what was there.
+
+> Only one zone is active at a time here, and an incoming message for the other zone moves the zone rather than adding a second.
+> The MPE specification does allow both at once, with any channels left over "available for conventional use" — but it also says many devices support one zone and may let the user choose which, which is what this page does.
+> Two zones at once is a low-priority item; what it would add is the second device's manager channel, whose pitchbend and aftertouch apply to all of its members.
+
 MIDI 2.0 messages are kept apart from MIDI 1.0 messages such that no channel clashes occur.

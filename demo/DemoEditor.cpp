@@ -353,14 +353,16 @@ void DemoEditor::showSampleControllers()
     // relabelling themselves when a row is pointed at another parameter.
     page.setParameters (synth::parametersForSidebar());
 
-    // Figure 2 of docs/controllers.md, keeping its shape — two control changes
-    // and one polytouch row — with the synth's parameters in place of the
-    // clonewheel names the sketch still uses. Three different channels, so the
-    // column is visibly a channel rather than a constant.
+    // Figure 2 of docs/controllers.md, keeping its shape — one CC pair with an
+    // LSB, one CC without, one polytouch row — with the synth's parameters in
+    // place of the clonewheel names the sketch still uses. Three different
+    // channels, so the column is visibly a channel rather than a constant. The
+    // second one's LSB is left empty, which its `toggle` mode ignores anyway.
     controllers::Mapping cutoff;
     cutoff.parameterIndex = synth::Index::cutoff;
     cutoff.channel = 1;
-    cutoff.cc = 11;
+    cutoff.msb = 11;
+    cutoff.lsb = 43;
     cutoff.mode = controllers::Mode::jump;
     cutoff.min = 200.0;
     cutoff.max = 8000.0;
@@ -368,15 +370,15 @@ void DemoEditor::showSampleControllers()
     controllers::Mapping resonance;
     resonance.parameterIndex = synth::Index::resonance;
     resonance.channel = 15;
-    resonance.cc = 64;
+    resonance.msb = 64;
     resonance.mode = controllers::Mode::toggle;
     resonance.min = 1.0;
     resonance.max = 3.0;
 
-    // Figure 2's third row. A polytouch mapping, which is what shows `PT` in
-    // the cell where a number would be — and, being a third mapping that sorts
-    // differently from the first two, it is also what keeps the sort toggle
-    // from looking broken when it is merely unexercised.
+    // Figure 2's third row. A polytouch mapping, which is what shows the word
+    // drawn across the two controller-number columns — and, being a third
+    // mapping that sorts differently from the first two, it is also what keeps
+    // the sort toggle from looking broken when it is merely unexercised.
     controllers::Mapping vibrato;
     vibrato.parameterIndex = synth::Index::pitchLfoDepth;
     vibrato.channel = 15;
@@ -392,7 +394,7 @@ void DemoEditor::showSampleControllers()
     controllers::Mapping broken;
     broken.parameterIndex = synth::Index::filterLfoRate;
     broken.channel = 3;
-    broken.cc = 120;
+    broken.msb = 120;
 
     page.setMappings ({ cutoff, resonance, vibrato, broken });
 
@@ -453,6 +455,14 @@ void DemoEditor::showSampleChannels()
     page.onSetupChanged = [this] (channels::Setup newSetup)
     {
         processor.router.setChannels (newSetup);
+    };
+
+    // And the other direction: an MPE Configuration Message arriving on a
+    // manager channel moves the zone, so the matrix has to follow. The router
+    // has already taken it — this only shows it.
+    processor.onChannelsChanged = [this] (channels::Setup newSetup)
+    {
+        sidebar.getChannelsPage().setSetup (newSetup);
     };
 
     processor.router.setChannels (setup);

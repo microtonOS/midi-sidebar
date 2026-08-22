@@ -96,7 +96,45 @@ Universal **Real Time**, sub-ID#1 `04` (p57). Both are 14-bit, LSB first:
 F0 7F <device id> 04 01 vv vv F7     Master Volume;  00 00 = off
 F0 7F <device id> 04 02 bb bb F7     Master Balance; 00 00 = hard left,
                                                      7F 7F = hard right
+F0 7F <device id> 04 03 ll mm F7     Master Fine Tuning    (CA-025)
+F0 7F <device id> 04 04 00 mm F7     Master Coarse Tuning  (CA-025)
 ```
+
+### Master Fine and Coarse Tuning
+
+Added by **CA-025**, *Master Fine/Coarse Tuning*, 2 March 1999 — "intended to
+produce the same effect as the pitch shift control on a tape recorder". The
+motivation is in the document: Karaoke needs to retune every channel at once,
+and orchestral and piano recordings are often at 442, 443 or 445 Hz, for which
+"there is no common message to set overall tuning".
+
+Both are displacements in cents **from A440**, LSB first like the rest of the
+family:
+
+| | encoding | centre | range | step |
+|---|---|---|---|---|
+| Fine `04 03` | 14 bits | `00 40` | −100 c … +99.988 c | 100/8192 ≈ **0.0122 c** |
+| Coarse `04 04` | 7 bits; **"the LSB is always 0"** | `00 40` | −64 … +63 semitones | 100 c |
+
+Three consequences worth having:
+
+- **They sum with the RPNs.** "The total displacement in cents from A440 for each
+  MIDI channel is summation of the displacement of this Master Fine Tuning and
+  the displacement of Fine Tuning using RPN", and likewise for coarse. So a
+  channel's total is master fine + master coarse + RPN 01 + RPN 02.
+- **CA-025 is why RPN 01 and 02 were renamed.** They were *Master* Fine and
+  Coarse Tuning on p18 of the Detailed Specification; this document renamed them
+  to **Channel** Fine and Coarse Tuning to free the names for the messages above.
+  Table IIIa still uses the old ones. See [rpn-nrpn](rpn-nrpn.md).
+- **Coarse tuning must not transpose note numbers.** "For devices which support
+  Key-based Instruments … it is important that this message NOT result in MIDI
+  note-shifting; otherwise a different drum sound would be selected." Retune the
+  pitches, do not renumber the keys.
+
+Note the fine step against MIDI tuning's own resolution: 0.0122 c here against
+100/2¹⁴ = 0.0061 c for an MTS frequency field. Retuning by this message is
+lossier than rewriting a tuning table, which argues for applying it as an offset
+at playback rather than folding it into stored frequencies.
 
 They exist "to produce the same effect as volume and balance controls on a stereo
 amplifier … so that one Master Volume control can simultaneously fade out all the

@@ -8,8 +8,10 @@ namespace
     /** RPN 0/3 and 0/4. An RPN's number is its MSB times 128 plus its LSB, so
         "RPN 0/3" is parameter 3 — see the midi-1_0 skill on why an RPN is not a
         message. docs/tuning.md:27 names both. */
-    constexpr int tuningProgramRpn = 3;
-    constexpr int tuningBankRpn    = 4;
+    constexpr int channelFineTuningRpn   = 1;
+    constexpr int channelCoarseTuningRpn = 2;
+    constexpr int tuningProgramRpn       = 3;
+    constexpr int tuningBankRpn          = 4;
 
     /** "There are 128 tuning banks at most" (docs/tuning.md:28), and the same
         for programs: the dump messages carry a single byte for each. */
@@ -78,7 +80,7 @@ void TuningSource::handleSysex (const juce::MidiMessage& message)
 
     updated = juce::Time::getCurrentTime();
 
-    if (scheme == tuning::Scheme::mtsSysex)
+    if (scheme == tuning::Scheme::midi1)
         refresh();
 }
 
@@ -86,6 +88,37 @@ bool TuningSource::handleRpn (const juce::MidiRPNMessage& rpn)
 {
     if (rpn.isNRPN)
         return false;
+
+    const auto index = (size_t) juce::jlimit (0, 15, rpn.channel - 1);
+
+    // RPN 01 and 02 — Channel Fine and Coarse Tuning, so named by CA-025, which
+    // renamed them from *Master* when it gave those names to the two system
+    // exclusives instead. Both are displacements from A440 for one channel, and
+    // they add to the master pair rather than replacing them.
+    if (rpn.parameterNumber == channelFineTuningRpn)
+    {
+        // Fourteen bits centred at 8192, stepping 100/8192 ≈ 0.0122 c, so
+        // ±100 c. `MidiRPNDetector` reports 7 bits when no data LSB arrived,
+        // which is a value on a different scale — scaled up rather than used
+        // as-is, or a coarse sender would land a hundredth of where it meant.
+        const auto word = rpn.is14BitValue ? rpn.value : rpn.value << 7;
+
+        channelFineCents[index] = 100.0 / 8192.0 * (double) (word - 8192);
+
+        updated = juce::Time::getCurrentTime();
+        return true;
+    }
+
+    if (rpn.parameterNumber == channelCoarseTuningRpn)
+    {
+        // Seven bits centred at 64, one semitone a step, so -64 to +63.
+        const auto semitones = (rpn.is14BitValue ? rpn.value >> 7 : rpn.value) - 64;
+
+        channelCoarseCents[index] = 100.0 * (double) semitones;
+
+        updated = juce::Time::getCurrentTime();
+        return true;
+    }
 
     if (rpn.parameterNumber != tuningProgramRpn && rpn.parameterNumber != tuningBankRpn)
         return false;
@@ -106,6 +139,64 @@ bool TuningSource::handleRpn (const juce::MidiRPNMessage& rpn)
     return true;
 }
 
+void TuningSource::setMasterFineCents (double cents)
+{
+    masterFineCents = cents;
+    updated = juce::Time::getCurrentTime();
+}
+
+void TuningSource::setMasterCoarseCents (double cents)
+{
+    masterCoarseCents = cents;
+    updated = juce::Time::getCurrentTime();
+}
+
+double TuningSource::tuningOffsetCents (int channel) const
+{
+    // **Only where the tuning itself came over MIDI.** These messages are part
+    // of the MIDI stream, so they belong to the scheme that reads that stream
+    // and to no other. Each of the other three has its own reason:
+    //
+    // - **MTS-ESP**: an external master is the authority on absolute pitch and
+    //   every other client is asking that same master, so displacing our copy
+    //   would put this plugin out of tune with all of them — the one thing
+    //   MTS-ESP exists to prevent. A user wanting A=442 sets it on the master,
+    //   and the frequencies handed to us already carry it.
+    // - **Tuning files**: a `.kbm` states a reference note *and its frequency*
+    //   outright, so a displacement would silently override something the file
+    //   actually said.
+    // - **Standard**: it means 12edo at A440. A displacement would make the
+    //   word stop meaning anything.
+    //
+    // The argument the other way is real and is recorded in TODO.md — GM2
+    // requires scale/octave tuning and all four displacements together, and the
+    // minilogue xd keeps its scale and its Master Tune orthogonal — so this is a
+    // decision rather than a deduction, and a deliberately conservative one: a
+    // scheme that carries its own reference is left alone.
+    if (scheme != tuning::Scheme::midi1)
+        return 0.0;
+
+    const auto index = (size_t) juce::jlimit (0, 15, channel - 1);
+
+    return masterFineCents + masterCoarseCents
+         + channelFineCents[index] + channelCoarseCents[index];
+}
+
+std::optional<double> TuningSource::frequencyFor (int note, int channel) const
+{
+    const auto base = table.frequencyFor (note, channel);
+
+    if (! base.has_value())
+        return {};      // unmapped stays unmapped; a displacement cannot map it
+
+    const auto offset = tuningOffsetCents (channel);
+
+    if (std::abs (offset) < 1.0e-12)
+        return base;
+
+    return *base * std::pow (2.0, offset / 1200.0);
+}
+
 //==============================================================================
 void TuningSource::loadFiles (const juce::Array<juce::File>& files)
 {
@@ -121,7 +212,7 @@ void TuningSource::loadFiles (const juce::Array<juce::File>& files)
     programs.addArray (loaded);
 
     fileProgram = juce::jlimit (0, programs.size() - 1, fileProgram);
-    scheme = tuning::Scheme::tuningFile;
+    scheme = tuning::Scheme::scala;
 
     updated = juce::Time::getCurrentTime();
     refresh();
@@ -169,7 +260,7 @@ juce::String TuningSource::loadedSummary() const
 //==============================================================================
 const juce::Array<scalaFiles::Program>* TuningSource::filePrograms() const
 {
-    return scheme == tuning::Scheme::tuningFile && ! programs.isEmpty() ? &programs : nullptr;
+    return scheme == tuning::Scheme::scala && ! programs.isEmpty() ? &programs : nullptr;
 }
 
 void TuningSource::setProgram (std::optional<int> program)
@@ -177,7 +268,7 @@ void TuningSource::setProgram (std::optional<int> program)
     if (! program.has_value())
         return;
 
-    if (scheme == tuning::Scheme::tuningFile)
+    if (scheme == tuning::Scheme::scala)
         fileProgram = juce::jlimit (0, juce::jmax (0, programs.size() - 1), *program);
     else
         sysexProgram = juce::jlimit (0, highestTuningSlot, *program);
@@ -191,7 +282,7 @@ void TuningSource::setBank (std::optional<int> bank)
     if (! bank.has_value())
         return;
 
-    if (scheme == tuning::Scheme::tuningFile)
+    if (scheme == tuning::Scheme::scala)
     {
         // A file bank is a run of programs, so selecting one means jumping to
         // where it starts rather than storing a number.
@@ -265,11 +356,11 @@ void TuningSource::refresh()
             refreshFromMtsEsp();
             break;
 
-        case tuning::Scheme::mtsSysex:
+        case tuning::Scheme::midi1:
             table = sysexTable;
             break;
 
-        case tuning::Scheme::tuningFile:
+        case tuning::Scheme::scala:
             if (juce::isPositiveAndBelow (fileProgram, programs.size()))
                 table = programs[fileProgram].table;
             else
@@ -314,13 +405,13 @@ tuning::Status TuningSource::getStatus() const
 
             break;
 
-        case tuning::Scheme::mtsSysex:
+        case tuning::Scheme::midi1:
             status.name    = sysexName;
             status.program = sysexProgram;
             status.bank    = sysexBank;
             break;
 
-        case tuning::Scheme::tuningFile:
+        case tuning::Scheme::scala:
             if (juce::isPositiveAndBelow (fileProgram, programs.size()))
             {
                 status.name    = programs[fileProgram].name;
@@ -340,10 +431,12 @@ tuning::Status TuningSource::getStatus() const
             break;
     }
 
-    // Empty is "no name", which the page draws as a placeholder rather than as
-    // a value — see TuningState.h. Standard tuning is the one scheme that always
-    // has one.
-    if (status.name.isEmpty() && scheme != tuning::Scheme::mtsEsp)
+    // Every scheme falls back to the same name, MTS-ESP included. A master that
+    // supplies no scale name is not in a different situation from a plugin with
+    // no tuning loaded: both are playing equal temperament, and saying so is
+    // more use than the word "Unnamed", which describes the metadata rather
+    // than the sound.
+    if (status.name.isEmpty())
         status.name = standardTuning::name;
 
     if (updated != juce::Time())
@@ -363,7 +456,7 @@ tuning::Period TuningSource::getPeriod() const
 
     // A Scala file states its period as its last tone, so it is specified and
     // never guessed at.
-    if (scheme == tuning::Scheme::tuningFile
+    if (scheme == tuning::Scheme::scala
         && juce::isPositiveAndBelow (fileProgram, programs.size()))
     {
         if (const auto stated = programs[fileProgram].periodCents)
@@ -410,8 +503,12 @@ tuning::Period TuningSource::getPeriod() const
 std::optional<double> TuningSource::intervalFor (int lowestNote, int highestNote,
                                                  int lowestChannel, int highestChannel) const
 {
-    const auto low  = table.frequencyFor (lowestNote, lowestChannel);
-    const auto high = table.frequencyFor (highestNote, highestChannel);
+    // Through `frequencyFor` rather than the raw table, so a master or channel
+    // tuning is included. On one channel it cancels out of an interval; across
+    // two differently-tuned channels it does not, which is exactly when getting
+    // it wrong would be hard to spot.
+    const auto low  = frequencyFor (lowestNote, lowestChannel);
+    const auto high = frequencyFor (highestNote, highestChannel);
 
     if (! low.has_value() || ! high.has_value() || *low <= 0.0 || *high <= 0.0)
         return {};

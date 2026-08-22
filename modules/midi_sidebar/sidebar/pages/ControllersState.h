@@ -162,22 +162,14 @@ namespace controllers
         polytouch      ///< Polyphonic key pressure, per sounding note.
     };
 
-    /** What the `CC` cell says, and what the three insert buttons are labelled.
-        Indexed by `Source`, so `control` has an entry the cell never uses — the
-        alternative is a switch that has to be kept in step with the enum.
+    /** What the two spanning cells say. Indexed by `Source`, so `control` has an
+        entry it never uses — the alternative is a switch that has to be kept in
+        step with the enum.
 
-        **Abbreviated because the cell is `metrics::tableCcWidth` wide.** The
-        table is a grid of short forms already — `ch`, `CC`, `min`, `max` — and
-        `polytouch` spelled out would have forced the column to be measured
-        against its longest word rather than against a two-digit number, at the
-        cost of every other column's share of a narrow panel. The monitor and
-        the right-click summary are sentences and keep the specification's own
-        words; see `assignmentSummary` and MidiMonitor.h. */
-    inline const juce::StringArray sourceNames { "CC", "AT", "PT" };
-
-    /** The same three spelled out, for prose. Indexed by `Source` like the
-        array above, and kept beside it so the two cannot drift apart. */
-    inline const juce::StringArray sourceWords { "control change", "aftertouch", "polytouch" };
+        Spelled out rather than abbreviated: the word is drawn across the MSB and
+        LSB columns together, which is room enough for it, and these are the
+        specification's own names. */
+    inline const juce::StringArray sourceNames { "control", "aftertouch", "polytouch" };
 
     //==========================================================================
     /** No mapping targets this parameter. Not a state an ordinary row can be
@@ -194,20 +186,23 @@ namespace controllers
 
         Source source = Source::control;
 
-        /** The controller number, and meaningless unless `source` is `control`.
-            Optional because `add` makes a row before there is a number to put
-            in it, and an empty cell is a legal way to leave one.
+        /** Controller numbers, and meaningless unless `source` is `control`.
 
-            **One number, seven bits.** There was an MSB and an LSB here. The
-            specification pairs CC *n* with CC *n*+32 for a 14-bit value, but
-            real hardware does not follow it — the minilogue xd shares CC 63 as
-            the low byte of every 14-bit control and sends it *first* — and the
-            open-source plugins that face the same stream mostly do not
-            implement 14-bit CC at all. A plugin that needs the precision is
-            better served by exposing a coarse and a fine parameter, which the
-            end-user can map to any two controllers on any two channels with
-            their own modes and limits. See docs/controllers.md. */
-        std::optional<int> cc;
+            The MSB is optional because `add` makes a row before there is a
+            number to put in it; the LSB because most controllers do not send
+            one, and the two threshold modes ignore it even where they do.
+
+            **The pairing is this row's to state, not the specification's.**
+            MIDI pairs CC *n* with CC *n*+32 and allows nothing else. Here any
+            available number can be the LSB for any MSB, so Table III's
+            assignments are a suggestion and this row is where the truth is —
+            which also makes the table the one place you can see which
+            controllers have a fine byte and which message carries it.
+
+            What is kept from the specification is the *behaviour*: an LSB
+            refines the last MSB, and a new MSB resets the LSB to zero. See
+            `midiMapper::Register`. */
+        std::optional<int> msb, lsb;
 
         Mode mode = Mode::jump;
 
@@ -254,18 +249,25 @@ namespace controllers
 
         auto text = channelName (only->channel);
 
-        // The words rather than the table's abbreviations: this is a line of a
-        // menu, not a cell, and "ch 1 polytouch" is what docs/right-click.md
-        // gives as the example.
         if (only->source != Source::control)
-            return text + " " + sourceWords[static_cast<int> (only->source)];
+            return text + " " + sourceNames[static_cast<int> (only->source)];
 
-        // An incomplete row says so rather than showing "CC" with nothing after
-        // it. `add` leaves one in exactly this state.
-        if (! only->cc.has_value())
-            return text + " no CC";
+        // An incomplete row says so rather than showing "MSB" with nothing
+        // after it. `add` leaves one in exactly this state.
+        if (! only->msb.has_value())
+            return text + " no MSB";
 
-        return text + " CC " + juce::String (*only->cc);
+        text << " MSB " << *only->msb;
+
+        // The LSB is only part of the assignment where the mode reads one; the
+        // two threshold modes ignore it, and saying otherwise would describe a
+        // number that has no effect.
+        const auto readsLsb = only->mode != Mode::toggle && only->mode != Mode::increment;
+
+        if (readsLsb && only->lsb.has_value())
+            text << " LSB " << *only->lsb;
+
+        return text;
     }
 
     //==========================================================================

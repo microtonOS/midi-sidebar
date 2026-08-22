@@ -35,10 +35,21 @@ namespace midiFilter
         16 and members e…15, so `16 - e`. Either can come out as zero — a lower
         zone reaching only to channel 1 is a manager with nobody to manage — and
         `MPEZone::isActive` is false in that case, which is the right answer.
+
+        **The unused zone is cleared explicitly.** MPE allows both at once, and
+        `channels::Setup` holds one — so exactly one zone is active here and the
+        other must be off, or channels the end-user has not given to MPE would be
+        claimed by a stale layout. `MPEZoneLayout() = default` already "creates a
+        layout with inactive upper and lower zones", so this is true either way;
+        saying it is what keeps it true if this ever stops building a fresh
+        layout on every call, and it is the one place the single-zone decision is
+        enforced rather than merely assumed. See TODO.md for supporting two.
     */
     inline juce::MPEZoneLayout layoutFor (const channels::Setup& setup)
     {
         juce::MPEZoneLayout layout;
+
+        layout.clearAllZones();
 
         if (! setup.mpeOn)
             return layout;   // both zones inactive, so MPE mode is off
@@ -50,6 +61,7 @@ namespace midiFilter
         if (members <= 0)
             return layout;
 
+        // One or the other, never both, and the one not named stays cleared.
         if (setup.zone == channels::Zone::lower)
             layout.setLowerZone (members);
         else

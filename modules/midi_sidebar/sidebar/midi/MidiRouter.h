@@ -52,16 +52,24 @@ public:
         /** Registered and non-registered parameters recognised this block. */
         juce::Array<juce::MidiRPNMessage> parameters;
 
-        /** A message that drives a mapping, with the row it drives.
+        /** A message that drives a mapping, with the row it drives and where
+            the controller now stands.
 
-            The *message* is reported rather than a value, because working out
-            where the parameter should go needs to know where it is now — and
-            only the owner knows that. `midiMapper::valueFor` is the other half,
-            called by whoever holds the parameters. */
+            Where the *parameter* should go is still the owner's to work out —
+            four of the five modes are relative to where it already is, and only
+            the owner knows that. `midiMapper::valueFor` is the other half. */
         struct Match
         {
             int mappingIndex = 0;
             juce::MidiMessage message;
+
+            /** The controller's position after this message, and the largest it
+                can be — 127 for a lone MSB or a touch message, 16383 once the
+                row has an LSB. Resolved here rather than by the owner because
+                only the router holds the registers; see `midiMapper::Register`
+                for why a 14-bit controller is a register and not a pair. */
+            int value = 0;
+            int highest = midiMapper::highestValue;
         };
 
         juce::Array<Match> matches;
@@ -91,6 +99,25 @@ public:
             ended up matters. */
         std::optional<double> masterVolumeDb;
 
+        /** An MPE Configuration Message, if one arrived.
+
+            The zone comes from the *channel* it was sent on — 1 is the lower
+            zone, 16 the upper — and `memberChannels` is its `mm` byte, which is
+            a count and not a channel number. Zero deactivates that zone. */
+        struct MpeConfiguration
+        {
+            channels::Zone zone = channels::Zone::lower;
+            int memberChannels = 0;
+        };
+
+        std::optional<MpeConfiguration> mpeConfiguration;
+
+        /** Master Fine and Coarse Tuning, in cents, from the two Device Control
+            messages CA-025 added. Displacements from A440 applied to the whole
+            instrument, so they compose with whatever tuning is in force rather
+            than replacing it. Last in the block wins, as with the volume. */
+        std::optional<double> masterFineCents, masterCoarseCents;
+
         void clearQuick()
         {
             consumed.clearQuick();
@@ -100,6 +127,9 @@ public:
             learnCandidates.clearQuick();
             tuningSysex.clearQuick();
             masterVolumeDb.reset();
+            masterFineCents.reset();
+            masterCoarseCents.reset();
+            mpeConfiguration.reset();
         }
     };
 
@@ -113,6 +143,11 @@ public:
     void setMappings (juce::Array<controllers::Mapping> newMappings)
     {
         mappings = std::move (newMappings);
+
+        // One register per row, kept in step by index. Resized rather than
+        // rebuilt so that editing an unrelated row does not lose where a
+        // controller had got to.
+        registers.resize (mappings.size());
     }
 
     //==========================================================================
@@ -154,6 +189,20 @@ public:
         {
             const auto message = metadata.getMessage();
 
+            // **The MPE Configuration Message is read before the filter.**
+            // It arrives on a manager channel — 1 for the lower zone, 16 for
+            // the upper — and a plugin configured for one zone is generally not
+            // listening to the other's manager channel, so filtering first would
+            // make it impossible to ever be reconfigured onto that zone. It is
+            // configuration rather than performance, like a system message.
+            //
+            // Its own detector, because feeding the main one an unfiltered
+            // stream would have it consume control changes on channels the
+            // plugin is deliberately ignoring.
+            if (message.isController())
+                if (const auto mcm = mpeConfigurationFrom (message))
+                    result.mpeConfiguration = *mcm;
+
             // System messages have no channel, so the filter does not apply:
             // transport and system exclusive belong to the whole stream.
             if (message.getChannel() > 0 && ! midiFilter::listensTo (setup, message.getChannel()))
@@ -180,6 +229,15 @@ public:
             if (const auto volume = deviceControl::masterVolumeFrom (message))
                 result.masterVolumeDb = deviceControl::decibelsFor (*volume);
 
+            // The two tuning members of the same family. Passed on for the same
+            // reason the volume is: a broadcast is addressed to everything
+            // downstream as well.
+            if (const auto fine = deviceControl::masterFineTuningFrom (message))
+                result.masterFineCents = *fine;
+
+            if (const auto coarse = deviceControl::masterCoarseTuningFrom (message))
+                result.masterCoarseCents = *coarse;
+
             // A tuning system exclusive is ours, so it is taken out of the
             // stream. Recognised by its two sub-ID bytes only — the parse
             // itself allocates and happens on the message thread.
@@ -203,6 +261,15 @@ public:
             if (isLearning() && MidiLearner::isLearnable (message))
             {
                 result.learnCandidates.add (message);
+
+                // **Still shown.** The `continue` below skips *matching* — a
+                // message teaching a row should not also drive something — but
+                // it must not skip the monitor, or the stream goes quiet at
+                // exactly the moment the end-user is moving a controller and
+                // wants to see it arrive.
+                if (midiMonitor::lineFor (message).has_value())
+                    result.forMonitor.add (message);
+
                 continue;
             }
 
@@ -210,8 +277,44 @@ public:
             // aimed at two parameters is a legitimate thing to want — so this
             // does not stop at the first match.
             for (int i = 0; i < mappings.size(); ++i)
-                if (midiMapper::matches (mappings[i], message))
-                    result.matches.add ({ i, message });
+            {
+                const auto& mapping = mappings[i];
+
+                if (! midiMapper::matches (mapping, message))
+                    continue;
+
+                if (i >= registers.size())
+                    continue;
+
+                auto& reg = registers.getReference (i);
+                const auto hasLsb = mapping.lsb.has_value();
+
+                if (mapping.source == controllers::Source::control)
+                {
+                    const auto number = message.getControllerNumber();
+
+                    // Which byte arrived decides what happens: a high byte sets
+                    // the coarse value *and clears the fine one*, a low byte
+                    // refines what is there. An LSB before any MSB has nothing
+                    // to refine, so it is stored and not acted on.
+                    if (mapping.msb.has_value() && number == *mapping.msb)
+                        reg.applyMsb (midiMapper::valueOf (message));
+                    else
+                        reg.applyLsb (midiMapper::valueOf (message));
+
+                    if (! reg.started)
+                        continue;
+                }
+                else
+                {
+                    // Aftertouch has no pair, so the register is a plain store.
+                    reg.applyMsb (midiMapper::valueOf (message));
+                }
+
+                result.matches.add ({ i, message,
+                                      reg.valueOf (hasLsb),
+                                      midiMapper::Register::highestOf (hasLsb) });
+            }
 
             if (midiMonitor::lineFor (message).has_value())
                 result.forMonitor.add (message);
@@ -219,9 +322,47 @@ public:
     }
 
 private:
+    /** RPN 6 on channel 1 or 16, as a zone and a member-channel count.
+
+        Not consumed: an MCM is addressed to every MPE receiver downstream as
+        well, and swallowing it would reconfigure this plugin while leaving the
+        rest of the chain on the old layout. */
+    std::optional<Result::MpeConfiguration> mpeConfigurationFrom (const juce::MidiMessage& m)
+    {
+        const auto channel = m.getChannel();
+
+        if (channel != channels::lowerManagerChannel && channel != channels::upperManagerChannel)
+            return {};
+
+        const auto parsed = mcmDetector.tryParse (channel,
+                                                  m.getControllerNumber(),
+                                                  m.getControllerValue());
+
+        if (! parsed.has_value() || parsed->isNRPN
+            || parsed->parameterNumber != channels::mpeConfigurationRpn)
+            return {};
+
+        // `mm` is the MSB of data entry. `MidiRPNDetector` reports 14 bits once
+        // an LSB has followed, so the top seven are taken — MPE says nothing
+        // about an LSB here and a sender that adds one means the same count.
+        const auto members = parsed->is14BitValue ? parsed->value >> 7 : parsed->value;
+
+        return Result::MpeConfiguration {
+            channel == channels::lowerManagerChannel ? channels::Zone::lower
+                                                     : channels::Zone::upper,
+            juce::jlimit (0, channels::numChannels - 1, members) };
+    }
+
+    /** Sees channels 1 and 16 whatever the filter says; see `process`. */
+    juce::MidiRPNDetector mcmDetector;
+
     int learning = controllers::noParameter;
     channels::Setup setup;
     juce::Array<controllers::Mapping> mappings;
+
+    /** Where each row's controller currently is. Parallel to `mappings`. */
+    juce::Array<midiMapper::Register> registers;
+
     juce::MidiRPNDetector rpnDetector;
 
     JUCE_LEAK_DETECTOR (MidiRouter)

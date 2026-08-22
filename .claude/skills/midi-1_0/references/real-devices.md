@@ -31,6 +31,25 @@ the control.
 That second one is what breaks naive MIDI learn. Take the first controller you
 see and you learn CC 63, every time, for every knob.
 
+### It also treats a tuning dump as a *scale*
+
+Worth its own note, because it is a good illustration of something the
+specifications leave open: whether an absolute tuning and a pitch reference are
+the same thing. On this instrument they are firmly separate.
+
+It receives a **Bulk Tuning Dump** (`08 01`) — nominally 128 absolute
+frequencies, with a device id, a tuning set number and a 16-character name — and
+its chart says the device id, tuning set and name are **Ignored**, the data being
+applied "to the scale being edited". Better still: "when applied to a USER OCTAVE
+only notes 60~71 will be used." Twelve of the 128 frequencies survive, as a
+repeating octave pattern. The absolute anchor is discarded entirely.
+
+Its pitch reference lives somewhere else: a global **Master Tune** parameter of
+−50 to +50 cents, a **Transpose** of ±12 notes, and a per-program tuning of ±50
+cents (CC 32). So the scale says the temperament and the tuning parameters say
+where it sits — orthogonal, on hardware, whatever the specifications do or do not
+say about composing them. See the `midi-microtuning` skill.
+
 Two smaller things from the same chart, both worth knowing:
 
 - The value is **10-bit**, not 14: seven bits of high byte and three of low.

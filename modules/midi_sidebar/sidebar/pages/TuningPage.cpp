@@ -8,8 +8,8 @@ namespace
     /** The scheme names, in the order docs/tuning.md lists them — which is the
         order `Scheme` declares them in, so a menu index is the enum's value and
         nothing has to be converted. */
-    const juce::StringArray schemeNames { "MTS ESP", "MTS sysex", "MIDI 2.0",
-                                          "tuning file", "standard" };
+    const juce::StringArray schemeNames { "MTS-ESP", "MIDI 1.0", "MIDI 2.0",
+                                          "Scala", "standard" };
 
     juce::String centsText (double cents)
     {
@@ -249,7 +249,7 @@ void TuningPage::setStatus (const tuning::Status& newStatus)
     programStepper.setNumber (status.program);
     bankStepper   .setNumber (status.bank);
 
-    // Seconds included and a 24-hour clock, as the sketch shows: under MTS ESP
+    // Seconds included and a 24-hour clock, as the sketch shows: under MTS-ESP
     // this is re-stamped several times a second, and a clock whose smallest
     // digit never moves cannot show that the connection is alive.
     updatedField.setValue (status.updated.has_value()

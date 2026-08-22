@@ -96,6 +96,27 @@ Look up how monophonic synthesizers usually handle this.
 Most devices and plugins will support this at least.
 Monophonic pitchbend should be sent on yet another thru channel different from the Sysex one and the MPE one.
 
+## Scripts
+
+[scripts/mts_sysex.py](scripts/mts_sysex.py) encodes **and** decodes the MIDI
+Tuning Standard system exclusives — the 3-byte frequency format, the checksum
+rule, the channel bitmap, and every sub-ID. Worth having because nothing off the
+shelf does both halves: ODDSound's `libMTSClient` reads every format but writes
+none and prefers a connected master over its own sysex table, Surge's
+tuning-library has no sysex at all, `tschiemer/midimessage` marks MTS TODO, and
+`kosonya/mts_dumper` only generates.
+
+```
+python3 scripts/mts_sysex.py bulk-dump --program 5 --name "Meantone"
+python3 scripts/mts_sysex.py decode "F0 7F 7F 08 02 00 01 45 45 00 00 F7"
+```
+
+[scripts/scales.py](scripts/scales.py) writes `.scl` and `.kbm` fixtures: 12edo
+(where every step size is a period), 13ed3 and 9ed(3/2) (equal divisions of
+something that is *not* an octave), and a mapping with `x` for unmapped keys.
+
+To build a console app around either, see `juce-guide/scripts/`.
+
 ## Tuning Files
 Formats include:
 - Ableton scale (`.ascl`)

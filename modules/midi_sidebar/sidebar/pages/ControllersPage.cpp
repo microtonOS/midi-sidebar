@@ -112,53 +112,87 @@ void ControllersPage::setMessages (juce::StringArray newMessages)
 
 void ControllersPage::refreshMonitor()
 {
-    if (! learner.isActive())
-    {
-        monitor.setValue (messages.joinIntoString ("\n"));
-        return;
-    }
-
-    // Three lines, because that is what the monitor is. The third tracks the
-    // current best guess rather than only the final one, so a sweep is visibly
-    // converging on something while the end-user is still moving it.
-    juce::StringArray lines;
-
-    lines.add ("learning  " + learningName);
-
-    const auto seen = learner.messagesSeen();
-
-    lines.add (seen == 0 ? juce::String ("move a control...")
-                         : juce::String ("keep moving the control..."));
-
-    if (const auto guess = learner.suggestion())
-    {
-        auto line = channelName (guess->channel) + "  ";
-
-        line << (guess->cc.has_value() ? "CC " + juce::String (*guess->cc)
-                                       : sourceNames[static_cast<int> (guess->source)]);
-
-        lines.add (line + "  " + juce::String (seen) + " messages");
-    }
-
-    monitor.setValue (lines.joinIntoString ("\n"));
+    monitor.setValue (messages.joinIntoString ("\n"));
 }
+
+//==============================================================================
+/** The window MIDI learn puts up while it waits.
+
+    A `ThreadWithProgressWindow`, following JUCE's own DialogsDemo. The thread
+    does no work — it waits, and the *message* thread is where MIDI arrives and
+    where the decision is made. What the thread buys is the modal window with a
+    spinning bar and a Cancel button, which is exactly the shape wanted and is
+    not otherwise reachable without building one by hand.
+
+    `setStatusMessage` is designed to be called from the worker thread, so the
+    two lines are written here from flags the message thread sets. */
+class ControllersPage::LearnWindow final : public juce::ThreadWithProgressWindow
+{
+public:
+    explicit LearnWindow (ControllersPage& p, const juce::String& parameterName)
+        : juce::ThreadWithProgressWindow ("MIDI learn: " + parameterName, true, true),
+          page (p)
+    {
+        setStatusMessage (waitingMessage);
+    }
+
+    void run() override
+    {
+        // Beyond 0..1, so the bar spins rather than filling: there is no
+        // progress to report, only a state to be in.
+        setProgress (-1.0);
+
+        while (! threadShouldExit() && ! finished.load())
+        {
+            setStatusMessage (moved.load() ? releaseMessage : waitingMessage);
+            wait (60);
+        }
+    }
+
+    /** Called on the message thread when a learnable message has arrived. */
+    void noteMovement() { moved = true; }
+
+    /** Ends the wait, so `run` returns and `threadComplete` follows. */
+    void finish() { finished = true; }
+
+    bool hasMoved() const { return moved.load(); }
+
+    void threadComplete (bool userPressedCancel) override
+    {
+        page.learnWindowClosed (userPressedCancel);
+        delete this;   // ThreadWithProgressWindow's own convention
+    }
+
+private:
+    static inline const juce::String waitingMessage { "Move controller!" };
+    static inline const juce::String releaseMessage { "Release controller!" };
+
+    ControllersPage& page;
+    std::atomic<bool> moved { false }, finished { false };
+};
 
 //==============================================================================
 void ControllersPage::beginLearn (int parameterIndex)
 {
     const auto& parameters = getParameters();
 
+    cancelLearn();
+
     learner.begin (parameterIndex);
-    learningName = juce::isPositiveAndBelow (parameterIndex, parameters.size())
-                       ? parameters[parameterIndex].name
-                       : juce::String();
+
+    const auto name = juce::isPositiveAndBelow (parameterIndex, parameters.size())
+                          ? parameters[parameterIndex].name
+                          : juce::String();
+
+    // Self-deleting, so this is a borrowed pointer cleared in
+    // `learnWindowClosed` rather than something owned here.
+    learnWindow = new LearnWindow (*this, name);
+    learnWindow->launchThread();
 
     // The long clock first: nothing has arrived yet, and the end-user has to
     // get from the menu to the hardware.
     waitingForFirst = true;
     startTimer (learnTimeoutMs);
-
-    refreshMonitor();
 }
 
 void ControllersPage::observeLearn (const juce::MidiMessage& message)
@@ -176,37 +210,41 @@ void ControllersPage::observeLearn (const juce::MidiMessage& message)
     if (learner.messagesSeen() == before)
         return;
 
+    if (learnWindow != nullptr)
+        learnWindow->noteMovement();
+
     // Restarting on every message is what makes the gesture as long as the
-    // end-user wants it: the short clock only runs out once they stop.
+    // end-user wants it: the short clock only runs out once they stop, which is
+    // the moment the window has been asking them to reach.
     waitingForFirst = false;
     startTimer (learnSettleMs);
-
-    refreshMonitor();
 }
 
 void ControllersPage::timerCallback()
 {
-    // The long clock expiring means nothing ever came, so there is nothing to
-    // decide; the short clock expiring means the gesture is over.
-    if (waitingForFirst)
-        cancelLearn();
-    else
-        finishLearn();
+    // The long clock expiring means nothing ever came; the short clock expiring
+    // means the controller has been released. Either way the window closes, and
+    // `learnWindowClosed` is where the decision is made.
+    stopTimer();
+
+    if (learnWindow != nullptr)
+        learnWindow->finish();
 }
 
-void ControllersPage::finishLearn()
+void ControllersPage::learnWindowClosed (bool userPressedCancel)
 {
-    const auto learned = learner.suggestion();
-
+    learnWindow = nullptr;
     stopTimer();
+
+    const auto learned = userPressedCancel ? std::optional<controllers::Mapping>{}
+                                           : learner.suggestion();
+
     learner.cancel();
 
     // Undoably, and with limits taken from the parameter's own range — which is
     // what `addMapping` already does for a mapping arriving from outside.
     if (learned.has_value())
         addMapping (*learned);
-
-    refreshMonitor();
 
     if (onLearnFinished != nullptr)
         onLearnFinished (learned);
@@ -218,13 +256,16 @@ void ControllersPage::cancelLearn()
         return;
 
     stopTimer();
-    learner.cancel();
-    refreshMonitor();
 
-    if (onLearnFinished != nullptr)
-        onLearnFinished ({});
+    // Ending the thread brings `threadComplete` round to `learnWindowClosed`,
+    // which is the one place learning is torn down.
+    if (learnWindow != nullptr)
+        learnWindow->signalThreadShouldExit();
+    else
+        learner.cancel();
 }
 
+//==============================================================================
 void ControllersPage::refreshHistory()
 {
     // Disabled rather than hidden: a button that vanishes when there is nothing

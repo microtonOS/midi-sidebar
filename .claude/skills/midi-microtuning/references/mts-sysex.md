@@ -92,6 +92,45 @@ An instrument that does not support the full resolution may discard unneeded low
 but storing full resolution internally is preferred so the data can be passed on to instruments that
 can use it.
 
+## What MTS does *not* say: where A440 is
+
+MTS never mentions master or channel tuning. Not "master tuning", not "fine
+tuning", not "coarse tuning", not RPN 01 or 02 — nowhere in the *MIDI Tuning
+Updated Specification*. A440 appears exactly once, in the table above, as the
+reference the **encoding** is defined against (`45 00 00 = 440.0000 Hz`), never
+as something adjustable.
+
+So the specification is silent on how a tuning table composes with a
+displacement, and there is no rule to look up. What follows is a **default
+interpretation**, not something written down:
+
+> A displacement should **shift** an MTS tuning rather than replace it.
+
+The reasoning is in the format. A frequency is encoded as *semitone plus a
+fraction of a semitone* — expressed relative to the standard MIDI note grid,
+whose absolute pitch is whatever the instrument's reference makes it. Move the
+reference and every entry moves with it, because every entry was written as an
+offset from a note whose pitch just changed.
+
+It is a reading rather than a deduction, though, and the spec is not entirely
+clear. Two things support it and are worth knowing:
+
+- **General MIDI 2 requires both mechanisms at once.** §4.7 mandates Scale/Octave
+  Tuning Adjust and §§3.4.2–3, 4.2–4.3 mandate all four tuning displacements, all
+  defaulting to neutral. A conforming device therefore has to do both, so they
+  cannot be alternatives. See `midi-1_0/references/general-midi.md`.
+- **Scale/octave tuning has no absolute reference at all.** It is twelve offsets
+  from equal temperament (see below), so it *only* describes a temperament and
+  says nothing about pitch. Composition is the only possibility there, and it is
+  hard to argue the key-based messages should behave differently in kind.
+
+Against it: the key-based messages *do* state absolute frequencies, so a device
+could reasonably treat them as the final word and ignore a displacement. The
+Korg minilogue xd goes further in the other direction and reduces a bulk dump to
+a relative scale, keeping pitch in a separate global Master Tune —
+see `midi-1_0/references/real-devices.md`. Real instruments differ; decide, then
+document what you decided.
+
 ## Checksum calculation
 
 Only the *Dump* messages carry a checksum. Scale/Octave Tuning 1-byte and 2-byte forms
@@ -247,6 +286,11 @@ tuning change for subsequent notes.
 
 Scale/octave tuning is micro-tuning that repeats automatically in every octave: it calibrates a single
 octave of 12 notes as offsets from equal temperament, rather than defining 128 absolute frequencies.
+
+**So it carries no pitch reference at all** — it describes a temperament and nothing else, which is why
+it composes with master and channel tuning rather than competing with them, and why General MIDI 2 can
+require both. This is the half of MTS that GM2 mandates: §4.7, the non-real-time one-byte form, with the
+real-time one-byte form recommended. See `midi-1_0/references/general-midi.md`.
 Far more compact than a key-based dump, and the natural fit for any 12-note-per-octave scale
 (meantone, well temperaments, 12-note JI).
 

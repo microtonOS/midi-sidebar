@@ -10,7 +10,7 @@ namespace microtonos::sidebar
 //==============================================================================
 /** Everything the tuning page displays and everything it can be asked for.
 
-    Deliberately free of MIDI: no MTS ESP handle, no sysex, no `.scl` parser. A
+    Deliberately free of MIDI: no MTS-ESP handle, no sysex, no `.scl` parser. A
     tuning arrives here as text and numbers that have already been worked out
     somewhere else, which is what lets the page be built, looked at and changed
     before any of that exists — and lets it stay unchanged when it does.
@@ -31,18 +31,28 @@ namespace tuning
         these is in force — so it lives on the channels page. See
         docs/channels.md.
 
+        Named for **where the tuning comes from**, which is what actually
+        distinguishes them: an inter-process master, the MIDI stream, a file, or
+        nothing at all.
+
+        `midi1` was `mtsSysex`, which was too narrow twice over — the tuning
+        RPNs (0/3 program, 0/4 bank) are MTS but are not system exclusive, and
+        master and channel tuning arrive on the same route and are not MTS at
+        all, being core MIDI and CA-025 Device Control. `scala` was
+        `tuningFile`, and says which format rather than only that there is one.
+
         The order is the sketch's, and a menu index is the enum's value — so
         this list and `schemeNames` in TuningPage.cpp have to move together. */
     enum class Scheme
     {
-        mtsEsp,
-        mtsSysex,
-        midi2,
-        tuningFile,
-        standard
+        mtsEsp,     ///< An MTS-ESP master, over inter-process shared memory.
+        midi1,      ///< The MIDI stream: MTS system exclusive, and the tuning RPNs.
+        midi2,      ///< Per-note pitch over UMP. Not implemented; see TODO.md.
+        scala,      ///< `.scl` and `.kbm` files.
+        standard    ///< 12edo, and nothing listening.
     };
 
-    /** When a sounding note may change pitch. MTS ESP's distinction, applied to
+    /** When a sounding note may change pitch. MTS-ESP's distinction, applied to
         the other schemes as well. */
     enum class UpdateMode
     {
@@ -83,8 +93,8 @@ namespace tuning
         std::optional<int> program;
         std::optional<int> bank;
 
-        /** When the tuning was last touched: an MTS ESP query, a sysex message
-            arriving, a pitchbend, or a file being loaded. Under MTS ESP this
+        /** When the tuning was last touched: an MTS-ESP query, a sysex message
+            arriving, a pitchbend, or a file being loaded. Under MTS-ESP this
             ticks several times a second, which is the point — a moving clock is
             how you see that the connection is alive. */
         std::optional<juce::Time> updated;

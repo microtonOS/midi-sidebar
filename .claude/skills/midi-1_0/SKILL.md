@@ -39,7 +39,25 @@ not reproductions.
 | [rpn-nrpn](references/rpn-nrpn.md) | setting pitch-bend sensitivity, MPE zones, or tuning program and bank |
 | [sysex](references/sysex.md) | reading or writing system exclusive, including the universal ones |
 | [mpe](references/mpe.md) | supporting per-note expression: zones, Manager and Member channels |
+| [general-midi](references/general-midi.md) | asking whether you can *rely* on a message being supported — GM2 is where "required" appears, and MIDI 1.0 almost never says it |
 | [real-devices](references/real-devices.md) | writing a *receiver*, or wondering why conformant code fails on real hardware |
+
+## Scripts
+
+[scripts/midi_vectors.py](scripts/midi_vectors.py) emits byte sequences for the
+messages that are awkward to hand-write — RPN and NRPN as their four control
+changes, the MPE configuration message, RPN 0 pitch-bend range, Master Volume,
+and a 14-bit controller sweep in **either byte order**. Hex out, so it can be
+pasted into a test, piped to `amidi`, or diffed against a capture.
+
+```
+python3 scripts/midi_vectors.py --list
+python3 scripts/midi_vectors.py sweep14 --msb 43 --lsb 63 --low-byte-first
+```
+
+That last one reproduces an instrument that sends its low byte first, which is
+the case most receivers get wrong — see
+[real-devices](references/real-devices.md).
 
 ## The five things most often got wrong
 

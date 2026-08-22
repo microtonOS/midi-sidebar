@@ -63,3 +63,13 @@ Five steps from empty folder to distributable plugin. Do each step in order; ski
 | A `juce::String` or `StringArray` table at namespace scope | Return it from a function holding a `static` local — a namespace-scope one is built during static initialisation and can crash before `main`, showing only JUCE's version banner |
 
 Use the `juce-review` skill to audit finished processor code for thread-safety violations.
+
+## Scripts — checking a module without a plugin
+
+A module's logic headers link into a console app, so they can be exercised with
+no host and no window. `scripts/add_check_app.cmake` adds such a target to your
+own build and registers it with CTest; `scripts/check.sh` builds and runs one
+against a module sitting anywhere, with no project of your own.
+
+See [scripts/README.md](scripts/README.md), which also explains why a check that
+is not a build target is not a check.

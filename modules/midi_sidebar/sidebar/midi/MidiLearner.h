@@ -137,9 +137,13 @@ public:
             return {};
 
         mapping.source = controllers::Source::control;
-        mapping.cc     = chooseControl (best);
+        mapping.msb    = chooseControl (best);
 
-        if (! mapping.cc.has_value())
+        // Only the MSB is learned. A low byte is a refinement the end-user
+        // states in the table, not something to guess from a gesture — and the
+        // one heuristic that could identify it (the wraparound test below) is
+        // used here to *discard* it rather than to pair it.
+        if (! mapping.msb.has_value())
             return {};
 
         return mapping;

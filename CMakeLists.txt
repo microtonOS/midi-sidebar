@@ -80,4 +80,7 @@ target_link_libraries(midi_sidebar INTERFACE tuning-library)
 
 if(PROJECT_IS_TOP_LEVEL)
     add_subdirectory(demo)
+
+    enable_testing()
+    add_subdirectory(checks)
 endif()
