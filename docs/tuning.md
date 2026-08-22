@@ -4,8 +4,7 @@ In Tuning, the end-user can monitor tunings of individual notes, see the name, p
 The end-user can edit which tuning standard to use.
 The end-user can choose between MTS-ESP, MIDI 1.0, MIDI 2.0, Scala, or standard.
 MIDI 1.0 covers MTS system exclusive and the tuning RPNs together (master tuning and channel master tuning).
-The other standards ignore tuning-related MIDI messages unless they are tuning bank select or pitchbend messages.
-The user can set associated parameters as well as pitchbend sensitivity.
+The other standards ignore tuning-related MIDI messages unless they are tuning bank select (or pitchbend messages).
 
 
 MIDI Sidebar saves a table of frequencies per note per channel.
@@ -81,20 +80,6 @@ This is a relevant setting for MTS-ESP.
 For MIDI 1.0 the switch cannot be set but works as an indicator, since the message itself says whether it is real time.
 Otherwise, it has no effect.
 
-~~In the pitchbend sensitivity section, the user can set the global and MPE member pitchbend sensitivities.~~
-~~The global pitchbend sensitivity applies to the MPE manager channel and adds pitchbend to all MPE members.~~
-~~The global pitchbend sensitivity also apply to all non-MPE channels.~~
-~~Pitchbend messages are never ignored, but sensitivity can be set, and a sensitivity of 0 is effectively ignoring them.~~
-
-> Pitchbend sensitivity has moved to the [channels page](channels.md), and this
-> section is gone from the tuning page entirely. RPN 0 is addressed per channel,
-> and once both MPE zones can be active there is no single global value left to
-> show: the manager channels of two zones may differ from each other and from
-> the plain channels around them.
->
-> What survives unchanged is the last sentence, which now belongs there:
-> pitchbend messages are never ignored, but sensitivity can be set, and a
-> sensitivity of 0 is effectively ignoring them.
 
 MIDI 2.0 messages are kept apart from MIDI 1.0 messages such that no channel clashes occur.
 
