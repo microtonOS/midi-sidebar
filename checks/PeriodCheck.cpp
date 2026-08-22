@@ -48,7 +48,7 @@ int main()
         check (ascending, "and they ascend, so a stepper walking them is sane");
 
         near (period.candidates.getFirst(), 100.0, 1e-6,
-              "one step is still offered — it is a period, just not the useful one");
+              "one step is still offered - it is a period, just not the useful one");
     }
 
     //  Other equal divisions of the octave -------------------------------------
@@ -66,7 +66,7 @@ int main()
 
         eq (bp->size, 8, "13ed3 picks the 8-step interval, being nearest an octave");
         near (bp->cents, 8.0 * 1200.0 * std::log2 (3.0) / 13.0, 1e-6,
-              "which is not the tritave — unstated periods are not recoverable");
+              "which is not the tritave - unstated periods are not recoverable");
 
         // The tritave is still in the list, so the end-user can step to it.
         auto hasTritave = false;

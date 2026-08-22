@@ -21,7 +21,8 @@ namespace microtonos::sidebar
     Implements docs/controllers.md. The newest messages at the top, then
     `INSERT` and `EDIT` as framed sections, the same shape the tuning page uses.
 
-    **No files section.** A preset carries the whole state, mappings included,
+    **No files section.** A preset is meant to carry the mappings too — though it
+    does not yet; see TODO.md. The intent is that they travel with the sound,
     so a second way to save just the mappings was a second thing to keep in
     step. See the presets page, whose `FILE` section is now the only one.
 

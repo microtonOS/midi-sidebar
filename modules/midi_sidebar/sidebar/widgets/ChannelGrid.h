@@ -63,6 +63,17 @@ public:
         decide. */
     std::function<void (int channelIndex)> onChannelClicked;
 
+    /** Where a channel's button sits, in this component's coordinates, so a
+        call-out can be pointed at the channel it is about rather than at the
+        grid as a whole. Empty for an index that is not a channel. */
+    juce::Rectangle<int> boundsForChannel (int channelIndex) const
+    {
+        if (! juce::isPositiveAndBelow (channelIndex, buttons.size()))
+            return {};
+
+        return buttons[channelIndex]->getBounds();
+    }
+
     void resized() override
     {
         juce::Grid grid;

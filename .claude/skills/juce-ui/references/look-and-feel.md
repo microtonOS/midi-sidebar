@@ -63,6 +63,23 @@ easy to miss:
 | a pre-rendered `Image`, a `Path` with a stored fill | same |
 | a `Slider`'s **layout** | `getSliderLayout` is asked once, in `resized()`; `Slider::lookAndFeelChanged` rebuilds only the text box, so call `slider.resized()` |
 
+**A ColourId your scheme never sets is worse than one that is missing.** A custom
+`ColourScheme` only reaches the IDs your own `registerColours` assigns. Everything
+else still resolves — `findColour` falls through to `LookAndFeel_V4`'s defaults —
+so you get a plausible colour rather than an obvious failure. `TextButton::
+textColourOffId` is the one that catches people: use it to tint something that
+must match a button's label and it will look right on a scheme close to JUCE's
+own and wrong on the rest. For "the same colour as that text", use the
+scheme-derived ID you defined for text.
+
+**Check colour work on the theme least like the default.** A screenshot where the
+right and the wrong answer look the same is not evidence that a colour fix
+worked, and the dark default is exactly where most mistakes hide: an
+un-recoloured icon is black, unset text is near-white, and both are within a
+shade of what they should be. Take the light theme, or the one with an unusual
+accent, and compare the thing against its neighbour — or assert the `Colour`
+value outright and skip the eyeballing.
+
 Refresh any of these when the LookAndFeel becomes available, and override
 **both** `lookAndFeelChanged()` and `parentHierarchyChanged()` to do it. Neither
 alone is enough: attaching to an already-styled parent sends

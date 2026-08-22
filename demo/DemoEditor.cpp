@@ -444,8 +444,7 @@ void DemoEditor::showSampleChannels()
     setup.omniChannels = (channels::Mask) (channels::allChannels & ~0b0000'0000'1010'0100);
 
     setup.mpeOn = true;
-    setup.zone = channels::Zone::lower;
-    setup.zoneEdge = 9;
+    setup = channels::withZoneMembers (setup, channels::Zone::lower, 8);
 
     page.setSetup (setup);
 
@@ -472,19 +471,202 @@ void DemoEditor::showSamplePresets()
 {
     auto& page = sidebar.getPresetsPage();
 
-    // The sketch's own numbers, and a comment long enough to need more than one
-    // line — which is the point of giving it the page's flexible row.
-    page.setFrequencies ({ 220.0, 440.0 });
-    page.setAvailableNames ({ "Jimmie Smith", "Gospel Chops", "Blue Note" });
-    page.setStatus ({ "Jimmie Smith", 1, {} });
+    // No longer sample data for the status block: `processor.presetStore` owns
+    // the presets, and a program change moves them whether or not this window
+    // is open. What is still seeded here is the split, which has nowhere else to
+    // come from until a preset carrying one has been loaded.
+    page.setFrequencies (split.frequencies);
+    page.setSplitActive (split.active);
+    page.setLayer (split.editing);
 
-    page.setMeta ({ "Hank Aaslund",
-                    "Drawbar registration for gospel organ. "
-                    "Works best with the rotary on fast. CC-BY-SA 4.0." });
+    // Three presets so the page opens on something, seeded through the store's
+    // own path rather than pushed at the page — the names and comment are the
+    // sketch's from docs/presets.md. Only once: the editor can be reopened, and
+    // a second window should not double the bank.
+    if (processor.presetStore.availableNames().isEmpty())
+    {
+        processor.presetStore.addFromCurrentState (
+            "Jimmie Smith",
+            { "Hank Aaslund",
+              "Drawbar registration for gospel organ. "
+              "Works best with the rotary on fast. CC-BY-SA 4.0." });
 
-    page.setSplitActive (true);
-    page.setLayer (presets::Layer::lower);
+        processor.presetStore.addFromCurrentState ("Gospel Chops");
+        processor.presetStore.addFromCurrentState ("Blue Note");
+    }
+
+    //  The split -------------------------------------------------------------
+    page.onFrequenciesEdited = [this] (presets::Frequencies edited)
+    {
+        split.frequencies = edited;
+        refreshPresets();
+    };
+
+    page.onSplitToggled = [this] (bool isActive)
+    {
+        split.active = isActive;
+        refreshPresets();
+    };
+
+    // The layer switch is the visible half of "two presets in one": it chooses
+    // which of the two parameter sets the synth panel shows and edits. The
+    // audible half — the crossfade — is the developer's, because the sidebar has
+    // no voices to apply a per-note gain to. See Split.h.
+    page.onLayerChanged = [this] (presets::Layer layer)
+    {
+        if (layer == split.editing)
+            return;
+
+        // The set being left is kept before the other is shown, or switching
+        // away would discard whatever had just been edited.
+        storeLayer (split.editing);
+        split.editing = layer;
+        recallLayer (layer);
+
+        refreshPresets();
+    };
+
+    // With notes held the split point comes from what is sounding, which is why
+    // the button reads `update?` then; with none it comes from the two fields.
+    page.onSplitPointRequested = [this] (bool fromSoundingNotes)
+    {
+        if (fromSoundingNotes)
+        {
+            const auto held = processor.getHeldNotes();
+
+            if (held.count > 0)
+                split.frequencies = {
+                    processor.tuningSource.frequencyFor (held.lowestNote, held.lowestChannel),
+                    processor.tuningSource.frequencyFor (held.highestNote, held.highestChannel) };
+        }
+
+        refreshPresets();
+    };
+
+    //  Navigation ------------------------------------------------------------
+    page.onProgramChosen = [this] (std::optional<int> program)
+    {
+        if (program.has_value())
+            processor.presetStore.setProgram (*program - 1);   // shown 1-based
+
+        refreshPresets();
+    };
+
+    page.onBankChosen = [this] (std::optional<int> bank)
+    {
+        if (bank.has_value())
+            processor.presetStore.setBank (*bank - 1);
+
+        refreshPresets();
+    };
+
+    page.onNameChosen = [this] (int index)
+    {
+        processor.presetStore.chooseName (index);
+        refreshPresets();
+    };
+
+    page.onMetaEdited = [this] (presets::Meta meta)
+    {
+        processor.presetStore.setMeta (std::move (meta));
+        refreshPresets();
+    };
+
+    //  Files -----------------------------------------------------------------
+    page.onOpenRequested = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Open a preset, or a directory as a bank", juce::File(), "*.xml");
+
+        const auto flags = juce::FileBrowserComponent::openMode
+                         | juce::FileBrowserComponent::canSelectFiles
+                         | juce::FileBrowserComponent::canSelectDirectories
+                         | juce::FileBrowserComponent::canSelectMultipleItems;
+
+        fileChooser->launchAsync (flags, [this] (const juce::FileChooser& chooser)
+        {
+            for (const auto& result : chooser.getResults())
+            {
+                if (result.isDirectory())
+                    processor.presetStore.loadBank (result);
+                else
+                    processor.presetStore.loadFile (result);
+            }
+
+            refreshPresets();
+        });
+    };
+
+    page.onSaveRequested = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Save this preset", juce::File(), "*.xml");
+
+        const auto flags = juce::FileBrowserComponent::saveMode
+                         | juce::FileBrowserComponent::warnAboutOverwriting;
+
+        fileChooser->launchAsync (flags, [this] (const juce::FileChooser& chooser)
+        {
+            const auto file = chooser.getResult();
+
+            if (file != juce::File())
+                processor.presetStore.save (file.withFileExtension ("xml"),
+                                            file.getFileNameWithoutExtension());
+
+            refreshPresets();
+        });
+    };
+
+    // A program change arrives whether or not this window is open, so the page
+    // is told from the processor rather than only from its own controls.
+    processor.onPresetChanged = [this] { refreshPresets(); };
+
+    refreshPresets();
 }
+
+void DemoEditor::refreshPresets()
+{
+    auto& page = sidebar.getPresetsPage();
+    auto& store = processor.presetStore;
+
+    page.setStatus (store.getStatus());
+    page.setAvailableNames (store.availableNames());
+    page.setMeta (store.getMeta());
+    page.setFrequencies (split.frequencies);
+    page.setSplitActive (split.active);
+    page.setLayer (split.editing);
+
+    // The button reads `update?` only while something is sounding, since that is
+    // the case where the split point could come from two places.
+    page.setNotesActive (processor.getHeldNotes().count > 0);
+}
+
+void DemoEditor::storeLayer (presets::Layer layer)
+{
+    auto& saved = layer == presets::Layer::lower ? lowerLayer : upperLayer;
+
+    saved.clear();
+
+    for (const auto& control : synth::controls())
+        if (auto* p = processor.apvts.getParameter (control.id))
+            saved.set (control.id, p->getValue());
+}
+
+void DemoEditor::recallLayer (presets::Layer layer)
+{
+    const auto& saved = layer == presets::Layer::lower ? lowerLayer : upperLayer;
+
+    // An empty set is a layer never edited, which starts as a copy of whatever
+    // is live rather than as silence.
+    if (saved.size() == 0)
+        return;
+
+    for (const auto& control : synth::controls())
+        if (auto* p = processor.apvts.getParameter (control.id))
+            if (saved.contains (control.id))
+                p->setValueNotifyingHost (saved[control.id]);
+}
+
 
 void DemoEditor::applyBubbleTextColour (int bubbleTextIndex)
 {
@@ -512,6 +694,17 @@ void DemoEditor::timerCallback()
     // way to see it is to ask. Under any other scheme this is nearly free —
     // everything is already a table — so it is not worth a second timer.
     refreshTuning();
+
+    // The edited marker answers a question about the *synth's* parameters, which
+    // change from the panel, from a mapped controller and from the host — none
+    // of which pass through the presets page. So it is polled rather than
+    // pushed, and only the transition costs anything: `refreshPresets` rebuilds
+    // the name menu, which is not something to do at the meter rate.
+    if (const auto edited = processor.presetStore.isEdited(); edited != shownAsEdited)
+    {
+        shownAsEdited = edited;
+        refreshPresets();
+    }
 }
 
 void DemoEditor::drainMonitor()

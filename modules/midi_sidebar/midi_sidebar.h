@@ -51,6 +51,7 @@
 #include "sidebar/pages/ControllersTable.h"
 #include "sidebar/pages/ControllersPage.h"
 #include "sidebar/pages/PresetsState.h"
+#include "sidebar/presets/Split.h"
 #include "sidebar/pages/PresetsPage.h"
 #include "sidebar/pages/TuningPage.h"
 #include "sidebar/pages/ChannelsPage.h"

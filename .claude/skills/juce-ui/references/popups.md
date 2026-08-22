@@ -164,6 +164,25 @@ A call-out dismisses itself 200ms after opening if its process is not in the
 foreground — which matters when rendering headlessly, since the screenshot has
 to be taken inside that window.
 
+**Never dismiss a call-out from `onFocusLost`.** A `TextEditor` inside a call-out
+is the natural place to want commit-on-Return and commit-on-click-away, and
+writing both as `commit(); dismiss();` destroys the box the instant it opens: a
+call-out moves focus about as it appears, and that counts as the editor losing
+it. Split the two responsibilities instead —
+
+```cpp
+editor.onReturnKey = [this] { commit(); if (auto* b = findParentComponentOfClass<juce::CallOutBox>()) b->dismiss(); };
+editor.onFocusLost = [this] { commit(); };   // commit, but never dismiss
+```
+
+— and make `commit()` idempotent, since it now runs twice on the Return path.
+The box already closes on a click outside it, so nothing is lost by not asking.
+
+A call-out containing a `TextEditor` also grabs keyboard focus as it opens, which
+fires `jassert (isShowing() || isOnDesktop())` in a headless render. That
+assertion is harmless and is *not* why a box goes missing from a screenshot — the
+200ms timer above is.
+
 ### Styling a pop-up's contents
 
 Two failures account for nearly every pop-up that comes out looking wrong, and

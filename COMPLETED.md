@@ -6,6 +6,45 @@ an agent asked to look at the TODO should not have to load this at all.
 
 Newest at the top within each batch.
 
+- **The keyboard split, and the presets page.** The split is by **frequency**,
+  not by key: under a multichannel tuning the same note number is a different
+  pitch on every channel, so a split defined by note number is not one split
+  point but sixteen. `presets::gainsFor` returns a *pair of gains* rather than a
+  side, because a note inside the crossfade is played by both layers.
+
+  The sidebar cannot apply that itself and the reason is structural: master
+  volume is one gain on the whole buffer after mixing, where a crossfade is one
+  gain per voice before it, and the sidebar is a MIDI effect with no voices to
+  reach. Three wire-level alternatives were rejected — velocity scaling is not a
+  volume control, CC 7 is per channel, MIDI 2.0 per-note volume needs UMP — so
+  it answers a question the developer applies. The demo shows the visible half,
+  parameter doubling, since it makes no sound.
+
+  The fade is measured in **cents**, so its midpoint is the geometric mean of its
+  bounds; a fade written in hertz would squeeze the upper half of an octave into
+  a third of its span, which is the one assertion that catches it. The shape is a
+  `Curve` enum rather than a decision: linear is right for correlated layers,
+  equal power for uncorrelated, and two layers of a split are neither.
+
+- **Program change and bank select.** The router keeps a per-channel bank
+  register and reports *one* event, because "bank select alone must not change
+  the program — the receiver remembers the bank and applies it when the Program
+  Change arrives" (p13). `demo/PresetStore` navigates, saves `.xml` with the
+  metadata on the root attributes, and reads a directory as a bank. Edited state
+  is a comparison against the loaded tree rather than a dirty flag, so an undone
+  edit stops counting.
+
+- **The globe is gone from the controllers table**, replaced by the two split
+  glyphs. `Scope` is now `{ both, perNote, lower, upper }` — one value, because
+  per-note and a split side are mutually exclusive rather than independent:
+  per-note *is* a finer division than the split, so the combination has nothing
+  to express.
+
+- **Check strings must be ASCII.** `juce::String (const char*)` asserts on
+  non-ASCII — `CharPointer_ASCII::isValidString` — so an em dash in a test
+  message fired an assertion every run and rendered mangled. Recorded in
+  `juce-guide/scripts/README.md`.
+
 - **Master and channel tuning applies under `MTS Sysex` only.** The deciding
   argument was that a scheme carrying its own pitch reference should not have it
   silently overridden: MTS ESP has a master that owns absolute pitch, a `.kbm`
@@ -315,3 +354,71 @@ rather than palettes of ours. The module derives all of its colours from the nin
 in whichever scheme it is given, so switching between them is a real test of that
 claim: if a theme comes out wrong, a colour has been hardcoded somewhere it
 should not be. That is worth more than the ability to switch themes.
+
+
+## Two MPE zones at once, and pitch-bend sensitivity on the channels page
+
+`channels::Setup` held one zone — a `Zone` saying which end and a `zoneEdge`
+saying how far — so an MCM for the other end *moved* the zone rather than adding
+one. It now holds a **member count per zone**, with zero meaning deactivated:
+not a convention of ours but §2.2.2's own rule, "If a Zone no longer has any
+Member Channels, then it shall become deactivated". Deactivation is therefore
+not a flag that could disagree with the count; it is the count. `Zone` survives
+as `editing`, meaning only which zone a click lands on.
+
+Overlap goes through one function, `withZoneMembers`, so a click and a received
+MCM resolve it identically — which is what makes the display trustworthy. The
+rule is §2.2.1's: the later message wins, the other zone yields the channels it
+has lost, and a zone whose *manager* channel is claimed dies outright.
+`RegisterCheck` runs the specification's own worked examples rather than cases of
+our own devising: a lower zone of 7 followed by an upper zone of 14 leaves the
+lower with nothing, and an upper zone of 15 reaches across channel 1.
+
+`midiFilter::layoutFor` now sets both `juce::MPEZoneLayout` zones from their own
+counts, after `clearAllZones` so an emptied zone cannot survive as a stale layout.
+
+**Pitch-bend sensitivity moved from the tuning page to the channels page**, and
+the tuning page's PITCHBEND SENSITIVITY section is gone entirely. RPN 0 is
+addressed per channel, and with both zones live there is no single global value
+left to show — two managers can differ from each other and from the plain
+channels between them. So `Setup` carries sixteen values, and a latching
+`pitchbend sensitivity` button turns a channel click into a range editor: one
+channel under omni, every member of a zone together under MPE, a manager on its
+own.
+
+**The range is in cents.** RPN 0's Data Entry MSB is semitones and its LSB is
+cents, which is what makes it usable microtonally at all; GM2 §3.4.1 permits a
+*receiver* to ignore the LSB, which is why most synths look semitone-only, but
+that is their conformance floor and there was no reason to inherit it. The
+router now reads RPN 0 on any channel and reports both halves — `RegisterCheck`
+asserts that two semitones and fifty cents arrives as 250 rather than 200, which
+is the assertion that fails if the LSB is ever dropped.
+
+An MCM also applies §2.2.5's two defaults, 2 semitones on the manager and 48 on
+each member, and RPN 0 is applied after it so a sender that configures a zone and
+immediately retunes one of its channels keeps the retuning.
+
+Removed from TODO:
+
+> - **Two MPE zones at once.** MPE allows both — a Lower Zone anchored at manager
+>   channel 1 growing up, an Upper Zone anchored at 16 growing down — and says
+>   outright that "any MIDI Channels not assigned to any Zone remain available for
+>   conventional use" (M1-100-UM v1.1, §2.2.1). So two devices with ordinary
+>   channels between them is the specification's own model, not a workaround.
+>>   The page models **one** zone with a lower/upper selector, which Appendix A.2
+>   explicitly allows: "many MPE Devices only support one MPE Zone. These Devices
+>   might only use the Lower Zone or might provide a way for the user to choose
+>   which Zone to use." So this is a conformant implementation level rather than a
+>   gap, and Lower by default "provides the widest interoperability".
+>>   What is actually lost is the second device's *zone semantics*: its channels can
+>   be selected as plain ones, but its manager channel stops being one, so a bend
+>   or pressure sent there no longer applies to all its members and the per-note
+>   versus zone pitch-bend split goes with it.
+>>   `juce::MPEZoneLayout` already models both zones, and `midiFilter::layoutFor` is
+>   the single place that assumes one — it currently calls `clearAllZones()` and
+>   then activates exactly one, which is where that assumption would be lifted — plus `channels::Setup`, which holds one
+>   `zone` and one `zoneEdge` rather than a pair. Two further rules to honour when
+>   it is built: no channel may belong to two zones, and an MCM that overlaps
+>   reassigns those channels to the newer zone, deactivating the older one if that
+>   leaves it with no members.
+>

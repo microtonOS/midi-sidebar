@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../SidebarLookAndFeel.h"
+#include "../SidebarIcons.h"
 
 namespace microtonos::sidebar
 {
@@ -131,6 +132,26 @@ public:
     /** Shows a selection without announcing it, so that a value arriving from
         wherever this strip mirrors cannot bounce straight back out through
         `onChoice` and start a loop. */
+    /** Replaces every button's text with an icon, one SVG per choice.
+
+        For a strip whose choices are symbols rather than words — the presets
+        page's two split layers, which are named by *frequency* and drawn as the
+        same two glyphs the controllers table marks a parameter's scope with. The
+        text is emptied rather than hidden, so the base class paints the segment
+        and nothing else.
+
+        Kept as source so a theme change can reparse: `replaceColour` bakes the
+        colour into the `Drawable`. */
+    void setIcons (const juce::StringArray& svgs)
+    {
+        iconSvgs = svgs;
+
+        for (auto* button : buttons)
+            button->setButtonText ({});
+
+        lookAndFeelChanged();
+    }
+
     void setSelectedIndex (int index)
     {
         if (auto* button = buttons[index])
@@ -165,6 +186,19 @@ public:
         {
             button->setColour (juce::TextButton::buttonOnColourId, lf.findColour (selectedColourId));
             button->setColour (juce::TextButton::textColourOnId,   lf.findColour (selectedTextColourId));
+        }
+
+        // Rebuilt rather than recoloured, for the reason on `iconSvgs` — and
+        // built *twice*, because an icon stands in for the text and so has to
+        // follow it across the selection: light on the unselected buttons, dark
+        // once the selected one's fill is under it. One baked colour cannot do
+        // both, so each button keeps the pair and picks in `paintButton`.
+        for (int i = 0; i < buttons.size(); ++i)
+        {
+            const auto* svg = i < iconSvgs.size() ? iconSvgs[i].toRawUTF8() : nullptr;
+
+            buttons[i]->icon   = svg != nullptr ? icons::load (svg, lf.findColour (juce::TextButton::textColourOffId)) : nullptr;
+            buttons[i]->iconOn = svg != nullptr ? icons::load (svg, lf.findColour (selectedTextColourId)) : nullptr;
         }
 
         label.setFont (SidebarLookAndFeel::font (metrics::bodyFontHeight));
@@ -254,7 +288,36 @@ private:
 
             juce::TextButton::mouseDown (event);
         }
+
+        /** Drawn over the button's own background, in place of its text.
+
+            `TextButton::paintButton` draws the background and then the text, so
+            with the text emptied the base class paints exactly the segment and
+            nothing else — leaving the icon to be centred on top rather than
+            fought with. */
+        void paintButton (juce::Graphics& g, bool over, bool down) override
+        {
+            juce::TextButton::paintButton (g, over, down);
+
+            const auto* toDraw = getToggleState() ? iconOn.get() : icon.get();
+
+            if (toDraw == nullptr)
+                return;
+
+            const auto square = juce::Rectangle<float> ((float) metrics::choiceIconSize,
+                                                        (float) metrics::choiceIconSize)
+                                    .withCentre (getLocalBounds().toFloat().getCentre());
+
+            toDraw->drawWithin (g, square, juce::RectanglePlacement::centred, 1.0f);
+        }
+
+        std::unique_ptr<juce::Drawable> icon, iconOn;
     };
+
+    /** The SVGs each button draws, if any. Kept so a theme change can reparse
+        them: `Drawable::replaceColour` bakes the colour in, which is the caching
+        trap the juce-ui skill describes. */
+    juce::StringArray iconSvgs;
 
     /** Any non-zero value; see the comment where it is used. */
     static constexpr int radioGroupId = 1;
@@ -262,7 +325,7 @@ private:
     juce::Label label;
     const int labelColumnWidth;
     Orientation orientation = Orientation::horizontal;
-    juce::OwnedArray<juce::TextButton> buttons;
+    juce::OwnedArray<SegmentButton> buttons;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChoiceStrip)
 };

@@ -45,7 +45,7 @@ int main()
     //  Addressing ---------------------------------------------------------------
     {
         check (! deviceControl::masterVolumeFrom (masterVolume (0x03, 8192)).has_value(),
-               "a message addressed to one device id is ignored — a plugin has none");
+               "a message addressed to one device id is ignored - a plugin has none");
         check (! deviceControl::masterVolumeFrom (
                      sysex ({ 0x7f, 0x7f, 0x04, 0x02, 0x00, 0x40 })).has_value(),
                "master balance is not master volume");
@@ -69,7 +69,7 @@ int main()
         // Halving the *value* is -12.04 dB under a square law, not -6.02. This
         // is the assertion that would catch someone "fixing" it to 20·log10.
         near (deviceControl::decibelsFor (16383 / 2), -12.04, 0.05,
-              "half scale is about -12 dB — the square law, not a linear one");
+              "half scale is about -12 dB - the square law, not a linear one");
 
         // GM2's own worked example is for CC 7 at 96 of 127.
         near (deviceControl::decibelsFor ((int) (16383.0 * 96.0 / 127.0)),

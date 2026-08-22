@@ -62,7 +62,7 @@ int main()
         check (p.name == "Twelve equal divisions",
                "and takes its name from the description line, not the filename");
         near (*p.periodCents, 1200.0, 1e-6,
-              "the period is the file's last tone — stated, so never inferred");
+              "the period is the file's last tone - stated, so never inferred");
         near (*p.table.frequencyFor (69, 1), 440.0, 1e-6, "A-440 on channel 1");
         near (*p.table.frequencyFor (69, 9), 440.0, 1e-6,
               "and on channel 9, from the channel-independent list");
@@ -77,7 +77,7 @@ int main()
         check (p.isValid(), "a .kbm with no suffix loads as the generic mapping");
         check (p.table.frequencyFor (60, 1).has_value(), "C is mapped");
         check (! p.table.frequencyFor (61, 1).has_value(),
-               "C# is not — 'x' means unmapped, which is not the same as silent");
+               "C# is not - 'x' means unmapped, which is not the same as silent");
     }
 
     //  Per-channel .kbm ------------------------------------------------------------

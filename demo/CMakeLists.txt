@@ -19,6 +19,7 @@ target_sources(SidebarDemo
         DemoProcessor.cpp
         DemoEditor.cpp
         TuningSource.cpp
+        PresetStore.cpp
 
         # ODDSound's MTS-ESP client, compiled into the demo rather than into the
         # module. It dlopens a system-installed libMTS at runtime and returns

@@ -31,17 +31,6 @@ namespace
         return source == tuning::PeriodSource::specified ? "specified" : "inferred";
     }
 
-    void prepareNumericEditor (juce::TextEditor& editor)
-    {
-        editor.setMultiLine (false);
-        editor.setReturnKeyStartsNewLine (false);
-        editor.setJustification (juce::Justification::centredLeft);
-
-        // A cents value can be negative and fractional; nothing else here can
-        // be typed at all, so neither field can be left holding something the
-        // plugin could not act on.
-        editor.setInputRestrictions (0, "-0123456789.");
-    }
 }
 
 //==============================================================================
@@ -58,7 +47,7 @@ TuningPage::TuningPage()
     // Frames first, so everything else is drawn over them. JUCE has no
     // text-transform anywhere in Font, Label or LookAndFeel, so a title is in
     // capitals only because it was typed that way.
-    for (auto* group : { &statusGroup, &periodGroup, &settingsGroup, &pitchBendGroup })
+    for (auto* group : { &statusGroup, &periodGroup, &settingsGroup })
     {
         group->setTextLabelPosition (juce::Justification::centredLeft);
 
@@ -71,7 +60,6 @@ TuningPage::TuningPage()
     statusGroup  .setText ("STATUS");
     periodGroup  .setText ("PERIOD");
     settingsGroup.setText ("SETTINGS");
-    pitchBendGroup.setText ("PITCHBEND SENSITIVITY");
 
     const auto addLabel = [this] (juce::Label& label, const juce::String& text)
     {
@@ -92,8 +80,6 @@ TuningPage::TuningPage()
     addLabel (programLabel, "program");
     addLabel (bankLabel,    "bank");
     addLabel (updatedLabel, "updated");
-    addLabel (pitchBendLabel,       "global");
-    addLabel (memberPitchBendLabel, "MPE member");
 
     // JUCE's own labelling, for the two that sit above their control:
     // attachToComponent positions the label directly over its owner and follows
@@ -105,15 +91,13 @@ TuningPage::TuningPage()
     // The pitch-bend pair the same way: two columns of one editor each, named
     // above rather than beside, because half a page is not wide enough for a
     // label and a value side by side once the label says "MPE member".
-    pitchBendLabel      .attachToComponent (&pitchBendEditor,       false);
-    memberPitchBendLabel.attachToComponent (&memberPitchBendEditor, false);
 
     for (auto* c : std::initializer_list<juce::Component*> {
              &intervalField, &modResultField, &nameButton,
              &programStepper, &bankStepper, &updatedField, &periodSourceField,
              &schemeButton, &openButton,
              &updateStrip, &modEditor, &periodChooser,
-             &pitchBendEditor, &memberPitchBendEditor })
+           })
         addAndMakeVisible (*c);
 
     //  Interval ---------------------------------------------------------------
@@ -123,21 +107,11 @@ TuningPage::TuningPage()
     modEditor.onFocusLost  = [this] { applyModDivisor(); };
 
     //  Pitch bend -------------------------------------------------------------
-    prepareNumericEditor (pitchBendEditor);
 
     // No sign and no fraction, unlike the modulo divisor: a bend range runs one
     // way and a fraction of a cent is past what RPN 0 can address.
-    prepareNumericEditor (memberPitchBendEditor);
 
-    for (auto* e : { &pitchBendEditor, &memberPitchBendEditor })
-    {
-        e->setInputRestrictions (0, "0123456789");
-        e->onReturnKey = [this] { applyPitchBendCents(); };
-        e->onFocusLost = [this] { applyPitchBendCents(); };
-    }
 
-    setPitchBendCents (tuning::defaultPitchBendCents);
-    setMemberPitchBendCents (tuning::defaultMemberPitchBendCents);
 
     // Stated rather than inherited. A ChoiceStrip selects its first entry on
     // construction, and reordering the two put `always` there — which would
@@ -300,52 +274,6 @@ void TuningPage::setUpdateMode (tuning::UpdateMode mode)
                                                                      : alwaysIndex + 1);
 }
 
-void TuningPage::setPitchBendCents (int cents)
-{
-    pitchBendCents = juce::jlimit (0, tuning::highestPitchBendCents, cents);
-
-    // Shown with its unit and typed without one, the same arrangement the
-    // table's limits use; the editor's restriction is what keeps the two from
-    // disagreeing, since a "c" cannot be typed back in.
-    //
-    // Through `centsText` rather than printed here, so it obeys the two-decimal
-    // convention in docs/appendices.md like every other interval on the page.
-    // `getIntValue` reads "200.00 c" back as 200, so the round trip is unharmed.
-    pitchBendEditor.setText (centsText (pitchBendCents), juce::dontSendNotification);
-}
-
-void TuningPage::setMemberPitchBendCents (int cents)
-{
-    memberPitchBendCents = juce::jlimit (0, tuning::highestPitchBendCents, cents);
-    memberPitchBendEditor.setText (centsText (memberPitchBendCents), juce::dontSendNotification);
-}
-
-void TuningPage::applyPitchBendCents()
-{
-    // Both editors commit through here, because either can lose focus to the
-    // other and neither knows which one moved. Each is compared against what it
-    // had, so only the one that actually changed is reported.
-    const auto typedGlobal = juce::jlimit (0, tuning::highestPitchBendCents,
-                                           pitchBendEditor.getText().getIntValue());
-    const auto typedMember = juce::jlimit (0, tuning::highestPitchBendCents,
-                                           memberPitchBendEditor.getText().getIntValue());
-
-    // Written back either way: an out-of-range or empty entry has to be
-    // corrected on screen, or the box goes on showing something the plugin does
-    // not have. Only a real change is reported.
-    const auto globalChanged = typedGlobal != pitchBendCents;
-    const auto memberChanged = typedMember != memberPitchBendCents;
-
-    setPitchBendCents (typedGlobal);
-    setMemberPitchBendCents (typedMember);
-
-    if (globalChanged && onPitchBendCentsChosen != nullptr)
-        onPitchBendCentsChosen (pitchBendCents);
-
-    if (memberChanged && onMemberPitchBendCentsChosen != nullptr)
-        onMemberPitchBendCentsChosen (memberPitchBendCents);
-}
-
 void TuningPage::setLoadedSummary (const juce::String& summary)
 {
     // One line for however many files were chosen: the owner decides how to say
@@ -430,14 +358,14 @@ void TuningPage::lookAndFeelChanged()
     // whose outline is bright enough to be read before the widgets inside it.
     // Set per instance rather than on the LookAndFeel, so a host's own
     // GroupComponents are left alone.
-    for (auto* group : { &statusGroup, &periodGroup, &settingsGroup, &pitchBendGroup })
+    for (auto* group : { &statusGroup, &periodGroup, &settingsGroup })
     {
         group->setColour (juce::GroupComponent::textColourId,    text);
         group->setColour (juce::GroupComponent::outlineColourId, findColour (pageColours::sectionOutlineColourId));
     }
 
     for (auto* label : { &modLabel, &equalsLabel, &programLabel, &bankLabel,
-                         &updatedLabel, &pitchBendLabel })
+                         &updatedLabel })
     {
         label->setFont (font);
         label->setColour (juce::Label::textColourId, text);
@@ -450,7 +378,7 @@ void TuningPage::lookAndFeelChanged()
     // the Light scheme's white field: the value is there, correct, and cannot
     // be read. Re-applying it here is the documented fix (see the note on
     // TextEditor::textColourId), and `true` makes later insertions use it too.
-    for (auto* editor : { &modEditor, &pitchBendEditor })
+    for (auto* editor : { &modEditor })
     {
         editor->setFont (font);
         editor->applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
@@ -547,26 +475,6 @@ void TuningPage::resized()
     }
 
     grid.frame (settingsGroup, settingsTitle, grid.addRow (metrics::pageGroupPadding));
-
-    //  Pitchbend sensitivity ---------------------------------------------------
-    //  Its own section rather than a row of SETTINGS, because it is two values
-    //  now and not one: MPE keeps a separate range for member channels, so a
-    //  single "PB sensitivity" field could not say which it meant.
-    const auto pitchBendTitle = grid.addRow (metrics::pageGroupTitleHeight);
-
-    {
-        // The label row is reserved and left empty: `attachToComponent` puts
-        // each label directly above its editor and keeps it there, the same
-        // arrangement `program` and `bank` use in STATUS.
-        grid.addRow (metrics::pageRowHeight);
-
-        const auto row = grid.addRow (metrics::pageRowHeight);
-
-        grid.place (pitchBendEditor,       row, 1, half);
-        grid.place (memberPitchBendEditor, row, rightHalf, half);
-    }
-
-    grid.frame (pitchBendGroup, pitchBendTitle, grid.addRow (metrics::pageGroupPadding));
 
     // The page has no flexible track, so it needs its natural height or it is
     // clipped; see docs/tuning.md on small heights.

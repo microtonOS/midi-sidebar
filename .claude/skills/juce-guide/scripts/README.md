@@ -70,6 +70,12 @@ target — which is what `add_check_app.cmake` is for.
 
 ## Notes
 
+- **Keep check descriptions ASCII.** `juce::String (const char*)` asserts that
+  the literal is **ASCII**, not UTF-8 — `jassert (CharPointer_ASCII::isValidString
+  (...))` in `juce_String.cpp`. An em dash in a test message fires an assertion
+  on every run and renders mangled, which is a poor thing to have between you and
+  a real failure. Non-ASCII needs `CharPointer_UTF8` or `String::fromUTF8`; in a
+  check it is simpler not to.
 - **`juce_add_console_app` requires a project VERSION.** Without one it fails
   with an error naming your target rather than the cause.
 - **`JUCE_STANDALONE_APPLICATION=1`** is what lets a console app link without the

@@ -4,6 +4,8 @@
 #include <midi_sidebar/midi_sidebar.h>
 
 #include "TuningSource.h"
+#include "DemoSynth.h"
+#include "PresetStore.h"
 
 namespace microtonos::sidebar::demo
 {
@@ -113,6 +115,15 @@ public:
         reconfigured the zone, so the channels page can show it. */
     std::function<void (channels::Setup)> onChannelsChanged;
 
+    /** The presets, and where the plugin is among them. On the processor beside
+        the tuning source, for the same reason: a program change arrives whether
+        or not a window is open. */
+    PresetStore presetStore { apvts, synth::parameterIds() };
+
+    /** Called on the message thread after a program change has moved the
+        preset, so the page can show it. */
+    std::function<void()> onPresetChanged;
+
     /** What the router is filtering by. The editor reads it to apply an MCM and
         writes it back; the channels page owns it while a window is open. */
     channels::Setup getChannels() const { return router.getChannels(); }
@@ -154,6 +165,8 @@ private:
     std::optional<double> pendingMasterVolumeDb;
     std::optional<double> pendingMasterFineCents, pendingMasterCoarseCents;
     std::optional<MidiRouter::Result::MpeConfiguration> pendingMpeConfiguration;
+    std::optional<MidiRouter::Result::BendSensitivity>   pendingBendSensitivity;
+    std::optional<MidiRouter::Result::ProgramChange> pendingProgramChange;
 
     /** Which notes are down, one bit per note per channel. Written on the audio
         thread and read on the message thread; `std::atomic` per channel rather

@@ -107,6 +107,14 @@ and no call-out is involved, raise it:
 snapshot.sh --target X -- --click Tuning --click-settle 300
 ```
 
+Raising it *with* a call-out involved is a trap worth naming, because of how it
+presents: the box is constructed and destroyed before the frame, so a trace
+through its constructor and destructor shows both running and it reads as a bug
+in the launching code rather than a timing setting. If a call-out is missing from
+a render, put `--click-settle` back to the default before suspecting anything
+else. The `grabKeyboardFocus` assertion logged in the same run is unrelated and
+harmless — see [popups](../references/popups.md#calloutbox).
+
 **A call-out must also be launched with a parent component** to be captured at
 all. `CallOutBox::launchAsynchronously (content, area, nullptr)` puts it on the
 desktop, where it is a separate window: outside the editor's component tree, so

@@ -39,19 +39,33 @@ namespace presets
 
     /** Which half of a split is being edited — and, when the split is off,
         played as well. Which of those it means is the owner's decision; the
-        page only reports the choice. */
+        page only reports the choice.
+
+        **Named by frequency, not by position on the keyboard.** Under a
+        multichannel tuning the same note number is a different pitch on every
+        channel, so "left hand" and "right hand" mean nothing and only the
+        frequency does. See docs/presets.md and `presets::gainsFor`. */
     enum class Layer { lower, upper };
 
-    inline const juce::StringArray layerNames { "lower", "upper" };
+    /** The strip shows the two slash glyphs rather than these, which are kept
+        for prose — a menu line or a tooltip. The icons are `icons::splitLower`
+        and `icons::splitUpper`, the same pair the controllers table marks a
+        parameter's scope with, so one symbol means one thing across two pages. */
+    inline const juce::StringArray layerNames { "lower frequencies", "higher frequencies" };
 
     //==========================================================================
-    /** Which preset is loaded. Read-only on the page for now: it says where you
-        are, and getting somewhere else is a job for the controls that will
-        replace this block later. */
+    /** Which preset is loaded, and whether it still is what its file says. */
     struct Status
     {
         juce::String name;
         std::optional<int> program, bank;
+
+        /** The live parameters differ from the preset as stored, which the page
+            marks with `icons::edited` at the right of the name.
+
+            A flag rather than a `*` glued onto `name`, so the name a menu
+            matches against stays the name. */
+        bool edited = false;
     };
 
     /** Whatever the preset's author wanted to say. `comment` is deliberately

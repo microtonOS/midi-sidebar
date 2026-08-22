@@ -123,6 +123,11 @@ namespace metrics
     /** Between rows inside one section. */
     inline constexpr int pageRowGap = 5;
 
+    /** How wide the pitch-bend call-out is. Wide enough for "lower zone
+        members" on one line, since wrapping the target description would make
+        the bubble taller than the thing it points at. */
+    inline constexpr int bendBubbleWidth = 150;
+
     /** The whole of that opening block, gaps included — what a page reserves
         when it fills it with one tall widget rather than with rows. */
     inline constexpr int pageTopHeight (int rows) noexcept
@@ -323,6 +328,10 @@ namespace metrics
         button's own rounded corner, which is where a centred label never
         reaches. */
     inline constexpr int markerSize  = 12;
+
+    /** The glyph a `ChoiceStrip` button draws in place of its text. Larger than
+        a table marker, which sits beside a name; this *is* the label. */
+    inline constexpr int choiceIconSize = 16;
     inline constexpr int markerInset = 4;
 
     /** The largest a continuous controller number can be, 7 bits. Named because

@@ -475,6 +475,39 @@ colour, so it does not follow a theme change on its own —
 refresh, and JUCE's SVG parser does not understand `currentColor`, so an icon has
 to be authored in one literal colour for a single replacement to recolour it.
 
+**`replaceColour` fails silently, and the failure is easy to mistake for
+something else.** It swaps an *exact* colour match and returns whether it found
+one; nothing warns you when it finds none. An icon whose fills do not match then
+renders in whatever the parser defaulted to — usually black — which on a dark
+theme is close enough to the surrounding text to survive a look at a screenshot.
+
+The tell is that changing the colour you *pass in* has no visible effect, which
+sends you hunting through the LookAndFeel and the ColourIds while the fault is in
+the SVG. So when an icon is the wrong colour, check that first:
+
+```cpp
+// If the icon does not turn green, it is not authored in authoredColour and
+// nothing you do to the colour argument will ever matter.
+auto d = icons::load (icons::edited, juce::Colours::limegreen);
+```
+
+Icons pasted from a library are the usual source: Phosphor, Material and Lucide
+all emit `fill="currentColor"`. Rewrite it to the authored literal on the way in.
+
+**An icon that stands in for a label needs one `Drawable` per state.** Where an
+icon replaces a button's text — a segmented control showing glyphs rather than
+words — it has to follow that text across the selection: light on the unselected
+segments, dark once the selected fill is under it. One baked colour cannot do
+both, so cache a pair and choose when painting:
+
+```cpp
+icon   = icons::load (svg, lf.findColour (myTextColourId));          // unselected
+iconOn = icons::load (svg, lf.findColour (mySelectedTextColourId));  // selected
+
+// in paintButton
+const auto* toDraw = getToggleState() ? iconOn.get() : icon.get();
+```
+
 **A `DrawableButton` beside a `TextButton` looks like a different control.** Its
 style decides which drawing path it takes, and only one of them is the one every
 other button uses:

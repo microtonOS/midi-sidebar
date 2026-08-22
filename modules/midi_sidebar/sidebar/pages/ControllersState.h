@@ -81,12 +81,24 @@ namespace controllers
         The developer's statement about their own plugin — the module cannot
         work it out — and it is marked beside the name in the table rather than
         explained, because it is the sort of fact you want while scanning a list
-        rather than while reading. See docs/controllers.md. */
+        rather than while reading. See docs/controllers.md.
+
+        **One value, not a side plus a flag.** `perNote` and the two split sides
+        are mutually exclusive rather than independent: per-note *is* a finer
+        division than the split, so a controller that reaches individual notes
+        does not also need to say which half of the keyboard it reaches. The
+        combination has no meaning to express.
+
+        There used to be a `global` here, marked with a globe, for a parameter
+        affecting the whole plugin. It is gone: with the split named by
+        *frequency* the interesting statement is which side a parameter belongs
+        to, and "both" is the unmarked default rather than a third icon. */
     enum class Scope
     {
-        split,     ///< One side of the keyboard split. Unmarked, being the usual case.
+        both,      ///< Both sides of the keyboard split. Unmarked, being the usual case.
         perNote,   ///< Can modulate individual notes. Marked with the notes glyph.
-        global     ///< The whole plugin, both sides of a split. Marked with the globe.
+        lower,     ///< Only the lower-frequencies split. Marked with the `/` glyph.
+        upper      ///< Only the higher-frequencies split. Marked with the `\` glyph.
     };
 
     /** What values a parameter can actually take.
@@ -142,7 +154,7 @@ namespace controllers
             the thing actually does. Empty is allowed and disables the item. */
         juce::String info;
 
-        Scope scope = Scope::split;
+        Scope scope = Scope::both;
 
         /** What the parameter can take. The `min` and `max` columns are clamped
             and snapped to this. */

@@ -25,7 +25,9 @@ set(SIDEBAR_CHECKS
     DeviceControlCheck   # Master Volume system exclusive
     MtsSysexCheck        # the MIDI Tuning Standard messages
     PeriodCheck          # period inference
-    ScalaCheck)          # .scl and .kbm
+    ScalaCheck           # .scl and .kbm
+    SplitCheck           # the keyboard split's crossfade
+    PresetCheck)         # program change and the bank-select register
 
 foreach(check ${SIDEBAR_CHECKS})
     juce_add_console_app(${check} PRODUCT_NAME ${check})

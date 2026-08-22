@@ -73,6 +73,27 @@ private:
         every timer tick and whenever MIDI or the GUI has moved something. */
     void refreshTuning();
 
+    /** Pushes the preset store's state and the split at the presets page. */
+    void refreshPresets();
+
+    /** The two parameter sets a split doubles. `storeLayer` keeps the one being
+        left, `recallLayer` shows the other — which is the visible half of "two
+        presets in one"; the audible half is the developer's, since the sidebar
+        has no voices to apply a per-note gain to. */
+    void storeLayer (presets::Layer layer);
+    void recallLayer (presets::Layer layer);
+
+    juce::HashMap<juce::String, float> lowerLayer, upperLayer;
+
+    /** The split point and which side is being edited. Lives here rather than
+        on the processor because nothing off the GUI acts on it yet: the
+        developer's synth is what would, and the demo makes no sound. */
+    presets::Split split { { 220.0, 440.0 }, true, presets::Layer::lower };
+
+    /** What the presets page is currently showing for the edited marker, so the
+        timer can notice the change rather than refresh on every tick. */
+    bool shownAsEdited = false;
+
     /** The divisor the tuning page's modulo read-out uses. Owned here rather
         than by the source: it is a way of *looking* at an interval, not a
         property of the tuning. */

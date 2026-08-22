@@ -77,7 +77,15 @@ respectively.
 MIDI does not have a standard for keyboard splits, but all of the split parameters can be [MIDI-learned](right-click.md).
 
 In the status section, the name of the preset is indicated.
-If the preset has been edited, an asterisk appears to the right.
+~~If the preset has been edited, an asterisk appears to the right.~~
+
+> If the preset has been edited, a pen appears at the far right of the name.
+> The asterisk is the convention in other plugins, but it says nothing on its
+> own where a pen says *edited* without having to be learnt. It sits at the
+> right edge rather than beside the name so that it reads as a property of the
+> row, and so that the name stays the name — the marker is a flag on
+> `presets::Status`, not a character appended to the string a menu matches
+> against.
 If the preset name is clicked, a menu appears to choose between different preset programs (and banks).
 (The name can be edited whenever the file is saved, see below.)
 In addition, preset program numbers and preset bank numbers can be incremented and decremented.

@@ -91,7 +91,7 @@ int main()
         eq (change->notes.size(), 128, "128 notes");
         check (! change->affectsSoundingNotes, "7E does not touch sounding notes");
         near (*change->notes[69].frequency, 440.0, 1e-9, "note 69 is A-440");
-        check (true, "and its bad checksum is tolerated — the spec recommends ignoring it here");
+        check (true, "and its bad checksum is tolerated - the spec recommends ignoring it here");
     }
 
     //  08 04 key-based dump: the checksum IS enforced ---------------------------
@@ -164,7 +164,7 @@ int main()
         near (a->octaveOffsets[0], -14.0, 1e-9, "40h less 14 is -14 cents");
         near (a->octaveOffsets[1], 0.0, 1e-9, "40h is equal temperament");
         check (a->channels.size() == 2 && a->channels[0] == 1 && a->channels[1] == 16,
-               "the bitmap names channels 1 and 16 — note the unusual bit order");
+               "the bitmap names channels 1 and 16 - note the unusual bit order");
 
         Bytes two { 0x7f, 0x7f, 0x08, 0x09, 0x00, 0x00, 0x7f };
         for (int i = 0; i < 12; ++i) { two.push_back (0x40); two.push_back (0x00); }

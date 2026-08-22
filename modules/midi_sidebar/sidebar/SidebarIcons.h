@@ -96,13 +96,39 @@ inline constexpr const char* perNote = R"SVG(
 
 /** Global: a globe, for a parameter that belongs to the whole plugin rather
     than to one side of a keyboard split. */
-inline constexpr const char* global = R"SVG(
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <path d="M0 0h48v48H0z" fill="none" />
-  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
-        d="M24 2.5v43c-6.573 0-11.902-9.626-11.902-21.5S17.427 2.5 24 2.5S35.902 12.126 35.902 24S30.573 45.5 24 45.5M45.5 24h-43m40.12-10.75H5.38m37.24 21.5H5.38" />
-  <path fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round"
-        d="M2.5 24c0 11.874 9.626 21.5 21.5 21.5S45.5 35.874 45.5 24S35.874 2.5 24 2.5S2.5 12.126 2.5 24" />
+/** The lower-frequencies half of a keyboard split: a tapered stroke falling
+    left to right, the first of the pair in docs/presets.md.
+
+    Replaces the globe that used to mark a "global" parameter. With the split
+    named by *frequency* rather than by key — a note number means nothing under a
+    multichannel tuning — the useful statement about a parameter is which side of
+    the split it reaches, and "both" is the unmarked default.
+
+    Filled rather than stroked, unlike the icons above, because these come from
+    docs/presets.md where they are typographic marks rather than line drawings.
+    `fill="#ffffff"` is replaced with the scheme's colour the same way. */
+/** The mark on a preset whose parameters no longer match the file.
+
+    A pen rather than the `*` most plugins use: the asterisk is conventional but
+    says nothing on its own, where a pen says *edited* without being learnt. It
+    sits at the far right of the name button, away from the name, so it reads as
+    a property of the row rather than as part of the text. */
+inline constexpr const char* edited = R"SVG(<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 256 256"><path d="M0 0h256v256H0z" fill="none"/><path fill="#ffffff" fill-rule="evenodd" d="M32 160L166.394 26.643a4 4 0 0 1 5.654.026l57.837 58.237a4.034 4.034 0 0 1-.007 5.676L97.348 223.59L32 224zm16.797 5.594V208h40.488l121.92-121.396L180.57 56.56L64.656 175.772a3.937 3.937 0 0 1-5.624.037z"/></svg>)SVG";
+
+inline constexpr const char* splitLower = R"SVG(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <path d="M0 0h256v256H0z" fill="none" />
+  <path fill="#ffffff" fill-rule="evenodd"
+        d="M24.22 67.796a3.995 3.995 0 0 1 4.008-3.991h85.498c8.834 0 19.732 6.112 24.345 13.657l53.76 87.936c3.46 5.66 11.628 10.247 18.256 10.247h16.718a3.996 3.996 0 0 1 3.994 4.007v8.985a4.007 4.007 0 0 1-4.007 4.008h-24.7c-8.835 0-19.709-6.13-24.283-13.683l-52.324-86.4c-3.43-5.665-11.577-10.257-18.202-10.257H28.214a3.995 3.995 0 0 1-3.993-3.992V67.796z" />
+</svg>
+)SVG";
+
+/** The higher-frequencies half, mirrored. */
+inline constexpr const char* splitUpper = R"SVG(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <path d="M0 0h256v256H0z" fill="none" />
+  <path fill="#ffffff" fill-rule="evenodd"
+        d="M231.007 68.729c0-2.206-1.787-4.995-4.007-4.995h-85.499c-6.466 0-19.531 7.705-22.66 15.97l-55.92 85.647c-3.624 5.55-11.93 10.05-18.559 10.05H28.167c-2.206 0-3.994 2.787-3.994 5.007v8.985a4.005 4.005 0 0 0 3.998 4.007h22.713c8.832 0 20.495-8.703 23.588-16.987l56.167-84.189c3.68-5.517 12.04-9.99 18.668-9.99h77.695c2.212 0 4.005-2.797 4.005-4.994v-8.51z" />
 </svg>
 )SVG";
 

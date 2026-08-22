@@ -172,6 +172,8 @@ void DemoProcessor::handleAsyncUpdate()
     juce::Array<juce::MidiRPNMessage> parameters;
     std::optional<double> volumeDb, fineCents, coarseCents;
     std::optional<MidiRouter::Result::MpeConfiguration> mcm;
+    std::optional<MidiRouter::Result::BendSensitivity>   bend;
+    std::optional<MidiRouter::Result::ProgramChange> program;
 
     {
         const juce::ScopedLock lock (matchLock);
@@ -186,6 +188,18 @@ void DemoProcessor::handleAsyncUpdate()
         std::swap (fineCents, pendingMasterFineCents);
         std::swap (coarseCents, pendingMasterCoarseCents);
         std::swap (mcm, pendingMpeConfiguration);
+        std::swap (bend, pendingBendSensitivity);
+        std::swap (program, pendingProgramChange);
+    }
+
+    // A program change carries the bank that was pending when it arrived, so
+    // the two move together and never leave the store half-addressed.
+    if (program.has_value())
+    {
+        presetStore.handleProgramChange (program->program, program->bank);
+
+        if (onPresetChanged != nullptr)
+            onPresetChanged();
     }
 
     // An MPE Configuration Message reconfigures the zone the router filters by,
@@ -196,6 +210,22 @@ void DemoProcessor::handleAsyncUpdate()
     {
         const auto setup = channels::withMpeConfiguration (router.getChannels(),
                                                            mcm->zone, mcm->memberChannels);
+        router.setChannels (setup);
+
+        if (onChannelsChanged != nullptr)
+            onChannelsChanged (setup);
+    }
+
+    // RPN 0 after the MCM, and deliberately so: an MCM sets both of §2.2.5's
+    // defaults, and the same section then allows RPN 0 to change either "at any
+    // time" — so a sender that configures a zone and immediately retunes one of
+    // its channels must end up with the retuning, whichever order this code
+    // happened to read them in.
+    if (bend.has_value())
+    {
+        auto setup = router.getChannels();
+
+        setup.pitchBendCents[(size_t) (bend->channel - 1)] = bend->cents;
         router.setChannels (setup);
 
         if (onChannelsChanged != nullptr)
@@ -347,7 +377,9 @@ void DemoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     if (! routed.matches.isEmpty() || ! routed.learnCandidates.isEmpty()
         || ! routed.tuningSysex.isEmpty() || ! routed.parameters.isEmpty()
         || routed.masterVolumeDb.has_value() || routed.masterFineCents.has_value()
-        || routed.masterCoarseCents.has_value() || routed.mpeConfiguration.has_value())
+        || routed.masterCoarseCents.has_value() || routed.mpeConfiguration.has_value()
+        || routed.bendSensitivity.has_value()
+        || routed.programChange.has_value())
     {
         if (const juce::ScopedTryLock lock (matchLock); lock.isLocked())
         {
@@ -374,6 +406,12 @@ void DemoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
             if (routed.mpeConfiguration.has_value())
                 pendingMpeConfiguration = routed.mpeConfiguration;
+
+            if (routed.bendSensitivity.has_value())
+                pendingBendSensitivity = routed.bendSensitivity;
+
+            if (routed.programChange.has_value())
+                pendingProgramChange = routed.programChange;
 
             triggerAsyncUpdate();
         }

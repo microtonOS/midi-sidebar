@@ -131,6 +131,17 @@ Channel 1 is used as a Member Channel for the Upper Zone:
 Overlap: Lower Zone with 7 Channels (2–8), then Upper Zone with 11 Channels (6–15). The later MCM
 steals channels 6–8, leaving the Lower Zone with Member Channels 2–5:
 
+> **The channel numbers on this one line look wrong — check them against the PDF
+> before relying on them.** An Upper Zone's `mm` Member Channels run `16-mm`
+> through `15`, so `mm = 11` should be channels **5–15**, not 6–15, which is only
+> ten channels. It would then steal 5–8 and leave the Lower Zone with 2–4.
+>
+> The other two examples on this page agree with `16-mm … 15`: `mm = 14` is given
+> as 2–15 and `mm = 0x0F` is described as reaching channel 1. So the formula is
+> not in doubt; either this line or its `0x0B` is a transcription slip. Left as
+> transcribed rather than silently corrected, since the source has not been
+> re-checked.
+
 ```
 [0xB0 0x65 0x00] [0xB0 0x64 0x06] [0xB0 0x06 0x07]
 [0xBF 0x65 0x00] [0xBF 0x64 0x06] [0xBF 0x06 0x0B]

@@ -40,6 +40,8 @@ public:
     //  Values in.
 
     void setFrequencies (presets::Frequencies frequencies);
+
+    const presets::Frequencies& getFrequencies() const noexcept { return frequencies; }
     void setStatus (presets::Status newStatus);
 
     /** The presets the name menu offers. The current one is added if it is not
@@ -78,6 +80,10 @@ public:
 
     std::function<void (presets::Layer)> onLayerChanged;
 
+    /** The end-user typed a split frequency. Both are sent together, since a
+        crossfade is a pair and one bound alone says where nothing is. */
+    std::function<void (presets::Frequencies)> onFrequenciesEdited;
+
     /** After an author or comment edit has been committed, never mid-keystroke. */
     std::function<void (presets::Meta)> onMetaEdited;
 
@@ -102,7 +108,7 @@ private:
     //==========================================================================
     /** Rows that never change height: frequencies, split, name, the program and
         bank labels, their steppers, open/save, and author. One fewer since the
-        include toggles went: a preset carries the whole state, so there was
+        include toggles went: a preset is the synth's parameters entire, so there was
         nothing left to choose. */
     static constexpr int fixedRows = 7;
     static constexpr int groups    = 3;
@@ -113,12 +119,22 @@ private:
 
     void refreshNames();
     void commitMeta();
+    void commitFrequencies();
 
     //==========================================================================
     presets::Status status;
+
+    /** The pen shown when `status.edited`. Rebuilt on a theme change rather
+        than recoloured, because `replaceColour` bakes the colour in. */
+    std::unique_ptr<juce::Drawable> editedIcon;
+    presets::Frequencies frequencies;
     juce::StringArray availableNames;
 
-    ReadOutField lowField, highField;
+    /** Editable, not read-outs: "the frequencies can also be set directly in
+        the text fields" (docs/presets.md). `prepareNumericEditor` gives them the
+        same input restriction the tuning page's cents fields have, so neither
+        can be left holding something the plugin could not act on. */
+    juce::TextEditor lowField, highField;
 
     /** Two buttons, one under the other, and the distinction is worth keeping
         straight because both used to be one control.

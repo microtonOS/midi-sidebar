@@ -178,8 +178,8 @@ int main()
         // everything else — and the MCM must still arrive.
         auto setup = channels::Setup {};
         setup.mpeOn = true;
-        setup.zone = channels::Zone::lower;
-        setup.zoneEdge = 5;
+        setup = channels::withZoneMembers (setup, channels::Zone::lower, 4);
+        setup = channels::withZoneMembers (setup, channels::Zone::upper, 0);
         router.setChannels (setup);
 
         const auto lower = send (router, result, 1, 4);
@@ -195,51 +195,176 @@ int main()
         check (! send (router, result, 5, 4).has_value(),
                "RPN 6 on any other channel is not an MCM");
 
-        // The count-to-edge conversion, which is the page's arithmetic.
-        const auto asLower = channels::withMpeConfiguration (setup, channels::Zone::lower, 4);
-        eq (asLower.zoneEdge, 5, "4 members on the lower zone reach channel 5");
-        check (asLower.mpeOn, "and MPE is on");
-
-        const auto asUpper = channels::withMpeConfiguration (setup, channels::Zone::upper, 3);
-        eq (asUpper.zoneEdge, 13, "3 members on the upper zone reach down to channel 13");
-
-        const auto off = channels::withMpeConfiguration (asUpper, channels::Zone::upper, 0);
-        check (! off.mpeOn, "mm = 0 deactivates the zone");
-        eq (off.zoneEdge, 13, "and keeps the edge, so turning it back on restores it");
-
-        // Exactly one zone is ever active, whichever way the setup was reached.
+        //  Both zones at once ---------------------------------------------------
+        //  The point of the change: an MCM for one zone configures that zone and
+        //  leaves the other alone, rather than moving a single zone about.
         {
-            auto asLowerSetup = channels::withMpeConfiguration (setup, channels::Zone::lower, 4);
-            const auto lowerLayout = midiFilter::layoutFor (asLowerSetup);
+            const auto both = channels::withMpeConfiguration (
+                                  channels::withMpeConfiguration (setup, channels::Zone::lower, 4),
+                                  channels::Zone::upper, 3);
 
-            check (lowerLayout.getLowerZone().isActive(), "a lower setup activates the lower zone");
-            check (! lowerLayout.getUpperZone().isActive(), "and leaves the upper zone off");
+            eq (both.members (channels::Zone::lower), 4, "the lower zone keeps its 4 members");
+            eq (both.members (channels::Zone::upper), 3, "while the upper zone gains 3");
+            check (both.isActive (channels::Zone::lower) && both.isActive (channels::Zone::upper),
+                   "and both zones are active at the same time");
 
-            auto asUpperSetup = channels::withMpeConfiguration (setup, channels::Zone::upper, 3);
-            const auto upperLayout = midiFilter::layoutFor (asUpperSetup);
+            const auto layout = midiFilter::layoutFor (both);
 
-            check (upperLayout.getUpperZone().isActive(), "an upper setup activates the upper zone");
-            check (! upperLayout.getLowerZone().isActive(), "and leaves the lower zone off");
+            check (layout.getLowerZone().isActive() && layout.getUpperZone().isActive(),
+                   "which is what juce::MPEZoneLayout is given");
 
-            // Which is what keeps channels the end-user never gave to MPE out of
-            // it: with an upper zone of 3, channels 1 to 12 belong to nobody.
-            check (! midiFilter::isMemberChannel (asUpperSetup, 2),
-                   "channel 2 is not an MPE member under an upper zone");
-            check (midiFilter::isMemberChannel (asUpperSetup, 13),
-                   "channel 13 is");
+            // Channels neither zone claimed are "available for conventional
+            // use" (MPE v1.1 §2.2.1), and must not be swept into either.
+            check (! midiFilter::isMemberChannel (both, 8),
+                   "a channel between the two zones belongs to neither");
 
-            auto off = channels::withMpeConfiguration (asUpperSetup, channels::Zone::upper, 0);
-            const auto offLayout = midiFilter::layoutFor (off);
+            const auto justLower = channels::withMpeConfiguration (both, channels::Zone::upper, 0);
 
-            check (! offLayout.getLowerZone().isActive() && ! offLayout.getUpperZone().isActive(),
-                   "mm = 0 leaves both zones off");
+            check (! justLower.isActive (channels::Zone::upper), "mm = 0 deactivates that zone");
+            check (justLower.isActive (channels::Zone::lower), "and leaves the other one alone");
+            check (justLower.mpeOn, "so MPE is still in force while either zone has members");
+
+            const auto neither = channels::withMpeConfiguration (justLower, channels::Zone::lower, 0);
+            check (! neither.mpeOn, "MPE goes off only when neither zone has members");
         }
 
-        // The full round trip: what the wire says, through to what the page holds.
-        const auto fromWire = channels::withMpeConfiguration (setup, upper->zone,
-                                                              upper->memberChannels);
-        check (fromWire.zone == channels::Zone::upper && fromWire.zoneEdge == 13,
-               "an MCM for the upper zone moves the zone rather than adding one");
+        //  Overlap, from the specification's own worked examples ----------------
+        //  MPE v1.1 §2.2.1 gives precedence to the most recent MCM. These are the
+        //  cases the specification spells out, which is why they are the ones
+        //  checked rather than cases of our own devising.
+        {
+            auto seven = channels::withMpeConfiguration (channels::Setup {}, channels::Zone::lower, 7);
+            eq (seven.members (channels::Zone::lower), 7, "a lower zone of 7 holds channels 2-8");
+
+            // "Lower Zone with 7 Channels (2-8), then Upper Zone with 14 Channels
+            // (2-15). The Lower Zone is left with no Member Channels and is
+            // therefore deactivated."
+            const auto stolen = channels::withMpeConfiguration (seven, channels::Zone::upper, 14);
+
+            eq (stolen.members (channels::Zone::upper), 14, "an upper zone of 14 reaches down to channel 2");
+            eq (stolen.members (channels::Zone::lower), 0, "which leaves the lower zone nothing");
+            check (! stolen.isActive (channels::Zone::lower),
+                   "and a zone with no member channels shall become deactivated");
+
+            // A partial steal: an upper zone of 11 holds 5-15, so the lower zone
+            // keeps only 2-4.
+            const auto partial = channels::withMpeConfiguration (seven, channels::Zone::upper, 11);
+
+            eq (partial.members (channels::Zone::lower), 3,
+                "an upper zone of 11 takes channels 5-8 back, leaving the lower zone 3");
+            check (partial.isActive (channels::Zone::lower), "which is still a zone");
+
+            check ((channels::memberChannelsForZone (channels::Zone::lower, partial.lowerMembers)
+                      & channels::memberChannelsForZone (channels::Zone::upper, partial.upperMembers)) == 0,
+                   "and after any overlap the two zones share no channel");
+
+            // §2.2.1's example of an upper zone reaching across channel 1, which
+            // is the lower zone's manager channel: the lower zone cannot survive
+            // losing that, whatever its member count was.
+            const auto acrossManager = channels::withMpeConfiguration (seven, channels::Zone::upper,
+                                                                       channels::maxMemberChannels);
+
+            eq (acrossManager.members (channels::Zone::lower), 0,
+                "an upper zone of 15 claims channel 1, so the lower zone is gone");
+        }
+
+        //  RPN 0 over the wire, in cents ---------------------------------------
+        //  The check that matters: a sender asking for two semitones and fifty
+        //  cents gets 250, not 200. MSB alone would silently drop the fifty.
+        {
+            MidiRouter bendRouter;
+            MidiRouter::Result bendResult;
+
+            auto listening = channels::Setup {};
+            listening.omniOn = true;
+            bendRouter.setChannels (listening);
+
+            const auto sendCc = [&] (int channel, int number, int value)
+            {
+                juce::MidiBuffer b;
+                b.addEvent (juce::MidiMessage::controllerEvent (channel, number, value), 0);
+                bendRouter.process (b, bendResult);
+            };
+
+            sendCc (3, 101, 0);    // RPN MSB = 0
+            sendCc (3, 100, 0);    // RPN LSB = 0, so parameter 0: bend sensitivity
+            sendCc (3, 6, 2);      // data entry MSB: 2 semitones
+
+            check (bendResult.bendSensitivity.has_value()
+                       && bendResult.bendSensitivity->cents == 200,
+                   "RPN 0 with only an MSB is whole semitones");
+
+            sendCc (3, 38, 50);    // data entry LSB: 50 cents
+
+            check (bendResult.bendSensitivity.has_value()
+                       && bendResult.bendSensitivity->cents == 250,
+                   "and the LSB adds cents, which is what makes RPN 0 microtonal");
+            eq (bendResult.bendSensitivity->channel, 3, "on the channel it was sent on");
+
+            // NRPN 0 is somebody else's parameter entirely.
+            sendCc (4, 99, 0);
+            sendCc (4, 98, 0);
+            sendCc (4, 6, 12);
+
+            check (! bendResult.bendSensitivity.has_value(),
+                   "NRPN 0 is not pitch-bend sensitivity");
+        }
+
+        //  What a pitch-bend click actually sets ------------------------------
+        //  The case worth checking is the one that has no answer: under MPE a
+        //  channel in neither zone must set nothing at all, rather than falling
+        //  through to its plain range, which belongs to the omni view.
+        {
+            // Lower zone of 4: manager 1, members 2-5. Upper zone of 2: manager
+            // 16, members 14-15. So 6-13 belong to neither.
+            auto zoned = channels::withMpeConfiguration (channels::Setup {}, channels::Zone::lower, 4);
+            zoned = channels::withMpeConfiguration (zoned, channels::Zone::upper, 2);
+
+            const auto manager = channels::bendTargetFor (zoned, 0, true);
+            check (manager.description == "lower zone manager",
+                   "clicking channel 1 under MPE sets the lower zone manager");
+            eq ((int) manager.channelsAffected, 1 << 0, "and only that channel");
+
+            const auto member = channels::bendTargetFor (zoned, 2, true);
+            check (member.description == "lower zone members",
+                   "clicking a member sets the whole zone's members");
+            eq ((int) member.channelsAffected,
+                (int) channels::memberChannelsForZone (channels::Zone::lower, 4),
+                "which is every member of that zone and no manager");
+
+            const auto upper = channels::bendTargetFor (zoned, 15, true);
+            check (upper.description == "upper zone manager",
+                   "and the upper zone has its own manager");
+
+            for (const auto between : { 6, 7, 8, 12 })
+                check (channels::bendTargetFor (zoned, between - 1, true).isEmpty(),
+                       "channel " + juce::String (between) + " is in neither zone, so it sets nothing");
+
+            // The same channel does have a range under omni, where it is just a
+            // channel — which is the reason the MPE view refuses it rather than
+            // pretending it has none.
+            const auto asOmni = channels::bendTargetFor (zoned, 6, false);
+            check (! asOmni.isEmpty() && asOmni.description == "channel 7",
+                   "the same channel under omni is its own plain range");
+
+            // A zone that is not active offers nothing, manager included.
+            const auto noUpper = channels::withMpeConfiguration (zoned, channels::Zone::upper, 0);
+            check (channels::bendTargetFor (noUpper, 15, true).isEmpty(),
+                   "a deactivated zone has no manager range either");
+        }
+
+        //  The two pitch-bend defaults §2.2.5 requires -------------------------
+        {
+            const auto configured = channels::withMpeConfiguration (channels::Setup {},
+                                                                    channels::Zone::lower, 4);
+
+            eq (configured.pitchBendCents[0], channels::mpeManagerBendCents,
+                "an MCM sets the manager channel to 2 semitones");
+            eq (configured.pitchBendCents[1], channels::mpeMemberBendCents,
+                "and every member channel to 48");
+            eq (configured.pitchBendCents[5], channels::defaultBendCents,
+                "leaving channels outside the zone as they were");
+        }
     }
 
     return report ("RegisterCheck");

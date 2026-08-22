@@ -36,14 +36,12 @@ namespace midiFilter
         zone reaching only to channel 1 is a manager with nobody to manage — and
         `MPEZone::isActive` is false in that case, which is the right answer.
 
-        **The unused zone is cleared explicitly.** MPE allows both at once, and
-        `channels::Setup` holds one — so exactly one zone is active here and the
-        other must be off, or channels the end-user has not given to MPE would be
-        claimed by a stale layout. `MPEZoneLayout() = default` already "creates a
-        layout with inactive upper and lower zones", so this is true either way;
-        saying it is what keeps it true if this ever stops building a fresh
-        layout on every call, and it is the one place the single-zone decision is
-        enforced rather than merely assumed. See TODO.md for supporting two.
+        **Both zones, independently.** MPE allows both at once and
+        `channels::Setup` now holds both, so each is set from its own member
+        count and a zone with no members is simply not set — which is the same
+        thing MPE means by deactivated. `MPEZoneLayout::clearAllZones` first, so
+        a zone that has just been emptied cannot survive as a stale layout and
+        claim channels the end-user has taken back.
     */
     inline juce::MPEZoneLayout layoutFor (const channels::Setup& setup)
     {
@@ -54,18 +52,15 @@ namespace midiFilter
         if (! setup.mpeOn)
             return layout;   // both zones inactive, so MPE mode is off
 
-        const auto members = setup.zone == channels::Zone::lower
-                                 ? setup.zoneEdge - 1
-                                 : channels::numChannels - setup.zoneEdge;
+        // JUCE resolves overlap between the two the same way the specification
+        // does — the later call wins — but `channels::withZoneMembers` has
+        // already resolved it, so these two counts never overlap by the time
+        // they arrive here and the order of the calls does not matter.
+        if (setup.lowerMembers > 0)
+            layout.setLowerZone (setup.lowerMembers);
 
-        if (members <= 0)
-            return layout;
-
-        // One or the other, never both, and the one not named stays cleared.
-        if (setup.zone == channels::Zone::lower)
-            layout.setLowerZone (members);
-        else
-            layout.setUpperZone (members);
+        if (setup.upperMembers > 0)
+            layout.setUpperZone (setup.upperMembers);
 
         return layout;
     }

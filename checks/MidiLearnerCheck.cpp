@@ -50,9 +50,9 @@ int main()
         check (! MidiLearner::isLearnable (juce::MidiMessage::pitchWheel (1, 4000)),
                "pitch bend is not learnable");
         check (! MidiLearner::isLearnable (cc (1, 0, 64)),
-               "CC 0 is not learnable — bank select is the plugin's");
+               "CC 0 is not learnable - bank select is the plugin's");
         check (! MidiLearner::isLearnable (cc (1, 120, 0)),
-               "CC 120 is not learnable — a channel mode message is not a control change");
+               "CC 120 is not learnable - a channel mode message is not a control change");
         check (MidiLearner::isLearnable (cc (1, 7, 64)),   "CC 7 is learnable");
         check (MidiLearner::isLearnable (cc (1, 88, 64)),  "CC 88 is learnable");
         check (MidiLearner::isLearnable (cc (1, 96, 64)),  "CC 96 is learnable");
@@ -80,7 +80,7 @@ int main()
                    && s->parameterIndex == 4,
                "a 7-bit sweep learns CC 74 on channel 2, for parameter 4");
         check (s.has_value() && ! s->lsb.has_value(),
-               "and learns no LSB — that is the end-user's to state");
+               "and learns no LSB - that is the end-user's to state");
     }
 
     //  A compliant 14-bit sweep: the low byte must be discarded ----------------
@@ -110,7 +110,7 @@ int main()
         refused.begin (0);
         refused.observe (cc (1, 40, 127));
         check (! refused.suggestion().has_value(),
-               "one lone message on CC 40 is refused — 32-63 are reserved as low bytes");
+               "one lone message on CC 40 is refused - 32-63 are reserved as low bytes");
 
         accepted.begin (0);
         accepted.observe (cc (1, 80, 127));
@@ -125,7 +125,7 @@ int main()
         sweep7 (l, 1, 40, 40);
 
         check (l.suggestion().has_value() && l.suggestion()->msb == 40,
-               "a sweep on CC 40 is learned — behaviour outranks the reserved range");
+               "a sweep on CC 40 is learned - behaviour outranks the reserved range");
     }
 
     //  The two touch messages --------------------------------------------------
@@ -161,7 +161,7 @@ int main()
 
         const auto s = l.suggestion();
         check (s.has_value() && s->channel == 5 && s->msb == 74,
-               "a second channel is ignored — a gesture is one control");
+               "a second channel is ignored - a gesture is one control");
     }
 
     //  A dominant controller wins outright, without the pair rule firing -------

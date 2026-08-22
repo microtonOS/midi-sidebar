@@ -70,7 +70,7 @@ namespace synth
             beside the name — see docs/controllers.md. A real plugin knows this
             about itself; the demo states it so the two markers have something to
             appear on. */
-        controllers::Scope scope = controllers::Scope::split;
+        controllers::Scope scope = controllers::Scope::both;
 
         bool isChoice() const noexcept { return ! choices.isEmpty(); }
     };
@@ -141,12 +141,12 @@ namespace synth
           "intensity, so switching back finds the settings you left rather than "
           "the ones you just made.",
           { "filter", "pitch" }, {}, 0.0f,
-          controllers::Scope::global },
+          controllers::Scope::lower },
 
         { "filterLfoRate", "Filter LFO rate", "Hz",
           "How fast the filter's cutoff sweeps up and down.",
           {}, frequencyRange (0.05f, 20.0f, 2.0f), 2.0f,
-          controllers::Scope::global },
+          controllers::Scope::upper },
 
         { "filterLfoDepth", "Filter LFO intensity", "%",
           "How far the filter's cutoff sweeps. At zero the LFO is still running "
@@ -157,7 +157,7 @@ namespace synth
           "How fast the pitch wavers. Vibrato lives between about four and seven "
           "of these.",
           {}, frequencyRange (0.05f, 20.0f, 5.0f), 5.0f,
-          controllers::Scope::global },
+          controllers::Scope::lower },
 
         { "pitchLfoDepth", "Pitch LFO intensity", "%",
           "How far the pitch wavers. Small amounts read as vibrato and large "
@@ -209,6 +209,23 @@ namespace synth
             return nullptr;
 
         return apvts.getParameter (controls()[(size_t) index].id);
+    }
+
+    /** The ids of everything the synth owns — and therefore what a preset is
+        made of.
+
+        The APVTS also holds the sidebar's own settings, which are not part of a
+        sound: saving those into a preset means loading one moves the panel and
+        changes the page. So the preset store is given this list and touches
+        nothing outside it. */
+    inline juce::StringArray parameterIds()
+    {
+        juce::StringArray ids;
+
+        for (const auto& control : controls())
+            ids.add (control.id);
+
+        return ids;
     }
 
     /** Every control as an APVTS parameter, in the same order. Version 1

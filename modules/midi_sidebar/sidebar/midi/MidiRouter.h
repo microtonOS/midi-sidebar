@@ -99,6 +99,26 @@ public:
             ended up matters. */
         std::optional<double> masterVolumeDb;
 
+        /** A program change, with the bank that was pending when it arrived.
+
+            **One event, not two.** "Bank Select alone must not change the
+            program. The receiver remembers the bank and applies it when the
+            Program Change arrives, to assure that multiple devices change
+            concurrently" (Complete MIDI 1.0 Detailed Specification 4.2.1, p13).
+            So CC 0 and CC 32 set a register and report nothing; only the program
+            change is an event, and it carries whatever bank had been selected.
+
+            `bank` is empty when no bank select preceded it, which means *keep
+            the bank you are on* rather than *bank zero*. */
+        struct ProgramChange
+        {
+            int channel = 1;
+            int program = 0;
+            std::optional<int> bank;
+        };
+
+        std::optional<ProgramChange> programChange;
+
         /** An MPE Configuration Message, if one arrived.
 
             The zone comes from the *channel* it was sent on — 1 is the lower
@@ -111,6 +131,22 @@ public:
         };
 
         std::optional<MpeConfiguration> mpeConfiguration;
+
+        /** Pitch-bend sensitivity from RPN 0, in cents, and the channel it was
+            sent on.
+
+            Read before the filter for the same reason the MCM is: it configures
+            a channel rather than performing on one, and a sender may well set up
+            a channel the plugin is not yet listening to. Only one per block —
+            two RPN 0s for different channels in one buffer is not something a
+            sender does, and the alternative is a list nothing would read. */
+        struct BendSensitivity
+        {
+            int channel = 1;   ///< From 1, as MIDI numbers them.
+            int cents = channels::defaultBendCents;
+        };
+
+        std::optional<BendSensitivity> bendSensitivity;
 
         /** Master Fine and Coarse Tuning, in cents, from the two Device Control
             messages CA-025 added. Displacements from A440 applied to the whole
@@ -130,6 +166,8 @@ public:
             masterFineCents.reset();
             masterCoarseCents.reset();
             mpeConfiguration.reset();
+            bendSensitivity.reset();
+            programChange.reset();
         }
     };
 
@@ -200,13 +238,60 @@ public:
             // stream would have it consume control changes on channels the
             // plugin is deliberately ignoring.
             if (message.isController())
+            {
                 if (const auto mcm = mpeConfigurationFrom (message))
                     result.mpeConfiguration = *mcm;
+
+                if (const auto bend = bendSensitivityFrom (message))
+                    result.bendSensitivity = *bend;
+            }
 
             // System messages have no channel, so the filter does not apply:
             // transport and system exclusive belong to the whole stream.
             if (message.getChannel() > 0 && ! midiFilter::listensTo (setup, message.getChannel()))
                 continue;
+
+            // Bank select is remembered rather than reported; see
+            // `Result::ProgramChange`. Consumed either way, since bank select is
+            // the plugin's own and cannot be mapped — `statusOfCc` makes CC 0
+            // and CC 32 `unavailable`.
+            if (message.isController())
+            {
+                const auto number = message.getControllerNumber();
+
+                if (number == bankSelectMsb || number == bankSelectLsb)
+                {
+                    auto& bank = pendingBank[(size_t) juce::jlimit (0, 15, message.getChannel() - 1)];
+
+                    if (number == bankSelectMsb)
+                        bank.msb = message.getControllerValue();
+                    else
+                        bank.lsb = message.getControllerValue();
+
+                    result.consumed.add (metadata.samplePosition);
+                    continue;
+                }
+            }
+
+            // A program change is the event, and it takes the pending bank with
+            // it. Consumed: program management belongs to the plugin and should
+            // not reach the host.
+            if (message.isProgramChange())
+            {
+                auto& bank = pendingBank[(size_t) juce::jlimit (0, 15, message.getChannel() - 1)];
+
+                result.programChange = Result::ProgramChange {
+                    message.getChannel(),
+                    message.getProgramChangeNumber(),
+                    bank.selected() };
+
+                // Spent, so a second program change with no new bank select
+                // stays on the bank it is already on rather than repeating one.
+                bank = {};
+
+                result.consumed.add (metadata.samplePosition);
+                continue;
+            }
 
             // A control change may be part of an RPN, in which case it is not a
             // control change to anybody: the specification makes data entry
@@ -353,8 +438,64 @@ private:
             juce::jlimit (0, channels::numChannels - 1, members) };
     }
 
+    /** RPN 0 on any channel, in cents.
+
+        The MSB is semitones and the LSB is cents, which is the whole reason
+        RPN 0 is usable microtonally — so both halves are read here rather than
+        the MSB alone. A sender that never sends an LSB gets whole semitones,
+        which is what `MidiRPNDetector` reports as a 7-bit value.
+
+        General MIDI 2 §3.4.1 allows a *receiver* to ignore the LSB; we do not,
+        because nothing here is limited to GM2's floor. */
+    std::optional<Result::BendSensitivity> bendSensitivityFrom (const juce::MidiMessage& m)
+    {
+        const auto parsed = bendDetector.tryParse (m.getChannel(),
+                                                   m.getControllerNumber(),
+                                                   m.getControllerValue());
+
+        if (! parsed.has_value() || parsed->isNRPN || parsed->parameterNumber != 0)
+            return {};
+
+        const auto semitones = parsed->is14BitValue ? parsed->value >> 7 : parsed->value;
+        const auto cents     = parsed->is14BitValue ? parsed->value & 0x7f : 0;
+
+        return Result::BendSensitivity { m.getChannel(),
+                                         juce::jlimit (0, channels::highestBendCents,
+                                                       semitones * 100 + cents) };
+    }
+
     /** Sees channels 1 and 16 whatever the filter says; see `process`. */
     juce::MidiRPNDetector mcmDetector;
+
+    /** Its own, for the reason `mcmDetector` has one: a detector is a state
+        machine per channel, and sharing it with the filtered stream would let
+        one parameter's CC 6 be swallowed by the other's. */
+    juce::MidiRPNDetector bendDetector;
+
+    /** CC 0 and CC 32, the two halves of a bank number. */
+    static constexpr int bankSelectMsb = 0;
+    static constexpr int bankSelectLsb = 32;
+
+    /** A bank select waiting for the program change that will apply it.
+
+        Per channel, because bank select is a channel message and two channels
+        may be part-way through selecting different banks at once. Either byte
+        alone is a legal selection — a sender may send only the MSB — so this
+        reports a bank as soon as either has arrived. */
+    struct PendingBank
+    {
+        std::optional<int> msb, lsb;
+
+        std::optional<int> selected() const
+        {
+            if (! msb.has_value() && ! lsb.has_value())
+                return {};
+
+            return msb.value_or (0) * 128 + lsb.value_or (0);
+        }
+    };
+
+    std::array<PendingBank, 16> pendingBank {};
 
     int learning = controllers::noParameter;
     channels::Setup setup;

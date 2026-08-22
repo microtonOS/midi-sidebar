@@ -99,4 +99,24 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReadOutField)
 };
 
+//==============================================================================
+/** A `TextEditor` set up to hold a number and nothing else.
+
+    Two pages need the same thing — the tuning page's modulo divisor and
+    pitch-bend ranges, the presets page's split frequencies — and the rule that
+    matters is the input restriction: a field that cannot be left holding
+    something the plugin could not act on never needs a validation path.
+
+    Lives beside `ReadOutField` because the two are a pair: this is the editable
+    one, that is the read-only one, and a page choosing between them is choosing
+    whether the value is the end-user's. */
+inline void prepareNumericEditor (juce::TextEditor& editor, bool allowFraction = true)
+{
+    editor.setMultiLine (false);
+    editor.setReturnKeyStartsNewLine (false);
+    editor.setJustification (juce::Justification::centredLeft);
+
+    editor.setInputRestrictions (0, allowFraction ? "-0123456789." : "0123456789");
+}
+
 } // namespace microtonos::sidebar

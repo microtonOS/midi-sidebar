@@ -278,7 +278,7 @@ private:
     /** One of each, not one per cell: the glyphs are the same in every row, and
         recolouring one means reparsing its SVG — a theme-change job rather than
         a paint-time one. */
-    std::unique_ptr<juce::Drawable> perNoteMarker, globalMarker;
+    std::unique_ptr<juce::Drawable> perNoteMarker, lowerMarker, upperMarker;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ControllersTable)
 };

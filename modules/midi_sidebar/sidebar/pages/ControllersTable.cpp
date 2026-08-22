@@ -435,8 +435,9 @@ const juce::Drawable* ControllersTable::markerForParameter (int parameterIndex) 
     switch (parameters[parameterIndex].scope)
     {
         case Scope::perNote: return perNoteMarker.get();
-        case Scope::global:  return globalMarker.get();
-        case Scope::split:   break;
+        case Scope::lower:   return lowerMarker.get();
+        case Scope::upper:   return upperMarker.get();
+        case Scope::both:    break;
     }
 
     return nullptr;
@@ -452,8 +453,9 @@ const juce::Drawable* ControllersTable::markerFor (int row) const
     switch (parameter->scope)
     {
         case Scope::perNote: return perNoteMarker.get();
-        case Scope::global:  return globalMarker.get();
-        case Scope::split:   break;
+        case Scope::lower:   return lowerMarker.get();
+        case Scope::upper:   return upperMarker.get();
+        case Scope::both:    break;
     }
 
     // The usual case is unmarked. A glyph on every row would be a column of
@@ -1103,7 +1105,8 @@ void ControllersTable::lookAndFeelChanged()
                             .withMultipliedAlpha (shades::readOnly);
 
     perNoteMarker = icons::load (icons::perNote, marker);
-    globalMarker  = icons::load (icons::global,  marker);
+    lowerMarker   = icons::load (icons::splitLower, marker);
+    upperMarker   = icons::load (icons::splitUpper, marker);
 }
 
 void ControllersTable::paint (juce::Graphics& g)

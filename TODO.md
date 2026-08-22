@@ -1,8 +1,27 @@
 # TODO
 
+- The split glyphs render thinner than the notes glyph beside them in the
+  controllers table: they are filled shapes on a 256 viewBox where the others are
+  stroked on 48, so at `metrics::markerSize` they carry less ink. Worth either
+  thickening the paths or giving them their own size.
+
+- **A preset does not carry the controller mappings, though two comments and the
+  docs say it does.** `ControllersPage.h` justifies having no files section with
+  "a preset carries the whole state, mappings included", but the mappings live in
+  a plain `juce::Array<controllers::Mapping>` on the processor and have never
+  been in the APVTS tree — so `PresetStore` could not have saved them before the
+  preset was narrowed to the synth's parameters, and cannot now. Either the
+  mappings become a `ValueTree` child that the store writes beside the
+  parameters, or the controllers page grows the files section its comment says it
+  does not need. The first is what the docs promise.
+
+- Nothing downstream reads `channels::Setup::pitchBendCents` yet. The page sets
+  it, RPN 0 updates it and the owner is handed it, but no interval or frequency
+  is computed from it — the same as when the value lived on the tuning page. It
+  becomes real when the developer-facing API settles.
+
 - improve appearance of what midi monitor looks like when learning, maybe should also be indicated elsewhere.
 - there is something weird about lfo int as it goes from the middle to max but not below middle. demo synth will see an overhaul later, so wait for then.
-- remove global icon from controllers and have A and B icons instead. use the same for presets.
 
 ## Double-checks you asked for in the docs
 
@@ -176,31 +195,6 @@ Nothing on any page persists — this is true of all four now, not just tuning, 
   it only sets a **default** that the end-user can step away from, and it changes
   nothing that sounds. A tuning that states its own period never reaches
   inference at all.
-
-- **Two MPE zones at once.** MPE allows both — a Lower Zone anchored at manager
-  channel 1 growing up, an Upper Zone anchored at 16 growing down — and says
-  outright that "any MIDI Channels not assigned to any Zone remain available for
-  conventional use" (M1-100-UM v1.1, §2.2.1). So two devices with ordinary
-  channels between them is the specification's own model, not a workaround.
-
-  The page models **one** zone with a lower/upper selector, which Appendix A.2
-  explicitly allows: "many MPE Devices only support one MPE Zone. These Devices
-  might only use the Lower Zone or might provide a way for the user to choose
-  which Zone to use." So this is a conformant implementation level rather than a
-  gap, and Lower by default "provides the widest interoperability".
-
-  What is actually lost is the second device's *zone semantics*: its channels can
-  be selected as plain ones, but its manager channel stops being one, so a bend
-  or pressure sent there no longer applies to all its members and the per-note
-  versus zone pitch-bend split goes with it.
-
-  `juce::MPEZoneLayout` already models both zones, and `midiFilter::layoutFor` is
-  the single place that assumes one — it currently calls `clearAllZones()` and
-  then activates exactly one, which is where that assumption would be lifted — plus `channels::Setup`, which holds one
-  `zone` and one `zoneEdge` rather than a pair. Two further rules to honour when
-  it is built: no channel may belong to two zones, and an MCM that overlaps
-  reassigns those channels to the newer zone, deactivating the older one if that
-  leaves it with no members.
 
 - **Stop sounding notes when the zone changes.** §2.2.3 is a `shall`: "when a
   receiver changes its Zone configurations, the receiver shall stop all Sounding

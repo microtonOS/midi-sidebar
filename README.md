@@ -21,8 +21,8 @@ Channel settings override settings from the presets, controllers, and tuning pag
 See [Channels](docs/channels.md).
 
 In addition, MIDI Sidebar adds simple utilities:
-- Volume fader (set over MIDI by the Universal Real Time Master Volume system exclusive) and a parallel stereo meter. The meter is post-fader and the two share a common dB scale.
-It is set by the Universal Real Time Device Control message, `F0 7F 7F 04 01 vv vv F7`, whose square-law curve the fader shares.
+- Volume fader and a parallel stereo meter. The meter is post-fader and the two share a common dB scale.
+It is set over MIDI by the Universal Real Time Device Control message, `F0 7F 7F 04 01 vv vv F7`, whose square-law curve the fader shares.
 - All sound off button (hardcoded to CC120).
 Also turns all notes off (CC123).
 

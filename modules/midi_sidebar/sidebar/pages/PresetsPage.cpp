@@ -81,6 +81,23 @@ PresetsPage::PresetsPage()
             onSplitToggled (activeButton.getToggleState());
     };
 
+    //  The split frequencies -------------------------------------------------
+    // Committed on return or on losing focus, the same two moments the tuning
+    // page's numeric fields use, so typing anywhere in the sidebar behaves the
+    // same way.
+    for (auto* e : { &lowField, &highField })
+    {
+        prepareNumericEditor (*e);
+
+        e->onReturnKey = [this] { commitFrequencies(); };
+        e->onFocusLost = [this] { commitFrequencies(); };
+    }
+
+    // The two glyphs rather than the words: the layers are named by frequency,
+    // and these are the same pair the controllers table marks a parameter's
+    // scope with, so one symbol means one thing across both pages.
+    layerStrip.setIcons ({ icons::splitLower, icons::splitUpper });
+
     layerStrip.onChoice = [this] (int index)
     {
         if (onLayerChanged != nullptr)
@@ -125,10 +142,14 @@ PresetsPage::PresetsPage()
 PresetsPage::~PresetsPage() = default;
 
 //==============================================================================
-void PresetsPage::setFrequencies (presets::Frequencies frequencies)
+void PresetsPage::setFrequencies (presets::Frequencies newFrequencies)
 {
-    lowField .setValue (hertzText (frequencies.low));
-    highField.setValue (hertzText (frequencies.high));
+    frequencies = newFrequencies;
+
+    // `dontSendNotification`, or pushing a value in would read as the end-user
+    // having typed it and come straight back out through `onFrequenciesEdited`.
+    lowField .setText (hertzText (frequencies.low),  juce::dontSendNotification);
+    highField.setText (hertzText (frequencies.high), juce::dontSendNotification);
 }
 
 void PresetsPage::setAvailableNames (juce::StringArray names)
@@ -159,12 +180,40 @@ void PresetsPage::refreshNames()
 
     nameButton.setItems (items);
     nameButton.setSelectedIndex (items.indexOf (status.name));
+    nameButton.setIcon (status.edited ? editedIcon.get() : nullptr);
 }
 
 void PresetsPage::setMeta (presets::Meta meta)
 {
     authorEditor .setText (meta.author,  juce::dontSendNotification);
     commentEditor.setText (meta.comment, juce::dontSendNotification);
+}
+
+void PresetsPage::commitFrequencies()
+{
+    // An emptied field means "no bound", which is a legal state — a split needs
+    // both, and one alone says where nothing is.
+    const auto read = [] (const juce::TextEditor& e) -> std::optional<double>
+    {
+        const auto text = e.getText().trim();
+
+        if (text.isEmpty())
+            return {};
+
+        const auto hz = text.getDoubleValue();
+
+        return hz > 0.0 ? std::optional<double> (hz) : std::nullopt;
+    };
+
+    const presets::Frequencies edited { read (lowField), read (highField) };
+
+    if (edited.low == frequencies.low && edited.high == frequencies.high)
+        return;
+
+    frequencies = edited;
+
+    if (onFrequenciesEdited != nullptr)
+        onFrequenciesEdited (frequencies);
 }
 
 void PresetsPage::setSplitActive (bool isActive)
@@ -205,6 +254,15 @@ void PresetsPage::lookAndFeelChanged()
     const auto text = findColour (pageColours::sectionTitleColourId);
     const auto font = SidebarLookAndFeel::font (metrics::bodyFontHeight);
 
+    // Rebuilt before the refresh below hands it to the button, so a theme change
+    // does not leave the old theme's pen on screen.
+    // `text`, not `TextButton::textColourOffId`: no theme sets that id, so it
+    // falls back to LookAndFeel_V4's fixed default — which happens to match on
+    // the dark themes and is black on Grey, where the name beside it is white.
+    // The pen has to be the colour of the text it marks.
+    editedIcon = icons::load (icons::edited, text);
+    nameButton.setIcon (status.edited ? editedIcon.get() : nullptr);
+
     for (auto* group : { &statusGroup, &filesGroup, &metaGroup })
     {
         group->setColour (juce::GroupComponent::textColourId,    text);
@@ -230,7 +288,7 @@ void PresetsPage::lookAndFeelChanged()
     // lookAndFeelChanged only rebuilds the caret, so text set before this page
     // reached a styled parent would keep the default LookAndFeel's white — see
     // the juce-ui skill's note on TextEditor.
-    for (auto* editor : { &authorEditor, &commentEditor })
+    for (auto* editor : { &lowField, &highField, &authorEditor, &commentEditor })
     {
         editor->setFont (font);
         editor->applyColourToAllText (findColour (juce::TextEditor::textColourId), true);
