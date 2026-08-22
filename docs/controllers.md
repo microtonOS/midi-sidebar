@@ -31,6 +31,20 @@ Parameters that can modulate individual notes are marked with
 	<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M5.5 28.506a3.977 3.977 0 1 0 7.953.004v-.004a3.977 3.977 0 1 0-7.953-.004zm11.326 9.72a3.977 3.977 0 1 0 7.952.005v-.005a3.977 3.977 0 1 0-7.952-.002zm13.276-9.72a3.977 3.977 0 1 0 7.953.004v-.004a3.977 3.977 0 1 0-7.953-.004z" />
 </svg>
 to the right.
+Parameters marked with <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 256 256">
+	<path d="M0 0h256v256H0z" fill="none" />
+	<path fill="currentColor" fill-rule="evenodd" d="M24.22 67.796a3.995 3.995 0 0 1 4.008-3.991h85.498c8.834 0 19.732 6.112 24.345 13.657l53.76 87.936c3.46 5.66 11.628 10.247 18.256 10.247h16.718a3.996 3.996 0 0 1 3.994 4.007v8.985a4.007 4.007 0 0 1-4.007 4.008h-24.7c-8.835 0-19.709-6.13-24.283-13.683l-52.324-86.4c-3.43-5.665-11.577-10.257-18.202-10.257H28.214a3.995 3.995 0 0 1-3.993-3.992V67.796z" />
+</svg>
+only affect the lower-frequencies split.
+Parameters marked with
+<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 256 256">
+	<path d="M0 0h256v256H0z" fill="none" />
+	<path fill="currentColor" fill-rule="evenodd" d="M231.007 68.729c0-2.206-1.787-4.995-4.007-4.995h-85.499c-6.466 0-19.531 7.705-22.66 15.97l-55.92 85.647c-3.624 5.55-11.93 10.05-18.559 10.05H28.167c-2.206 0-3.994 2.787-3.994 5.007v8.985a4.005 4.005 0 0 0 3.998 4.007h22.713c8.832 0 20.495-8.703 23.588-16.987l56.167-84.189c3.68-5.517 12.04-9.99 18.668-9.99h77.695c2.212 0 4.005-2.797 4.005-4.994v-8.51z" />
+</svg>
+only affect the higher-frequencies split.
+See [Presets](presets.md).
+Unmarked affect the entire host plugin.
+<!-- remove this:
 Parameters marked with
 <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 48 48">
 	<path d="M0 0h48v48H0z" fill="none" />
@@ -39,6 +53,7 @@ Parameters marked with
 </svg>
 affect the entire plugin.
 Unmarked affect the entire keyboard split.
+-->
 
 
 
@@ -49,19 +64,15 @@ For omni settings and MPE, see the [Channels](channels.md) page.
 The MSB column is where the CC number, between 0 and 127, is added.
 Rows reading 'aftertouch' or 'polytouch' across those two columns have no number.
 Some controllers send two CC messages per continuous controller to increase precision.
+
 The CC number for the finetuning message can be set in LSB.
-
-An LSB refines the MSB that came before it, and a new MSB resets the LSB to zero, as in the MIDI spec.
-Because the two write to different places, order does not otherwise matter—only the reset makes it matter at all.
-
-> The MIDI spec pairs CC *n* with CC *n*+32 and allows nothing else.
-> Here any available number can be the LSB for any MSB, so those assignments are taken as a suggestion rather than a rule, and the table is where the truth is—it is also the one place you can see which controllers have a fine byte and which message carries it.
-> What is kept from the spec is the behaviour above.
-> A device that sends its low byte *first* cannot work under it: the MSB that follows wipes the LSB every time.
-
-If a CC is already used as an MSB, it cannot also be used as an LSB (the reverse is not true).
-If so, both the MSB and the LSB are marked in red and both rows are ignored.
-The same MSB may be used by several rows, which is how one controller drives two parameters.
+MIDI Sidebar follows the official specification in that CCs 0 to 31 are paired with CCs 32 to 63 respectively, so that CC i is the MSB and CC i+32 is the LSB.
+A new MSB resets the paired LSB.
+MIDI Sidebar extends the official specification by allowing the end-user to define arbitrary MSB–LSB pairs.
+One LSB can only be paired with one other MSB within the same channel though, and an LSB cannot also be an MSB.
+In [MIDI learn](right-click.md),
+only pairs according to the official specification are learned.[^highPrecision]
+<!-- I believe this is not quite the current implementation, fix that! -->
 
 Note that not all numbers can be set.
 There are two cases.
@@ -75,16 +86,6 @@ The cell turns red and the row is ignored.
     - 96 and 97 = data increment and decrement
     They can be mapped, and while a registered parameter number the plugin recognises is in force they are read as data entry instead.
     A null RPN releases them.
-
-Everything else is free, including 7, 39 and 88.
-Those three once had built-in functions and rows of their own at the bottom of the table; they no longer do.
-The plugin's volume is set by a system exclusive message instead, and high-resolution velocity is a parameter like any other, so a controller aimed at either is an ordinary mapping.
-
-> Volume here is the plugin's master volume rather than MIDI's per-channel one.
-> It is set by the Universal Real Time Device Control message, `F0 7F 7F 04 01 vv vv F7`, whose square-law curve the fader shares.
-> Two more of that family are read and shown in the monitor but belong to the [tuning](tuning.md) page: Master Fine Tuning (`04 03`) and Master Coarse Tuning (`04 04`).
-> Only the broadcast address `7F` is answered: a plugin has no device ID of its own, and answering every ID would have two instances in one session fight over the same message.
-> The message is passed on rather than swallowed, since a broadcast is addressed to everything downstream as well.
 
 
 ![](figures/controllers-table-full.png)
@@ -120,5 +121,6 @@ That way other data such as channels, programs, and banks is also saved.
 
 MIDI 2.0 devices communicate parameter names directly rather than through CC messages.
 
+[^highPrecision]: Some devices may use one LSB for several MSBs. This is not supported. Some devices may send an LSB before the MSB and this will have no effect on MIDI sidebar.
 [^korg]: [Korg. *Minilogue XD—Owner's Manual*.](https://www.korg.com/us/support/download/manual/0/811/4277/)
 
