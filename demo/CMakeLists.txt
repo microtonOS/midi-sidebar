@@ -17,7 +17,18 @@ juce_add_plugin(SidebarDemo
 target_sources(SidebarDemo
     PRIVATE
         DemoProcessor.cpp
-        DemoEditor.cpp)
+        DemoEditor.cpp
+        TuningSource.cpp
+
+        # ODDSound's MTS-ESP client, compiled into the demo rather than into the
+        # module. It dlopens a system-installed libMTS at runtime and returns
+        # "no master" when there is none, so this builds and runs on a machine
+        # with no MTS-ESP installed — but *requiring* that of every consumer of
+        # the module would be wrong, and a host integration belongs here anyway.
+        "${CMAKE_SOURCE_DIR}/libs/MTS-ESP/Client/libMTSClient.cpp")
+
+target_include_directories(SidebarDemo
+    PUBLIC "${CMAKE_SOURCE_DIR}/libs/MTS-ESP/Client")
 
 target_compile_definitions(SidebarDemo
     PUBLIC
@@ -27,9 +38,13 @@ target_compile_definitions(SidebarDemo
 
 target_link_libraries(SidebarDemo
     PRIVATE
-        microtonos::midi_sidebar
         juce::juce_audio_utils
     PUBLIC
+        # PUBLIC because DemoProcessor.h now names MidiRouter, so anything
+        # compiling that header — the snapshot tool, which links the plugin's
+        # shared code — needs the module's include path too. It was PRIVATE
+        # while the module appeared only in the editor's own .cpp files.
+        microtonos::midi_sidebar
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)

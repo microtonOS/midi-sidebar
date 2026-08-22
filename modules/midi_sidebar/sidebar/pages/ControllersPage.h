@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../SidebarLookAndFeel.h"
+#include "../midi/MidiLearner.h"
 #include "../widgets/ChoiceButton.h"
 #include "../widgets/ReadOutField.h"
 #include "ControllersState.h"
@@ -36,7 +37,8 @@ namespace microtonos::sidebar
     minimum and simply grows into anything above it. That is the pattern the
     presets page should follow.
 */
-class ControllersPage final : public juce::Component
+class ControllersPage final : public juce::Component,
+                              private juce::Timer
 {
 public:
     ControllersPage();
@@ -52,6 +54,9 @@ public:
     const juce::Array<controllers::Parameter>& getParameters() const noexcept;
 
     void setMappings (juce::Array<controllers::Mapping> mappings);
+
+    /** Appends one already-formed mapping, undoably — what MIDI learn does. */
+    void addMapping (controllers::Mapping mapping);
     const juce::Array<controllers::Mapping>& getMappings() const noexcept;
 
     /** Selects every row mapped to `parameterIndex`, scrolling the first into
@@ -59,9 +64,9 @@ public:
         sidebar has opened this page; see ParameterMenu. */
     void showMappingsFor (int parameterIndex);
 
-    /** Removes the most recently added mapping for `parameterIndex` — the
-        right-click menu's "unlearn". */
-    void removeLatestMappingFor (int parameterIndex);
+    /** Removes every mapping for `parameterIndex` — the right-click menu's
+        "unlearn". */
+    void removeMappingsFor (int parameterIndex);
 
     /** Pushes one line onto the monitor, dropping the oldest. Already
         formatted — see the note in ControllersState.h about why this module
@@ -73,6 +78,42 @@ public:
         or a restored session does. Anything past `controllers::monitorLines` is
         ignored, and an empty list shows the placeholder. */
     void setMessages (juce::StringArray messages);
+
+    /** What the monitor currently reads, which is the message stream or — while
+        learning — what learning is hearing. The counterpart to `setMessages`,
+        and the only way to see which of the two is showing. */
+    const juce::String& getMonitorText() const noexcept { return monitor.getValue(); }
+
+    //==========================================================================
+    //  MIDI learn.
+
+    /** Starts watching for the control the end-user is about to move, on behalf
+        of `parameterIndex`, and takes the monitor over to say so.
+
+        The owner should also arm its `MidiRouter`; this page has no MIDI of its
+        own, and the two halves meet in `observeLearn`. Calling this again for
+        another parameter abandons the first, which is what choosing `MIDI
+        learn` twice should do.
+
+        The name shown is looked up here rather than passed in: the page already
+        holds the parameter list, and a caller supplying its own name would be a
+        second place for it to go stale. */
+    void beginLearn (int parameterIndex);
+
+    /** One message the router collected while learning. Restarts the settling
+        clock, so a gesture is however long the end-user keeps moving. */
+    void observeLearn (const juce::MidiMessage& message);
+
+    bool isLearning() const noexcept { return learner.isActive(); }
+
+    /** Stops without adding anything. Also called by the destructor: learning
+        is a modal act and closing the window should end it. */
+    void cancelLearn();
+
+    /** Told when learning ends, so the owner can disarm its router — with the
+        mapping if one was learned, or nothing if it timed out. The row itself
+        has already been added by then. */
+    std::function<void (std::optional<controllers::Mapping>)> onLearnFinished;
 
     //==========================================================================
     //  Intent out.
@@ -107,7 +148,25 @@ private:
     //==========================================================================
     /** Enables the two history buttons from what the table can actually do. */
     void refreshHistory();
-    void refreshDeleteButton();
+
+    //==========================================================================
+    //  Learning. Two clocks, following Mixxx's wizard: one waiting for anything
+    //  at all, one waiting for the gesture to stop. Only ever one is running,
+    //  so a single Timer serves both and `waitingForFirst` says which.
+
+    void timerCallback() override;
+
+    /** Decides, adds the row if there is one to add, and stops. */
+    void finishLearn();
+
+    /** The monitor's single writer: the learning lines while learning, the
+        message stream otherwise. The stream carries on accumulating either
+        way, so the monitor comes back current rather than stale. */
+    void refreshMonitor();
+
+    MidiLearner learner;
+    juce::String learningName;
+    bool waitingForFirst = false;
 
     /** A framed section: its title band, its content, the padding under it, and
         the row gaps that separate all three. */
@@ -131,12 +190,13 @@ private:
         and knows nothing about messages. */
     juce::StringArray messages;
 
-    /** One button per kind of row. `CC` makes the ordinary sort, with an MSB
-        and maybe an LSB; the other two make rows that have no controller number
-        at all and say so across those two columns instead. */
-    juce::TextButton ccButton { "CC" },
-                     aftertouchButton { "aftertouch" },
-                     polytouchButton { "polytouch" };
+    /** One button per kind of row, labelled from `controllers::sourceNames` so
+        the button and the cell it produces cannot drift apart. `CC` makes the
+        ordinary sort; `AT` and `PT` make rows that have no controller number at
+        all and say so in the cell where one would be. */
+    juce::TextButton ccButton         { controllers::sourceNames[0] },
+                     aftertouchButton { controllers::sourceNames[1] },
+                     polytouchButton  { controllers::sourceNames[2] };
 
     /** Undo and redo read as words at a third of the panel, so the arrows
         docs/controllers.md offers as a fallback are not needed. */

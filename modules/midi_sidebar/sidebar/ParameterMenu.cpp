@@ -255,7 +255,7 @@ void ParameterMenu::perform (Action action, int parameterIndex)
         }
 
         case Action::unlearn:
-            sidebar.getControllersPage().removeLatestMappingFor (parameterIndex);
+            sidebar.getControllersPage().removeMappingsFor (parameterIndex);
             break;
 
         case Action::midiLearn:

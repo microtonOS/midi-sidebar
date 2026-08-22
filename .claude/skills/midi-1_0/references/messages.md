@@ -39,10 +39,20 @@ sensitivity should send (p10).
    the recommended value.
 3. `8n key vel` — a Note Off with a real release velocity.
 
-**Pitch bend** is 14 bits sent LSB first. Its range in semitones is not part of
-the message — that is RPN 0, see [rpn-nrpn](rpn-nrpn.md). <!-- The centre value
-0x2000 is not stated in Table II and has not been located elsewhere in the spec;
-do not cite it from this file. -->
+**Pitch bend** is 14 bits sent LSB first, and is the one 14-bit message that is
+**always sent with both data bytes** — "in contrast to other MIDI functions,
+which may send either the LSB or MSB" (p19). So the optional-LSB rule that
+governs continuous controllers does not apply here.
+
+Its centre is **8192**, given as data bytes `00 40H`: "the maximum negative swing
+is achieved with data byte values of 00, 00. The center (no effect) position is
+achieved with data byte values of 00, 64 (00H, 40H). The maximum positive swing
+is achieved with data byte values of 127, 127" (p19). Signed, that is
+**−8192 to +8191** — not symmetric, because 16384 values cannot sit evenly either
+side of a centre, and the spare one falls on the negative side.
+
+Its range in semitones is not part of the message: that is RPN 0, whose
+sensitivity "is selected in the receiver" (p19). See [rpn-nrpn](rpn-nrpn.md).
 
 **MSB before LSB.** Table II note 4: send the MSB alone when seven bits are
 enough; send MSB then LSB when they are not; and "if only the LSB has changed in

@@ -31,6 +31,9 @@ public:
 
 private:
     void timerCallback() override;
+
+    /** Moves what the router collected into the monitor, on this thread. */
+    void drainMonitor();
     void layOutSidebar (bool animated);
     void applyTheme (int themeIndex);
     void applyBubbleTextColour (int bubbleTextIndex);
@@ -66,6 +69,17 @@ private:
     // ownership, so a local would dangle.
     juce::ComponentBoundsConstrainer constrainer;
 
+    /** Pushes the tuning source's current state at the tuning page. Called on
+        every timer tick and whenever MIDI or the GUI has moved something. */
+    void refreshTuning();
+
+    /** The divisor the tuning page's modulo read-out uses. Owned here rather
+        than by the source: it is a way of *looking* at an interval, not a
+        property of the tuning. */
+    double modDivisor = tuning::defaultModDivisor;
+
+    std::unique_ptr<juce::FileChooser> fileChooser;
+    std::unique_ptr<juce::SliderParameterAttachment> volumeAttachment;
     std::unique_ptr<juce::ParameterAttachment> pageAttachment;
     std::unique_ptr<juce::ParameterAttachment> themeAttachment;
     std::unique_ptr<juce::ParameterAttachment> edgeAttachment;

@@ -1,6 +1,6 @@
 ---
 name: midi-1_0
-description: Reference for the MIDI 1.0 protocol — channel voice and channel mode messages, the control change assignments, RPN and NRPN, system exclusive, and MPE. Use when implementing or debugging MIDI 1.0 message handling, when choosing controller numbers, or when checking a claim about what MIDI does. For microtuning specifically see midi-microtuning; for UMP and the MIDI 2.0 protocol see midi-2_0.
+description: Reference for the MIDI 1.0 protocol — channel voice and channel mode messages, the control change assignments, RPN and NRPN, system exclusive, MPE, and where real devices depart from it. Use when implementing or debugging MIDI 1.0 message handling, when choosing controller numbers, when checking a claim about what MIDI does, or when conformant code fails against real hardware. For microtuning specifically see midi-microtuning; for UMP and the MIDI 2.0 protocol see midi-2_0.
 allowed-tools: WebFetch(domain:midi.org) WebFetch(domain:www.midi.org)
 ---
 
@@ -39,8 +39,9 @@ not reproductions.
 | [rpn-nrpn](references/rpn-nrpn.md) | setting pitch-bend sensitivity, MPE zones, or tuning program and bank |
 | [sysex](references/sysex.md) | reading or writing system exclusive, including the universal ones |
 | [mpe](references/mpe.md) | supporting per-note expression: zones, Manager and Member channels |
+| [real-devices](references/real-devices.md) | writing a *receiver*, or wondering why conformant code fails on real hardware |
 
-## The four things most often got wrong
+## The five things most often got wrong
 
 - **An RPN is not a message.** There is no RPN status byte: it is a parameter
   *selected* by control changes 101 and 100, then written by control change 6.
@@ -53,7 +54,9 @@ not reproductions.
 - **A 14-bit controller pair is CC *n* and CC *n+32*, with n ≤ 31.** Not any two
   numbers. Controllers 64 and above have single-byte values only and no LSB at
   all (Table III; p11–12). See
-  [controllers](references/controllers.md#msb-and-lsb).
+  [controllers](references/controllers.md#msb-and-lsb) — and then
+  [real-devices](references/real-devices.md), because instruments break this rule
+  routinely and a receiver that trusts it will not read them.
 - **Note On with velocity 0 is a Note Off**, and is the common way to send one.
   A receiver must treat both identically (Table II; p10).
 - **Channel Mode Messages are recognised only on the Basic Channel**, whatever

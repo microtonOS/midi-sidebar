@@ -39,7 +39,12 @@ MTS ESP and some tuning files can specify the period.
 If they do, 'specified' is indicated (and the period cannot be incremented/decremented).
 Otherwise, the period is 'inferred'.
 Period inference merges all the channels and sorts the frequencies.
-By default the smallest possible period is shown.
+~~By default the smallest possible period is shown.~~
+> By default whichever acceptable period is closest to an octave is shown.
+> For an equal division of the octave every step size is a period, so this shows the octave itself.
+> Where a scale divides something else — 13 equal divisions of 3/1, say — the frequencies alone do not say which multiple was meant, so this is a guess and the octave is simply the easier rule. It is a default, editable here, and affects nothing that sounds.
+> Distance is measured in cents, so the octave below is nearer than the octave above: a period is more usefully small than large.
+> A tuning that states its own period is not inferred at all — a Scala file gives its last tone and MTS ESP reports one — and shows 'specified'.
 If no period is found the entire set of frequencies is taken as the period.
 The precision is the same as MTS Sysex (0.0061 c)
 Use cases:

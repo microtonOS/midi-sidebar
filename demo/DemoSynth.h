@@ -178,9 +178,37 @@ namespace synth
         juce::Array<controllers::Parameter> parameters;
 
         for (const auto& control : controls())
-            parameters.add ({ control.name, control.unit, control.info, control.scope });
+        {
+            // A choice is an index over its own list; anything else takes its
+            // NormalisableRange. Either way the sidebar now knows what the
+            // parameter can hold, which is what lets the min and max columns
+            // restrict the travel instead of inventing one.
+            const auto range = control.isChoice()
+                                   ? controllers::Range { 0.0, (double) control.choices.size() - 1.0, 1.0 }
+                                   : controllers::Range { (double) control.range.start,
+                                                          (double) control.range.end,
+                                                          (double) control.range.interval };
+
+            parameters.add ({ control.name, control.unit, control.info, control.scope, range });
+        }
 
         return parameters;
+    }
+
+    /** The APVTS parameter a mapping's index refers to, or nullptr.
+
+        `Index` is a position in `controls()`, and `addParametersTo` adds them in
+        that order — so the index a mapping stores names a control, and this is
+        the one place that turns it back into a parameter. Looked up by id rather
+        than by position in `getParameters()`, because the sidebar's own
+        parameters share that array and would shift every index by six. */
+    inline juce::RangedAudioParameter* parameterAt (juce::AudioProcessorValueTreeState& apvts,
+                                                    int index)
+    {
+        if (! juce::isPositiveAndBelow (index, (int) controls().size()))
+            return nullptr;
+
+        return apvts.getParameter (controls()[(size_t) index].id);
     }
 
     /** Every control as an APVTS parameter, in the same order. Version 1

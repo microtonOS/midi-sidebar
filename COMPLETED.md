@@ -6,12 +6,99 @@ an agent asked to look at the TODO should not have to load this at all.
 
 Newest at the top within each batch.
 
+- **The tuning page reads real tunings.** Four pure headers in
+  `sidebar/tuning/`: `TuningTable` (128 frequencies per channel plus the
+  unspecified list, each `optional` so *unmapped* is distinct from silent),
+  `MtsSysex` (every reception format — bulk dump, key-based dump, single-note
+  with and without bank, both scale/octave forms and their dumps), `ScalaFiles`
+  (over Surge's tuning-library) and `PeriodInference`.
+
+  `demo/TuningSource` owns the sources. **ODDSound's client serves `mtsEsp`
+  only**: `MTSClient::freq()` returns its sysex table solely when no master is
+  online, so it cannot honour docs/tuning.md's rule that selecting MTS Sysex
+  ignores the master. Nothing off the shelf reads MTS sysex the way we need —
+  tuning-library has none, `tschiemer/midimessage` marks MTS TODO, and
+  `kosonya/mts_dumper` is a Python generator — so that parser is ours. Tuning
+  system exclusives are **consumed**, unlike Master Volume, since they are
+  addressed to this instrument.
+
+  Period inference is adapted from `../tuneBfree`'s `inferScaleSize`, minus its
+  `extendFrequencies`/`gamutSize` machinery, returning cents and every candidate
+  rather than one ratio. The default is the candidate nearest an octave, which
+  gives 1200 c for any equal division of the octave; for a scale dividing
+  something else the frequencies do not say which multiple was meant, so it is a
+  guess and is documented as one. Two real bugs the checks caught: a period
+  spanning all but one of the sequence was "confirmed" by a single comparison,
+  so every table repeated — periods are now capped at half the sequence.
+
+  The Scala loader follows tuneBfree's: `_i.kbm` maps channel *i*, an unsuffixed
+  `.kbm` is the generic mapping, `Tunings::TuningError` is thrown and must be
+  caught, `scale.description` is a better name than the filename, and a `.scl`
+  states its own period so a file tuning is `specified` rather than inferred.
+  Directory-as-bank is the part tuneBfree does not do.
+
+- **C++20.** tuning-library declares `cxx_std_20` and takes
+  `readSCLFile(const StreamablePath auto&)`, so the whole project moved rather
+  than carrying a mixed-standard build.
+
+- **Two skills, one new reference.** `midi-1_0/references/real-devices.md`
+  collects where instruments depart from the specification — the minilogue xd's
+  shared CC 63 and reversed byte order, Mixxx's "not universal" comment and its
+  wraparound heuristic, Surge XT and Ardour reading plain CC as 7-bit only.
+  `juce-midi` is new: what JUCE's MIDI classes provide, what they do not (no
+  14-bit CC helper anywhere), `processBlock`'s pass-through contract, the
+  `getSysExData` off-by-two, and that `MPEZoneLayout` still says *master* where
+  MPE v1.1 says *manager*. `juce-ui/references/widgets.md` gained the fact that a
+  `TableListBox` column cannot be spanned.
+
+- **The volume fader is attached to its APVTS parameter**, which needed
+  `Sidebar::getVolumeSlider()`. Both were already dB over the same range with
+  the same floor.
+
+- **The LSB column is gone, and so are the built-in rows.** A mapping now holds
+  one control change number of seven bits. The specification pairs CC *n* with
+  CC *n*+32 for a 14-bit value, but the minilogue xd shares CC 63 as the low byte
+  of every control and sends it *first*, and a survey of what other software does
+  with the same stream found almost none of it implementing 14-bit CC at all —
+  Surge XT multiplies by 1/127 and stops, Ardour reads 14 bits only for bindings
+  declared as RPN/NRPN, JUCE ships no helper, and Mixxx, which does implement it,
+  needs two mapping rows per control plus a statistical learn wizard to make it
+  usable. A plugin needing more than 128 steps exposes a coarse and a fine
+  parameter instead. Finding D closed with it: neither derive nor flag, remove.
+
+  The built-in rows went at the same time. Bank select is `unavailable` now, like
+  RPN/NRPN — the plugin performs it and neither CC 0 nor CC 32 can carry a
+  mapping — and CC 7, 39 and 88 turned out to be nothing special: master volume
+  is a system exclusive, and high-resolution velocity is an ordinary parameter.
+  So `CcStatus::reserved`, `Builtin`, `withBuiltins`, `defaultsFor` and the
+  delete button's `reset` label are all deleted rather than reworked.
+
+- **MIDI learn watches a gesture.** `MidiLearner` collects for a second and a
+  half after the last message and identifies the fine half of a control by its
+  behaviour — a low byte wraps 127 to 0 during a sweep, so it jumps where the
+  high byte steps — which is Mixxx's heuristic and, unlike a rule about which
+  numbers are reserved, works on hardware that ignores the convention. The
+  blanket refusal of CC 32-63 survives only for a single lone message, where
+  there is no behaviour to read. The monitor shows what is being heard while it
+  happens.
+
+- **Master volume.** `deviceControl::masterVolumeFrom` reads
+  `F0 7F 7F 04 01 vv vv F7` and moves the fader, on the broadcast address only —
+  a plugin has no device ID, and answering every ID would have two instances
+  fight. The curve is 40·log₁₀(v/16383), which is General MIDI 2 v1.2a §3.3.4's
+  square law, cited by §4.1 for this message. Passed through rather than
+  consumed, since a broadcast is addressed to everything downstream too. The
+  demo's fader is now attached to its `volume` parameter, which it was not
+  before.
+
 - Finding F: the invalid-cell colour is built. `pageColours::invalidColourId` is
   the module's one colour not derived from the scheme — a fixed red pulled a
   fifth of the way toward the theme's text so it belongs to the page — painted as
   a wash behind the number so it stays readable. Validation is three tiers in
   `controllers::CcStatus`: only 98-101 and 120-127 turn a cell red, and the
   MSB/LSB clash marks *both* cells and both rows, as docs/controllers.md says.
+  (Superseded: see the top entry. There is one controller column now, two tiers,
+  and no clash rule.)
   The colour has its row in appendices.md.
 
 - Docs findings resolved with you: 'master channel' swept (the only other

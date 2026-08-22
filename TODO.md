@@ -1,5 +1,9 @@
 # TODO
 
+- improve appearance of what midi monitor looks like when learning, maybe should also be indicated elsewhere.
+- there is something weird about lfo int as it goes from the middle to max but not below middle. demo synth will see an overhaul later, so wait for then.
+- remove global icon from controllers and have A and B icons instead. use the same for presets.
+
 ## Double-checks you asked for in the docs
 
 **`tuning.md:28-29` — "double check my interpretation is right".**
@@ -83,33 +87,55 @@ RPN 0 can change both at any time. Your suggestion in the `tuning.md` comment �
 pitchbend section with 'global' and 'MPE member' — covers it. Say the word and I
 will draft against that.
 
-**D. Should the LSB column derive itself from the MSB?** The spec makes a 14-bit
-pair CC *n* and CC *n+32* with n ≤ 31 and nothing else, but you note the
-minilogue xd does not follow it. So: derive the LSB and forbid the rest, or leave
-it free and flag a mismatch? The second tolerates real hardware.
-
 **E. `figures/rail-compact.png` has no home.** `rail.png` is now in the README;
 the compact form — the rail below `metrics::regularBreakpoint`, where the volume
 control is a button rather than a strip — is still generated and unused.
 
 **High Priority**.
 
-- Master volume has a Universal Real Time SysEx of its own — Device Control, sub-ID `04 01`, a 14-bit value — and the plugin's volume is the master volume rather than MIDI's per-channel one. So that message should reach the same fader CC 7 does. CC 7 stays mapped to it as well, by your decision; the two are then two ways in to one control, which is worth a sentence in docs/controllers.md once it is built. The built-in row is named `Volume` rather than `Channel Volume` for the same reason.
-
 - I'm frequently using 'toggle' to mean both a switch and a button that can be engaged or disengaged. The former should probably just be switch and the latter a toggle. Maybe there are more GUI termonology that I've misused? Check that I'm using words consistently in docs and skills. 
 - Decide on how greying out inactive components should work.
 - Check that skills are organised well and make suggestions on how they could be organsed better.
     - What is a good way for publishing skills. I could publish each skill as separate git repo, but that would be too many git repos. I could have them all in the same repo, but that removes modularity I need, so I don't love either of those solutions. Ig I could have different skills for different git organisations. That could work as a middle way, but I'm not super excited about it. Would be better if the directory structure was something like `skills/skill-package/specific-skill-[0-9][0-9]`
 - Does MIDI 2.0 have a way of naming tunings like MTS ESP and Sysex and Scala files?
-- Attach the volume fader to its APVTS parameter. Both are already in dB over the same range with the same floor, so this is small — the sidebar just needs to expose the fader, or take a value + callback so the module stays free of `juce_audio_processors`.
-**Further explanation**.
-The obstacle: Sidebar owns the fader as a private member and the module has no juce_audio_processors dependency, so it cannot hold a SliderAttachment. Either the module exposes the Slider& (cheap, leaks a widget into the API) or it takes a value + onVolumeChanged callback and the demo bridges to a ParameterAttachment (keeps the seam, one more moving part). Everything else already lines up: DemoProcessor's volume parameter is dB over the same range with the same metrics::floorDb
 - Apply the read-only greying rule to the tuning page. The controllers monitor now draws every row dimmed, because nothing in it can be edited from the GUI; the same should hold wherever else that is true. Which fields exactly is an interaction question rather than a layout one — the status read-outs are clearly read-only, the settings section is not — so it was pinned rather than guessed at.
 - Decide how the tuning page's settings persist. The callbacks are the seam; the question is which fields become APVTS parameters and which become properties on `apvts.state`. File paths are a poor fit for parameters.
 **Further explanation**.
 Nothing on any page persists — this is true of all four now, not just tuning, so the item is under-scoped. The real question is a split: scheme and update mode are enumerations and want to be APVTS parameters (automatable, host-visible); file paths, channel masks and tuning names want to be properties on apvts.state (ValueTree), because a path is not a parameter. Worth restating as "decide the persistence split for all four pages"
 
 **Low Priority**.
+
+- **Rank inferred periods by how simple a ratio they are.** Currently the default
+  period is whichever candidate is closest to an octave, which is right for any
+  equal division *of* the octave and a guess otherwise — it reports 1170 c for
+  Bohlen-Pierce rather than the 1902 c tritave.
+
+  A scale repeats when going up *n* degrees always multiplies the frequency by
+  the same factor *r*, so a candidate is a pair (*n*, *r*). An equal division has
+  one for **every** *n*: in 12edo one step multiplies by 2^(1/12), two steps by
+  2^(2/12), and both are constant across the table. What distinguishes the real
+  period is that its *r* is a simple ratio — exactly 2 for 12edo, exactly 3 for
+  Bohlen-Pierce, 3/2 for 9ed(3/2) — while the intermediate candidates are
+  irrational and near nothing simple.
+
+  So: for each candidate *r*, find the simplest fraction p/q near it and score
+  that by **Tenney height**, log₂(p·q), which is the standard measure of how
+  consonant a ratio is. Lowest height wins. The simplest fraction in an interval
+  comes from the Stern–Brocot tree or equivalently from a continued-fraction
+  expansion; the Farey sequence F<sub>q</sub> is the same enumeration ordered by
+  denominator, which is where the idea comes from.
+
+  | scale | candidates | current answer | ranked answer |
+  |---|---|---|---|
+  | 12edo | 100 c, 200 c, … | 1200 c ✓ | 2/1 = 1200 c ✓ |
+  | 13ed3 (Bohlen-Pierce) | 146 c, 293 c, … | 1170 c ✗ | 3/1 = 1902 c ✓ |
+  | 9ed(3/2) | 78 c, 156 c, … | 1170 c ✗ | 3/2 = 702 c ✓ |
+
+  Needs a tolerance — how close *r* must sit to p/q — and a ceiling on q so that
+  a large denominator cannot win by brute force. Worth doing, but low priority:
+  it only sets a **default** that the end-user can step away from, and it changes
+  nothing that sounds. A tuning that states its own period never reaches
+  inference at all.
 
 - Pitchbend quantization, see docs/tuning.md.
 - Should `Sidebar` be changed to `SideBar` in similarity to `ToolBar` and `SidePanel`?

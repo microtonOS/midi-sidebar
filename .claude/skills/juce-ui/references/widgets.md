@@ -238,6 +238,25 @@ sideways" has to be built. It is two views of one list side by side — a
 `ListBox` for the pinned column, a `TableListBox` for the rest — with their
 vertical scrolling tied together.
 
+**A column cannot be spanned.** There is no colspan and no way to add one: a
+cell's component is clipped to its own cell, and `paintCell` is called per
+column with only that column's width. So "one word across two columns" — which
+any table sketch will eventually ask for — has to be faked by drawing the *same*
+string into both cells, shifted left by the first column's width in the second,
+and letting each cell's clip keep its half:
+
+```cpp
+const auto firstWidth = header.getColumnWidth (firstColumn);
+const auto span       = firstWidth + header.getColumnWidth (secondColumn);
+
+g.drawText (text, (columnId == firstColumn ? 0 : -firstWidth), 0, span, height, …);
+```
+
+The halves meet exactly, because the columns are adjacent and the shift is one
+column's width. It works, but it is the sort of thing to avoid designing into a
+table: widening one column until the word fits is almost always the better
+answer, and abbreviating the word is better still.
+
 **One class can be both models.** `ListBoxModel` and `TableListBoxModel` are
 unrelated interfaces that happen to declare the same `int getNumRows()`, so a
 single implementation satisfies both. Worth doing for the pair above: it makes

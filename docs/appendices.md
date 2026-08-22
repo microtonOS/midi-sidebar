@@ -7,6 +7,7 @@ Pitch intervals are given in cents with two decimals.
 ## Glossary
 
 **aftertouch** channel aftertouch unless stated otherwise <br />
+**AT** (channel) aftertouch <br />
 **CC** control change <br />
 **ch** channel <br />
 **edo** equally divided octave <br />
@@ -20,6 +21,7 @@ Pitch intervals are given in cents with two decimals.
 **NRPN** non-registered parameter number <br />
 **omni** listening to multiple MIDI channels while ignoring channel numbers <br />
 **PC** program change <br />
+**PT** polyphonic aftertouch (polytouch) <br />
 **polytouch** polyphonic aftertouch <br />
 **RPN** registered parameter number <br />
 **Sysex** system exclusive <br />

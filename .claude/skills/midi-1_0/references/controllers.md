@@ -36,9 +36,13 @@ Three consequences:
   (p12). Forget this and a fine value from an earlier gesture leaks into the next
   coarse one.
 
-Real hardware does not always comply — see the note in this project's TODO about
-the minilogue xd — so a receiver that tolerates a non-conforming pair is being
-pragmatic, not wrong.
+### Real hardware does not always comply
+
+Every one of those three is broken by instruments on sale. The Korg minilogue xd
+shares a single low byte across all its 14-bit controls *and* sends it before the
+high byte; almost no software joins pairs at all. Before writing a receiver that
+assumes any of this, read [real-devices](real-devices.md) — this file is what the
+specification says, and that one is what happens.
 
 ## Table III in full
 

@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 
 project(JUCESidebar VERSION 0.1.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+# C++20 rather than 17 because Surge's tuning-library declares `cxx_std_20` and
+# takes `readSCLFile(const StreamablePath auto&)` — a concept. Raising the whole
+# project is simpler than a mixed-standard build, and JUCE 9 supports it fully.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # =============================================================================
@@ -34,11 +37,37 @@ if(NOT TARGET juce::juce_gui_basics)
 endif()
 
 # =============================================================================
+#  Scala file support
+#  ---------------------------------------------------------------------------
+#  Surge's tuning-library reads .scl and .kbm. Header-only (`add_library
+#  INTERFACE`), so linking it costs nothing at runtime and the module's tuning
+#  headers can use it directly.
+#
+#  ODDSound's MTS-ESP client is deliberately NOT here: it dlopens a
+#  system-installed dynamic library, which is a deployment condition a reusable
+#  module should not impose on whoever consumes it. The demo links it instead.
+# =============================================================================
+
+if(NOT TARGET tuning-library)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs/tuning-library/include/Tunings.h")
+        message(FATAL_ERROR
+            "libs/tuning-library is empty.\n"
+            "Run: git submodule update --init --recursive")
+    endif()
+
+    add_subdirectory(libs/tuning-library EXCLUDE_FROM_ALL)
+endif()
+
+# =============================================================================
 #  The module itself
 # =============================================================================
 
 juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/midi_sidebar"
     ALIAS_NAMESPACE microtonos)
+
+# `juce_add_module` makes an INTERFACE library, so this propagates the include
+# path to everything that links the module.
+target_link_libraries(midi_sidebar INTERFACE tuning-library)
 
 # =============================================================================
 #  Development-only targets

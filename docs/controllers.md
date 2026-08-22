@@ -1,7 +1,7 @@
 # Controllers
 
 In Controllers, the end-user can monitor MIDI messages (of any kind).
-They can manually add control change (CC), (channel) aftertouch and polyphonic aftertouch (polytouch) as a complement to [MIDI learn](right-click.md).
+They can manually add control change (CC), (channel) aftertouch (AT) and polyphonic aftertouch (polytouch, PT) as a complement to [MIDI learn](right-click.md).
 Regardless of how they were added, properties like parameter, MIDI channel, and CC number can be edited.
 
 ![](figures/controllers-sorted.png)
@@ -16,7 +16,7 @@ The monitor shows the last three MIDI messages, for example:
 - ch 15 PC 19
 - ch 14 aftertouch 120
 
-The edit section contains a table with columns 'param' (parameter), 'ch' (channel), 'MSB' and 'LSB' (most significant byte and, optionally, least significant byte—two CC messages), 'mode', 'min', and 'max'.
+The edit section contains a table with columns 'param' (parameter), 'ch' (channel), 'CC' (the control change number), 'mode', 'min', and 'max'.
 Each column can be ordered alphabetically/numerically or in the reverse order.
 By default, no column is ordered which means that rows appear with the latest added entries on top.
 
@@ -46,39 +46,39 @@ Next is the channel (ch) column.
 A channel can be set between 1 and 16.
 For omni settings and MPE, see the [Channels](channels.md) page.
 
-The MSB column is where the CC number, between 0 and 127, is added.
-Some controllers send two CC messages per continuous controller to increase precision.
-The CC number for the finetuning message can be set in LSB.
-Note that not all numbers can be set.
-If a CC is already used as an MSB, it cannot also be used as an LSB (the reverse is not true).
-If so, both the MSB and the LSB are marked in red and both rows are ignored.
+The CC column is where the control change number, between 0 and 127, is added.
+Rows reading 'AT' or 'PT' there are aftertouch and polytouch instead, and have no number.
+A number may be used by more than one row, which is how one controller drives two parameters.
 
-<!-- revert this, I think:
-Selecting CC 7 for something else frees CC 39 with it, because an LSB alone refines nothing.
--->
-Some CCs have special function.
-There are three cases.
+One control change carries one value, of 128 steps.
+
+> This is a deliberate limit rather than an omission.
+> MIDI can send a second, finer message alongside the first, and this table used to have an LSB column for it.
+> The pairing is not reliable in practice: the specification pairs CC *n* with CC *n*+32, but instruments do not all follow that, and the one on this desk shares a single low byte across every control and sends it *before* the high byte rather than after.
+> Most plugins reading the same stream do not implement the finer message at all.
+> A plugin that needs more than 128 steps is better served by exposing a coarse and a fine parameter of its own, which the end-user can then map to any two controllers, on any two channels, with their own modes and limits.
+
+Note that not all numbers can be set.
+There are two cases.
 - Unavailable. These cannot carry a mapping under any setting.
 The cell turns red and the row is ignored.
+    - 0 and 32 = bank select, which the plugin performs itself
     - 98 to 101 = RPN and NRPN selection
     - 120 to 127 = channel mode messages
-- Built in. These have a function the plugin performs itself, and each appears as its own row at the bottom of the table.
-    - 0 and 32 = bank select
-    - 7 and 39 = volume
-    - 88 = velocity prefix
-    
-    The parameter column names the function until it is pointed at a parameter in the host plugin, and doing so is what makes the plugin give the function up.
-    Everything on the row can be edited except the MSB, since the number is what the row is.
-    They cannot be deleted; 'delete' reads 'reset' while one of them is selected, and restores the row to what it was.
-
-> Volume here is the plugin's master volume rather than MIDI's per-channel one, which is why the row is called 'volume' and is marked as global.
-> Master volume also has a system exclusive message of its own, and the two are meant to coexist: a device is required to keep three separate volume scalars — one for messages addressed to itself, one for the broadcast address, and one for channel messages such as CC 7 — and to multiply them, so that channels can be mixed against each other, then the device scaled, then everything faded together.
-> Answering only one of the two would lose a layer of that.
 - Data entry. These have no meaning of their own, and act on whatever RPN or NRPN was selected before them.
     - 6 and 38 = data entry
     - 96 and 97 = data increment and decrement
     They can be mapped, and while a registered parameter number the plugin recognises is in force they are read as data entry instead.
     A null RPN releases them.
+
+Everything else is free, including 7, 39 and 88.
+Those three once had built-in functions and rows of their own at the bottom of the table; they no longer do.
+The plugin's volume is set by a system exclusive message instead, and high-resolution velocity is a parameter like any other, so a controller aimed at either is an ordinary mapping.
+
+> Volume here is the plugin's master volume rather than MIDI's per-channel one.
+> It is set by the Universal Real Time Device Control message, `F0 7F 7F 04 01 vv vv F7`, whose square-law curve the fader shares.
+> Only the broadcast address `7F` is answered: a plugin has no device ID of its own, and answering every ID would have two instances in one session fight over the same message.
+> The message is passed on rather than swallowed, since a broadcast is addressed to everything downstream as well.
 
 
 ![](figures/controllers-table-full.png)
@@ -93,7 +93,7 @@ abruptly, such as while performing.
 motion, it will operate proportionate to the maximum or minimum value of the parameter. Once
 the knob position matches the parameter value, the knob position and parameter value will subsequently be linked.
 
-Two more options ignore LSB (LSB values can still be set though):
+Two more options read a threshold rather than the controller's position:
 - Toggle: Whenever a controller emits a value at least 64, the toggle switches. min and max can be swapped for a polarity change.
 - Inc(rement): Whenever the controller emits a value of at least 64, it is interpreted as going from CC value x to x+1 (at most 127). min and max can be swapped for decrement.
 
@@ -103,8 +103,7 @@ If 'max' is less than 'min', then the polarity is changed.
 The default messages added in the insert section:
 - Parameter is the one appearing first in alphabetical order.
 - Channel is 1.
-- MSB is 0, aftertouch, or polytouch.
-- LSB is empty.
+- CC is empty, or the row is an AT or PT row and has no number.
 - Mode is jump.
 - Minimum is the lowest value possible
 - Maximum is the highest.

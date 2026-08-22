@@ -1,10 +1,14 @@
 #pragma once
 
-#include <algorithm>
-#include <array>
 #include <optional>
 
 #include <juce_gui_basics/juce_gui_basics.h>
+
+// `metrics::` is used below. The module is a unity build, so this happens to
+// resolve without the include — SidebarLookAndFeel.h is concatenated first —
+// but a header that only compiles in one include order is a header that cannot
+// be used anywhere else, including from a test.
+#include "../SidebarLookAndFeel.h"
 
 namespace microtonos::sidebar
 {
@@ -25,8 +29,8 @@ namespace controllers
     /** How a controller moves the parameter it is mapped to.
 
         The first three are the Korg minilogue xd's knob modes, cited in
-        docs/controllers.md; the last two are this project's, and both ignore
-        the LSB — they act on a single threshold rather than on a value.
+        docs/controllers.md; the last two are this project's, and both act on a
+        single threshold rather than on the controller's position.
     */
     enum class Mode
     {
@@ -41,7 +45,8 @@ namespace controllers
         Both names live here rather than at the two call sites that need them. */
     inline const juce::StringArray modeNames { "jump", "catch", "scale", "toggle", "inc" };
 
-    /** Where the menu is divided: the modes below it ignore the LSB. */
+    /** Where the menu is divided: the modes below it read a threshold rather
+        than a position. */
     inline constexpr int modesBeforeSeparator = 3;
 
     //==========================================================================
@@ -53,8 +58,9 @@ namespace controllers
         the plugin and once per mapping — meant two settings that could disagree
         with no rule saying which won.
 
-        So this column is now what it looks like: a channel number, typed like an
-        MSB or an LSB. **The channels page may still override it functionally** —
+        So this column is now what it looks like: a channel number, typed like a
+        controller number. **The channels page may still override it
+        functionally** —
         a mapping on a channel the page has muted hears nothing — but that is the
         page filtering, not this value changing. The number stays 1 to 16
         whatever the page is set to, so nothing here has to be recomputed when
@@ -83,6 +89,48 @@ namespace controllers
         global     ///< The whole plugin, both sides of a split. Marked with the globe.
     };
 
+    /** What values a parameter can actually take.
+
+        Without this the `min` and `max` columns could only be believed, and a
+        mapping typed with a minimum below what the parameter has would drive it
+        somewhere it cannot go. The columns **restrict** the travel; they do not
+        extend it, so they are clamped to this on the way in.
+
+        Mirrors `juce::NormalisableRange`'s three fields deliberately, because
+        that is where a host parameter's range comes from and a conversion with
+        different names is a conversion that can be got wrong.
+    */
+    struct Range
+    {
+        double lowest   = 0.0;
+        double highest  = 1.0;
+
+        /** The step between usable values, or 0 for continuous. A bank number,
+            a program number and a choice index are all `1`: typing 3.7 into one
+            of those should land on 4, not on 3.7. */
+        double interval = 0.0;
+
+        /** Inside the range, and on a step if there is one. Rounds to nearest
+            rather than truncating, so 3.7 becomes 4 — truncation would make
+            every typed value drift downwards. */
+        double snap (double value) const noexcept
+        {
+            const auto low  = juce::jmin (lowest, highest);
+            const auto high = juce::jmax (lowest, highest);
+
+            value = juce::jlimit (low, high, value);
+
+            if (interval <= 0.0)
+                return value;
+
+            // Rounded relative to `low`, not to zero: a range starting at 1
+            // steps 1, 2, 3, and one starting at 0.5 steps 0.5, 1.5, 2.5.
+            const auto steps = std::round ((value - low) / interval);
+
+            return juce::jlimit (low, high, low + steps * interval);
+        }
+    };
+
     struct Parameter
     {
         juce::String name;
@@ -95,107 +143,71 @@ namespace controllers
         juce::String info;
 
         Scope scope = Scope::split;
+
+        /** What the parameter can take. The `min` and `max` columns are clamped
+            and snapped to this. */
+        Range range;
     };
 
     /** What kind of message drives a mapping.
 
-        Only `control` has controller numbers. The other two are message types
-        in their own right — there is no CC number to put in the MSB column —
-        which is why the sketch draws the word across both of those columns
-        instead. They are added by their own buttons rather than chosen from a
+        Only `control` has a controller number. The other two are message types
+        in their own right, so the `CC` cell holds their name instead of a
+        number. They are added by their own buttons rather than chosen from a
         menu, because the choice decides what the rest of the row means. */
     enum class Source
     {
-        control,       ///< A continuous controller, with an MSB and maybe an LSB.
+        control,       ///< A continuous controller.
         aftertouch,    ///< Channel pressure: one value for the whole channel.
         polytouch      ///< Polyphonic key pressure, per sounding note.
     };
 
-    /** What the two spanning cells say. Indexed by `Source`, so `control` has an
-        entry it never uses — the alternative is a switch that has to be kept in
-        step with the enum. */
-    inline const juce::StringArray sourceNames { "control", "aftertouch", "polytouch" };
+    /** What the `CC` cell says, and what the three insert buttons are labelled.
+        Indexed by `Source`, so `control` has an entry the cell never uses — the
+        alternative is a switch that has to be kept in step with the enum.
+
+        **Abbreviated because the cell is `metrics::tableCcWidth` wide.** The
+        table is a grid of short forms already — `ch`, `CC`, `min`, `max` — and
+        `polytouch` spelled out would have forced the column to be measured
+        against its longest word rather than against a two-digit number, at the
+        cost of every other column's share of a narrow panel. The monitor and
+        the right-click summary are sentences and keep the specification's own
+        words; see `assignmentSummary` and MidiMonitor.h. */
+    inline const juce::StringArray sourceNames { "CC", "AT", "PT" };
+
+    /** The same three spelled out, for prose. Indexed by `Source` like the
+        array above, and kept beside it so the two cannot drift apart. */
+    inline const juce::StringArray sourceWords { "control change", "aftertouch", "polytouch" };
 
     //==========================================================================
-    /** The controllers the sidebar answers itself, shown as rows of the table.
-
-        These are the `CcStatus::reserved` numbers made visible. Each is a real
-        row: its channel, LSB, mode and limits can be edited like any other, and
-        pointing its `param` at a host parameter is what makes the sidebar give
-        up the built-in function — which is the behaviour docs/controllers.md
-        describes for CC 7 and 39. What cannot be edited is the **MSB**, because
-        the number is what the row *is*.
-
-        They cannot be deleted either, so the delete button reads `reset` when
-        one of them is selected. */
-    enum class Builtin { none, bankSelect, channelVolume, velocityPrefix };
-
-    /** Shown in the `param` column while the row still does its built-in job.
-
-        Short forms of the specification's names. `Bank Select` and
-        `Channel Volume` are Table III's own wording (Complete MIDI 1.0 Detailed
-        Specification 4.2.1); CC 88 is not in Table III at all and is named
-        *High Resolution Velocity Prefix* by CA-031, which will not fit a column,
-        so it is shortened here and given in full in the glossary. */
-    inline juce::String builtinName (Builtin b)
-    {
-        switch (b)
-        {
-            case Builtin::bankSelect:     return "Bank Select";
-            case Builtin::channelVolume:  return "Volume";
-            case Builtin::velocityPrefix: return "Velocity Prefix";
-            case Builtin::none:           break;
-        }
-
-        return {};
-    }
-
-    /** How far each built-in reaches, marked in the table like any parameter's.
-
-        Volume is the plugin's **master** volume, not MIDI's per-channel one, so
-        it is global — CC 7 drives it because that is the controller a keyboard
-        sends, not because the two mean the same thing. Master volume has a
-        Universal Real Time SysEx of its own, which should reach the same place;
-        see TODO.md.
-
-        Bank select changes which preset the whole plugin is on. The velocity
-        prefix is the odd one: CA-031 makes it a prefix to the *next* Note On,
-        so it reaches exactly one note. */
-    inline Scope builtinScope (Builtin b)
-    {
-        switch (b)
-        {
-            case Builtin::bankSelect:     return Scope::global;
-            case Builtin::channelVolume:  return Scope::global;
-            case Builtin::velocityPrefix: return Scope::perNote;
-            case Builtin::none:           break;
-        }
-
-        return Scope::split;
-    }
-
-    /** `parameterIndex` when a row is not pointed at a host parameter. Only a
-        built-in row can be in that state; an ordinary row always targets
-        something, because it was created by choosing one. */
+    /** No mapping targets this parameter. Not a state an ordinary row can be
+        in — a row is created by choosing a parameter — so this is the sentinel
+        for *nothing selected*: the argument that cancels MIDI learn, and what
+        `MidiLearner` reports when it has nothing to suggest. */
     inline constexpr int noParameter = -1;
 
     /** One controller mapped to one parameter. */
     struct Mapping
     {
-        /** Which built-in this row is, if any. Fixed for the life of the row —
-            resetting restores the row's defaults, it does not change what the
-            row is. */
-        Builtin builtin = Builtin::none;
-
         int parameterIndex = 0;
         int channel = firstChannel;
 
         Source source = Source::control;
 
-        /** Continuous controller numbers, and meaningless unless `source` is
-            `control`. The LSB is optional because most mappings do not have
-            one, and the modes past the separator ignore it even when they do. */
-        std::optional<int> msb, lsb;
+        /** The controller number, and meaningless unless `source` is `control`.
+            Optional because `add` makes a row before there is a number to put
+            in it, and an empty cell is a legal way to leave one.
+
+            **One number, seven bits.** There was an MSB and an LSB here. The
+            specification pairs CC *n* with CC *n*+32 for a 14-bit value, but
+            real hardware does not follow it — the minilogue xd shares CC 63 as
+            the low byte of every 14-bit control and sends it *first* — and the
+            open-source plugins that face the same stream mostly do not
+            implement 14-bit CC at all. A plugin that needs the precision is
+            better served by exposing a coarse and a fine parameter, which the
+            end-user can map to any two controllers on any two channels with
+            their own modes and limits. See docs/controllers.md. */
+        std::optional<int> cc;
 
         Mode mode = Mode::jump;
 
@@ -242,128 +254,35 @@ namespace controllers
 
         auto text = channelName (only->channel);
 
+        // The words rather than the table's abbreviations: this is a line of a
+        // menu, not a cell, and "ch 1 polytouch" is what docs/right-click.md
+        // gives as the example.
         if (only->source != Source::control)
-            return text + " " + sourceNames[static_cast<int> (only->source)];
+            return text + " " + sourceWords[static_cast<int> (only->source)];
 
-        // An incomplete row says so rather than showing "MSB" with nothing
-        // after it. `add` leaves one in exactly this state.
-        if (! only->msb.has_value())
-            return text + " no MSB";
+        // An incomplete row says so rather than showing "CC" with nothing after
+        // it. `add` leaves one in exactly this state.
+        if (! only->cc.has_value())
+            return text + " no CC";
 
-        text << " MSB " << *only->msb;
-
-        // The LSB is only part of the assignment where the mode reads one; the
-        // two threshold modes ignore it, and saying otherwise would describe a
-        // number that has no effect.
-        const auto readsLsb = only->mode != Mode::toggle && only->mode != Mode::increment;
-
-        if (readsLsb && only->lsb.has_value())
-            text << " LSB " << *only->lsb;
-
-        return text;
-    }
-
-    //==========================================================================
-    /** A built-in row as it starts out, and as `reset` puts it back.
-
-        The LSB is the specification's partner for the number — CC 0 with 32,
-        CC 7 with 39 — because that is what the built-in function actually
-        listens to. The velocity prefix has none: CA-031 defines CC 88 as a
-        prefix to the next Note On, not as half of a 14-bit pair. */
-    inline Mapping defaultsFor (Builtin b)
-    {
-        Mapping m;
-
-        m.builtin        = b;
-        m.parameterIndex = noParameter;
-
-        switch (b)
-        {
-            case Builtin::bankSelect:
-                // 14 bits across the pair: "This allows 16,384 banks to be
-                // specified" (Complete MIDI 1.0 Detailed Specification 4.2.1,
-                // p13). Counted from 1 here because a bank is shown to the
-                // end-user as a number, and the presets page counts from 1.
-                m.msb = 0;  m.lsb = 32;
-                m.min = 1.0;
-                m.max = 128.0 * 128.0;
-                break;
-
-            case Builtin::channelVolume:
-                // The fader's own scale, so a mapped CC 7 lands on the same
-                // range the sidebar already shows in dB.
-                m.msb = 7;  m.lsb = 39;
-                m.min = metrics::floorDb;
-                m.max = 0.0;
-                break;
-
-            case Builtin::velocityPrefix:
-                // CA-031 makes CC 88 a *prefix* carrying the low 7 bits of the
-                // next Note On's velocity, so its own travel is one byte. It is
-                // not half of a 14-bit controller pair and has no LSB.
-                m.msb = 88;
-                m.min = 0.0;
-                m.max = (double) metrics::highestCc;
-                break;
-
-            case Builtin::none:
-                break;
-        }
-
-        return m;
-    }
-
-    /** The three, in the order the table shows them. */
-    inline const std::array<Builtin, 3> builtins { Builtin::bankSelect,
-                                                   Builtin::channelVolume,
-                                                   Builtin::velocityPrefix };
-
-    /** Puts the three built-in rows at the front of the list, adding any that
-        are missing and keeping whatever state an existing one already had.
-
-        Called on the way in rather than left to the owner: these rows are the
-        sidebar's own functions, so a consumer that forgot to supply them would
-        silently lose bank select and volume.
-
-        **The front, because the table shows newest first.** With no column
-        sorted the display is the reverse of this order, so the oldest row is at
-        the bottom — and these three were there before anything the end-user
-        added. Appending would have put the plugin's own furniture on top of the
-        work. */
-    inline juce::Array<Mapping> withBuiltins (juce::Array<Mapping> list)
-    {
-        juce::Array<Mapping> ordered;
-
-        for (auto b : builtins)
-        {
-            const auto* existing = std::find_if (list.begin(), list.end(),
-                                                 [b] (const Mapping& m) { return m.builtin == b; });
-
-            ordered.add (existing != list.end() ? *existing : defaultsFor (b));
-        }
-
-        for (const auto& m : list)
-            if (m.builtin == Builtin::none)
-                ordered.add (m);
-
-        return ordered;
+        return text + " CC " + juce::String (*only->cc);
     }
 
     //==========================================================================
     /** Why a controller number may not carry a mapping.
 
-        Three tiers, because "reserved" turned out to mean three different
-        things — see docs/controllers.md and the reasoning in TODO.md. Checked
+        Two tiers. There was a third, `reserved`, for numbers the sidebar would
+        use itself but would give up when mapped — CC 7 and 39 for volume, CC 88
+        for the velocity prefix. It is gone, and so are the table rows that made
+        it visible: **those controllers are not special.** Master volume is set
+        by its own SysEx (see MidiDeviceControl.h), and a plugin that wants CC 7
+        or CC 88 to reach a parameter maps it like any other number. Checked
         against a real device: the minilogue xd sends CC 39, 88 and 96 as
-        ordinary knobs, and a single-tier list would have refused all three.
+        ordinary knobs, and every one of them is now free.
     */
     enum class CcStatus
     {
         free,        ///< Nothing claims it.
-
-        /** The sidebar itself would use it, but gives way to a mapping. Bank
-            select, volume, the high-resolution velocity prefix. */
-        reserved,
 
         /** Meaningless on its own: data entry and data increment/decrement act
             on whatever (N)RPN was last selected, so they carry a mapping *and*
@@ -374,9 +293,12 @@ namespace controllers
             1.0 Detailed Specification 4.2.1, p17. */
         dataEntry,
 
-        /** Cannot carry a mapping under any setting. 98-101 select a parameter,
-            and 120-127 are Channel Mode Messages rather than control changes at
-            all (Table III). This is the only tier that turns a cell red. */
+        /** Cannot carry a mapping under any setting, and the only tier that
+            turns a cell red. Three groups: 0 and 32 are bank select, which the
+            plugin performs itself and which is 14-bit by definition, so neither
+            half is available to a mapping; 98-101 select an (N)RPN; and 120-127
+            are Channel Mode Messages rather than control changes at all
+            (Table III). */
         unavailable
     };
 
@@ -386,20 +308,17 @@ namespace controllers
             return CcStatus::unavailable;
 
         // Hard first, so nothing below can accidentally free one.
-        if ((cc >= 98 && cc <= 101) || cc >= 120)
+        if (cc == 0 || cc == 32 || (cc >= 98 && cc <= 101) || cc >= 120)
             return CcStatus::unavailable;
 
         if (cc == 6 || cc == 38 || cc == 96 || cc == 97)
             return CcStatus::dataEntry;
 
-        if (cc == 0 || cc == 32 || cc == 7 || cc == 39 || cc == 88)
-            return CcStatus::reserved;
-
         return CcStatus::free;
     }
 
     /** True when this number cannot be used, whatever else is mapped. The GUI
-        colours exactly these cells; `reserved` and `dataEntry` are legal. */
+        colours exactly these cells; `dataEntry` is legal. */
     inline constexpr bool isCcUnavailable (int cc) noexcept
     {
         return statusOfCc (cc) == CcStatus::unavailable;
@@ -411,9 +330,7 @@ namespace controllers
         Text rather than a table of columns it never scrolls, which is what it
         was: at 260px the columns cost more than they explain. Two lines rather
         than one because a single line is a glimpse rather than a monitor — you
-        cannot tell a repeating controller from a stuck one — and because the
-        longest line, a continuous controller with both an MSB and an LSB, is
-        the one that most wants a neighbour to be read against.
+        cannot tell a repeating controller from a stuck one.
 
         Three, which is what fits: the block is `metrics::pageTopRows` tall
         because that is what the other pages need, and three lines of body text
@@ -427,6 +344,21 @@ namespace controllers
         acquire. */
     inline constexpr int monitorLines = 3;
 
+    //==========================================================================
+    /** How long MIDI learn waits for the first message before giving up.
+
+        Long, because the end-user has to get from the menu to the hardware.
+        Mixxx uses the same seven seconds for the same reason. */
+    inline constexpr int learnTimeoutMs = 7000;
+
+    /** How long after the *last* message learning decides.
+
+        Learning observes a gesture rather than taking the first message it
+        sees, so it needs to know when the gesture is over — see MidiLearner.h
+        for why observation beats first-past-the-post. A second and a half is
+        long enough to survive the pause in the middle of a slow sweep and short
+        enough not to feel stuck. */
+    inline constexpr int learnSettleMs = 1500;
 }
 
 } // namespace microtonos::sidebar

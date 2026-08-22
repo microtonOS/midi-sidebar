@@ -22,10 +22,52 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     // assign a controller to.
     content.getSynthPanel().attachMenu (parameterMenu);
 
-    // Left unconnected on purpose. Assigning the next controller to arrive
-    // needs a controller to arrive, and nothing here reads MIDI yet; the rule
-    // for what to do when it does is in docs/right-click.md.
-    parameterMenu.onMidiLearnRequested = [] (int) {};
+    // Two halves. The router collects on the audio thread — it knows nothing
+    // about which parameter is being learned — and the page watches the
+    // gesture, because it owns both the `MidiLearner` and the monitor that has
+    // to say what is happening. See docs/right-click.md for the rule and
+    // MidiLearner.h for why a gesture is watched rather than a message taken.
+    parameterMenu.onMidiLearnRequested = [this] (int parameterIndex)
+    {
+        auto& page = sidebar.getControllersPage();
+
+        // Opened first: the monitor is where learning reports, so asking the
+        // end-user to move something without showing them the page would be
+        // asking them to trust that anything is listening.
+        sidebar.setActivePage (Sidebar::Page::controllers);
+
+        page.beginLearn (parameterIndex);
+
+        processor.router.learnFor (parameterIndex);
+    };
+
+    processor.onLearnCandidates = [this] (const juce::Array<juce::MidiMessage>& candidates)
+    {
+        auto& page = sidebar.getControllersPage();
+
+        for (const auto& message : candidates)
+            page.observeLearn (message);
+    };
+
+    sidebar.getControllersPage().onLearnFinished =
+        [this] (std::optional<controllers::Mapping> learned)
+    {
+        // Disarmed whichever way it ended, or the router would keep copying
+        // messages nobody is reading.
+        processor.router.learnFor (controllers::noParameter);
+
+        // The page has already added the row; this only shows it, since a
+        // mapping that appears silently is one the end-user cannot check.
+        if (learned.has_value())
+            sidebar.getControllersPage().showMappingsFor (learned->parameterIndex);
+    };
+
+    // A Master Volume system exclusive moves the fader, which moves the
+    // parameter through the attachment below. See MidiDeviceControl.h.
+    processor.onMasterVolume = [this] (double decibels)
+    {
+        sidebar.getVolumeSlider().setValue (decibels, juce::sendNotificationSync);
+    };
 
     sidebar.onPreferredWidthChanged = [this] (bool animate) { layOutSidebar (animate); };
     sidebar.onPanic = [] { /* CC120 goes here once the processor sends MIDI. */ };
@@ -35,9 +77,14 @@ DemoEditor::DemoEditor (DemoProcessor& p)
     showSamplePresets();
     showSampleChannels();
 
-    // The volume slider is not yet attached to the APVTS parameter: that is a
-    // later step, and doing it now would need the sidebar to hand out its
-    // internals. The parameter already exists on the processor.
+    // The fader and the parameter are one control in two places, so the
+    // attachment runs both ways: dragging the fader writes the parameter, and a
+    // host — or a Master Volume system exclusive, which arrives through the
+    // fader — writes it back. Both are already in decibels on the same scale
+    // and floor, so nothing is converted between them.
+    if (auto* volumeParam = processor.apvts.getParameter ("volume"))
+        volumeAttachment = std::make_unique<juce::SliderParameterAttachment> (
+            *volumeParam, sidebar.getVolumeSlider());
 
     // The open page is mirrored to a parameter in both directions, so the
     // choice survives the editor being destroyed and can be driven by a host.
@@ -190,32 +237,109 @@ void DemoEditor::applyTheme (int themeIndex)
 
 void DemoEditor::showSampleTuning()
 {
-    // Static values, not a simulation: enough to see the page populated and to
-    // check that nothing is clipped once the boxes have text in them. Something
-    // has to drive these for real, and that is the MIDI side's job — the page
-    // takes them through the same setters either way, so nothing here has to
-    // change when it arrives.
-    //
-    // The numbers are the ones from the sketch in docs/tuning.md, so the page
-    // can be compared against the thing it implements.
-    auto& page = sidebar.getTuningPage();
+    // No longer sample data: the page is driven by `processor.tuningSource`,
+    // which owns the four schemes. What is left here is the wiring — the page
+    // reports intent, the source acts on it, and `refreshTuning` pushes the
+    // result back. The setters are the same ones the sketch's numbers went
+    // through, which is why nothing on the page had to change.
+    auto& page   = sidebar.getTuningPage();
+    auto& source = processor.tuningSource;
 
-    page.setInterval ({ 1902.98, tuning::defaultModDivisor });
+    page.setScheme (source.getScheme());
 
-    // A few tunings for the name menu, so it has something to open.
-    page.setAvailableNames ({ "Pythagorean 12", "Meantone 1/4", "Werckmeister III", "12edo" });
-    page.setStatus ({ "Pythagorean 12", 3, 1, juce::Time::getCurrentTime() });
+    page.onModDivisorChanged = [this] (double divisor)
+    {
+        modDivisor = divisor;
+        refreshTuning();
+    };
 
-    // An inferred period with alternatives, so the chooser has something to
-    // step through — the 12edo case from docs/tuning.md, where every multiple
-    // of the repeating interval is a period. `specified` would be the duller
-    // half of the widget: one value and the buttons disabled.
-    juce::Array<double> candidates;
+    page.onSchemeChanged = [this] (tuning::Scheme scheme)
+    {
+        processor.tuningSource.setScheme (scheme);
+        refreshTuning();
+    };
 
-    for (auto cents = 100.0; cents <= 1500.0; cents += 100.0)
-        candidates.add (cents);
+    page.onProgramChosen = [this] (std::optional<int> program)
+    {
+        processor.tuningSource.setProgram (program);
+        refreshTuning();
+    };
 
-    page.setPeriod ({ 1200.0, tuning::PeriodSource::inferred, candidates });
+    page.onBankChosen = [this] (std::optional<int> bank)
+    {
+        processor.tuningSource.setBank (bank);
+        refreshTuning();
+    };
+
+    page.onNameChosen = [this] (int index)
+    {
+        processor.tuningSource.chooseName (index);
+        refreshTuning();
+    };
+
+    // One dialog for both kinds of file, as tuneBfree does: the first .scl is
+    // the scale and every .kbm joins the per-channel batch. Choosing a directory
+    // instead loads it as a bank.
+    page.onFilesRequested = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Load tuning files (.scl and .kbm)", juce::File(), "*.scl;*.kbm");
+
+        const auto flags = juce::FileBrowserComponent::openMode
+                         | juce::FileBrowserComponent::canSelectFiles
+                         | juce::FileBrowserComponent::canSelectDirectories
+                         | juce::FileBrowserComponent::canSelectMultipleItems;
+
+        fileChooser->launchAsync (flags, [this] (const juce::FileChooser& chooser)
+        {
+            juce::Array<juce::File> files;
+
+            for (const auto& result : chooser.getResults())
+            {
+                if (result.isDirectory())
+                    processor.tuningSource.loadBank (result);
+                else
+                    files.add (result);
+            }
+
+            if (! files.isEmpty())
+                processor.tuningSource.loadFiles (files);
+
+            refreshTuning();
+        });
+    };
+
+    // The processor calls this when MIDI has moved the tuning — a sysex or one
+    // of the tuning RPNs — which happens whether or not this window is open.
+    processor.onTuningChanged = [this] { refreshTuning(); };
+
+    refreshTuning();
+}
+
+void DemoEditor::refreshTuning()
+{
+    auto& page   = sidebar.getTuningPage();
+    auto& source = processor.tuningSource;
+
+    page.setStatus (source.getStatus());
+    page.setPeriod (source.getPeriod());
+    page.setAvailableNames (source.availableNames());
+    page.setLoadedSummary (source.loadedSummary());
+
+    // The interval is between the lowest and highest notes actually held, looked
+    // up through the tuning in force — so it is what is sounding rather than
+    // what twelve-tone arithmetic would say. Empty when nothing is down, which
+    // the page draws as "all notes off".
+    const auto held = processor.getHeldNotes();
+
+    tuning::Interval interval;
+    interval.modDivisor = modDivisor;
+
+    if (held.count > 0)
+        interval.cents = source.intervalFor (held.lowestNote, held.highestNote,
+                                             held.lowestChannel, held.highestChannel);
+
+    page.setInterval (interval);
 }
 
 void DemoEditor::showSampleControllers()
@@ -229,16 +353,14 @@ void DemoEditor::showSampleControllers()
     // relabelling themselves when a row is pointed at another parameter.
     page.setParameters (synth::parametersForSidebar());
 
-    // Figure 2 of docs/controllers.md, keeping its shape — one CC pair with an
-    // LSB, one CC without, one polytouch row — with the synth's parameters in
-    // place of the clonewheel names the sketch still uses. Three different
-    // channels, so the column is visibly a channel rather than a constant. The
-    // second one's LSB is left empty, which its `toggle` mode ignores anyway.
+    // Figure 2 of docs/controllers.md, keeping its shape — two control changes
+    // and one polytouch row — with the synth's parameters in place of the
+    // clonewheel names the sketch still uses. Three different channels, so the
+    // column is visibly a channel rather than a constant.
     controllers::Mapping cutoff;
     cutoff.parameterIndex = synth::Index::cutoff;
     cutoff.channel = 1;
-    cutoff.msb = 11;
-    cutoff.lsb = 43;
+    cutoff.cc = 11;
     cutoff.mode = controllers::Mode::jump;
     cutoff.min = 200.0;
     cutoff.max = 8000.0;
@@ -246,15 +368,15 @@ void DemoEditor::showSampleControllers()
     controllers::Mapping resonance;
     resonance.parameterIndex = synth::Index::resonance;
     resonance.channel = 15;
-    resonance.msb = 64;
+    resonance.cc = 64;
     resonance.mode = controllers::Mode::toggle;
     resonance.min = 1.0;
     resonance.max = 3.0;
 
-    // Figure 2's third row. A polytouch mapping, which is what shows the word
-    // drawn across the two controller-number columns — and, being a third
-    // mapping that sorts differently from the first two, it is also what keeps
-    // the sort toggle from looking broken when it is merely unexercised.
+    // Figure 2's third row. A polytouch mapping, which is what shows `PT` in
+    // the cell where a number would be — and, being a third mapping that sorts
+    // differently from the first two, it is also what keeps the sort toggle
+    // from looking broken when it is merely unexercised.
     controllers::Mapping vibrato;
     vibrato.parameterIndex = synth::Index::pitchLfoDepth;
     vibrato.channel = 15;
@@ -270,26 +392,40 @@ void DemoEditor::showSampleControllers()
     controllers::Mapping broken;
     broken.parameterIndex = synth::Index::filterLfoRate;
     broken.channel = 3;
-    broken.msb = 120;
+    broken.cc = 120;
 
     page.setMappings ({ cutoff, resonance, vibrato, broken });
 
-    // The examples docs/controllers.md gives, newest first. The page does not
-    // compose these — see the note in ControllersState.h — so the phrasing is
-    // the *host's*, and this is the demo standing in for it: every number said
-    // with what it is, since the columns that used to explain them are gone.
-    //
-    // The doc's wording is followed exactly, including `CC` upper case (it is
-    // upper case in every one of that document's fifteen other uses), the note
-    // *number* rather than a name, and `velocity` rather than `value` on a note
-    // on. Where the demo and the doc disagreed, the doc is the specification.
-    //
-    // The second line carries an LSB, which is the longest thing the monitor
-    // has to show and the reason it is three lines rather than one. Nothing
-    // generates these yet; see docs/demo.md.
-    page.setMessages ({ "ch 1  CC 80  value 101",
-                        "ch 16  CC 11  LSB 43  value 98",
-                        "ch 2  note on  60  velocity 127" });
+    // The table is now wired to the audio side. Every edit re-arms the router,
+    // so a knob moved on the hardware moves the parameter the row names — which
+    // is the point of the page, and the first time anything here has reached
+    // past the GUI.
+    page.onMappingsChanged = [this]
+    {
+        processor.setMappings (sidebar.getControllersPage().getMappings());
+    };
+
+    processor.setMappings (page.getMappings());
+
+    // The examples docs/controllers.md gives — but built as real messages and
+    // put through `midiMonitor::lineFor`, so the figure shows what the plugin
+    // will actually print rather than a hand-typed approximation of it. If the
+    // formatter and the doc drift apart, the figure says so.
+    const juce::MidiMessage samples[] =
+    {
+        juce::MidiMessage::noteOn (2, 60, (juce::uint8) 127),
+        juce::MidiMessage::controllerEvent (16, 11, 98),
+        juce::MidiMessage::controllerEvent (1, 80, 101),
+    };
+
+    juce::StringArray lines;
+
+    // Newest first, which is the order the monitor keeps.
+    for (int i = juce::numElementsInArray (samples); --i >= 0;)
+        if (const auto line = midiMonitor::lineFor (samples[i]))
+            lines.add (*line);
+
+    page.setMessages (lines);
 
 }
 
@@ -310,6 +446,16 @@ void DemoEditor::showSampleChannels()
     setup.zoneEdge = 9;
 
     page.setSetup (setup);
+
+    // The page is now wired to something. Editing it changes what the router
+    // listens to on the next block — the first place a sidebar control reaches
+    // the MIDI stream rather than only reporting itself.
+    page.onSetupChanged = [this] (channels::Setup newSetup)
+    {
+        processor.router.setChannels (newSetup);
+    };
+
+    processor.router.setChannels (setup);
 }
 
 void DemoEditor::showSamplePresets()
@@ -349,6 +495,38 @@ void DemoEditor::timerCallback()
 {
     sidebar.setLevel (processor.outputLevelLeft .load (std::memory_order_relaxed),
                       processor.outputLevelRight.load (std::memory_order_relaxed));
+
+    drainMonitor();
+
+    // MTS-ESP has no callback: a master retunes whenever it likes and the only
+    // way to see it is to ask. Under any other scheme this is nearly free —
+    // everything is already a table — so it is not worth a second timer.
+    refreshTuning();
+}
+
+void DemoEditor::drainMonitor()
+{
+    // Taken under the lock and formatted outside it: composing a juce::String
+    // is the expensive half, and the audio thread only ever tries for this lock
+    // rather than waiting on it.
+    juce::Array<juce::MidiMessage> arrived;
+
+    {
+        const juce::ScopedLock lock (processor.monitorLock);
+
+        if (processor.pendingMessages.isEmpty())
+            return;
+
+        arrived.swapWith (processor.pendingMessages);
+    }
+
+    // Only the last few can be shown, so a block that arrived with hundreds of
+    // messages is trimmed here rather than pushed through one at a time.
+    const auto first = juce::jmax (0, arrived.size() - controllers::monitorLines);
+
+    for (int i = first; i < arrived.size(); ++i)
+        if (const auto line = midiMonitor::lineFor (arrived[i]))
+            sidebar.getControllersPage().addMessage (*line);
 }
 
 void DemoEditor::paint (juce::Graphics& g)

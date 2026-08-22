@@ -20,7 +20,7 @@ namespace microtonos::sidebar
     what `TableHeaderComponent` does, and it satisfies half of what
     docs/controllers.md asks for — but nothing anywhere pins a column. So this is
     two views of one list side by side: a `ListBox` holding the parameter column,
-    and a `TableListBox` holding the six that scroll, with their vertical
+    and a `TableListBox` holding the five that scroll, with their vertical
     scrolling tied together.
 
     Being both models at once is deliberate rather than clever. `ListBoxModel`
@@ -56,11 +56,13 @@ public:
         view, which is what the right-click menu's "view in sidebar" does. */
     void selectMappingsFor (int parameterIndex);
 
-    /** Removes the most recently added mapping for `parameterIndex`, or does
-        nothing if it has none. "Latest" is by insertion, not by what is on top:
-        the display order is a view, and unlearning should undo the last thing
-        that was learned however the table happens to be sorted. */
-    void removeLatestMappingFor (int parameterIndex);
+    /** Removes **every** mapping for `parameterIndex` — what `unlearn` does.
+
+        All of them rather than the most recent: unlearn is the undo of MIDI
+        learn, and a parameter learned three times is one somebody wants to stop
+        responding. Clearing one of three leaves it still responding, which
+        looks like the command failed. */
+    void removeMappingsFor (int parameterIndex);
 
     /** Appends a blank mapping and selects it, which is what `add` does. With
         no column sorting, it appears at the top, since that is where the newest
@@ -68,28 +70,24 @@ public:
 
         The source is an argument rather than a column because it decides what
         the rest of the row means: an aftertouch or polytouch row has no
-        controller number, so its MSB and LSB are replaced by the word itself.
-        That is why docs/controllers.md gives those two their own buttons beside
-        `add` instead of a menu inside the table. */
+        controller number, so its `CC` cell holds `AT` or `PT` instead. That is
+        why docs/controllers.md gives those two their own buttons beside `add`
+        instead of a menu inside the table. */
     void addMapping (controllers::Source source = controllers::Source::control);
 
-    /** Removes the selected row, or the last one when nothing is selected, so
-        the button is never dead while there is something to remove — except for
-        the three built-ins, which are restored to their defaults instead,
-        because the table always has all three. */
-    void removeSelectedMapping();
+    /** Appends a mapping that already knows what it is — what `MIDI learn`
+        produces. Undoable, unlike `setMappings`: this is an edit, and an edit
+        that wiped the history would be a strange thing to do to somebody who
+        had just been editing. Its limits are set from the parameter's range. */
+    void addMapping (controllers::Mapping mapping);
 
-    /** True when the selection is a built-in row, so the page can label its
-        button `reset` rather than `delete`. */
-    bool selectionIsBuiltin() const;
+    /** Removes the selected row, or the last one when nothing is selected, so
+        the button is never dead while there is something to remove. */
+    void removeSelectedMapping();
 
     /** Called after any edit, insertion or removal, never while one is in
         progress. */
     std::function<void()> onMappingsChanged;
-
-    /** Called when the selected row changes, so a button whose label depends on
-        what is selected can follow it. */
-    std::function<void()> onSelectionChanged;
 
     //==========================================================================
     //  Undo, over the mappings and nothing else.
@@ -144,7 +142,7 @@ private:
     /** Column ids, which `TableListBox` needs to be 1-based. `param` is not one
         of the table's columns — it is the frozen list beside it — but it shares
         the numbering so that one set of accessors can answer for every cell. */
-    enum ColumnId { param = 1, channel, msb, lsb, mode, minimum, maximum };
+    enum ColumnId { param = 1, channel, cc, mode, minimum, maximum };
 
     struct ChoiceCell;
     struct NumberCell;
@@ -185,15 +183,6 @@ private:
         declared. */
     static bool isSortable (int columnId) noexcept;
 
-    /** True when the row's mode ignores the LSB, which the two threshold modes
-        do. The cell is disabled rather than hidden: the number is still part of
-        the mapping, it just has no effect. */
-    bool ignoresLsb (int row) const;
-
-    /** Which built-in a row is, or `none`. Asked by the cells: the parameter
-        cell names it, and the MSB cell refuses to be edited because of it. */
-    controllers::Builtin builtinFor (int row) const;
-
     /** The glyph marking how far this row's parameter reaches, or nullptr for
         the unmarked case. Owned by the table and rebuilt on a theme change, so
         a cell borrows it rather than parsing an SVG of its own every repaint. */
@@ -216,6 +205,12 @@ private:
     controllers::Source sourceFor (int row) const;
 
     const controllers::Parameter* parameterFor (int row) const;
+
+    /** What this row's target can actually take — the parameter's range, or a
+        built-in's own while it is still doing its own job. The `min` and `max`
+        columns are clamped and snapped to it, because those columns restrict
+        the travel rather than extending it. */
+    controllers::Range rangeFor (int row) const;
 
     void changed();
     void refreshRows();

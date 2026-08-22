@@ -52,6 +52,11 @@ public:
         repaint();
     }
 
+    /** What was last set, which is not necessarily what is drawn — an empty
+        value draws the placeholder. Here so that what a field says can be
+        asserted without rendering it. */
+    const juce::String& getValue() const noexcept { return value; }
+
     void paint (juce::Graphics& g) override
     {
         const auto bounds = getLocalBounds().toFloat();

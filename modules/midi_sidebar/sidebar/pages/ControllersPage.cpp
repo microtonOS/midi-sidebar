@@ -43,12 +43,18 @@ ControllersPage::ControllersPage()
 
     table.onMappingsChanged = [this] { if (onMappingsChanged != nullptr) onMappingsChanged(); };
     table.onHistoryChanged   = [this] { refreshHistory(); };
-    table.onSelectionChanged = [this] { refreshDeleteButton(); };
 
     refreshHistory();
 }
 
-ControllersPage::~ControllersPage() = default;
+ControllersPage::~ControllersPage()
+{
+    // Learning is a modal act — it takes the monitor over and waits for a
+    // gesture — so closing the window is a decision not to finish it. Stopping
+    // the timer here is also what keeps a callback from arriving into a
+    // half-destroyed page.
+    cancelLearn();
+}
 
 //==============================================================================
 void ControllersPage::setParameters (juce::Array<controllers::Parameter> parameters)
@@ -59,6 +65,11 @@ void ControllersPage::setParameters (juce::Array<controllers::Parameter> paramet
 void ControllersPage::setMappings (juce::Array<controllers::Mapping> mappings)
 {
     table.setMappings (std::move (mappings));
+}
+
+void ControllersPage::addMapping (controllers::Mapping mapping)
+{
+    table.addMapping (std::move (mapping));
 }
 
 const juce::Array<controllers::Parameter>& ControllersPage::getParameters() const noexcept
@@ -76,9 +87,9 @@ void ControllersPage::showMappingsFor (int parameterIndex)
     table.selectMappingsFor (parameterIndex);
 }
 
-void ControllersPage::removeLatestMappingFor (int parameterIndex)
+void ControllersPage::removeMappingsFor (int parameterIndex)
 {
-    table.removeLatestMappingFor (parameterIndex);
+    table.removeMappingsFor (parameterIndex);
 }
 
 void ControllersPage::addMessage (const juce::String& message)
@@ -96,7 +107,122 @@ void ControllersPage::setMessages (juce::StringArray newMessages)
     while (messages.size() > monitorLines)
         messages.remove (messages.size() - 1);
 
-    monitor.setValue (messages.joinIntoString ("\n"));
+    refreshMonitor();
+}
+
+void ControllersPage::refreshMonitor()
+{
+    if (! learner.isActive())
+    {
+        monitor.setValue (messages.joinIntoString ("\n"));
+        return;
+    }
+
+    // Three lines, because that is what the monitor is. The third tracks the
+    // current best guess rather than only the final one, so a sweep is visibly
+    // converging on something while the end-user is still moving it.
+    juce::StringArray lines;
+
+    lines.add ("learning  " + learningName);
+
+    const auto seen = learner.messagesSeen();
+
+    lines.add (seen == 0 ? juce::String ("move a control...")
+                         : juce::String ("keep moving the control..."));
+
+    if (const auto guess = learner.suggestion())
+    {
+        auto line = channelName (guess->channel) + "  ";
+
+        line << (guess->cc.has_value() ? "CC " + juce::String (*guess->cc)
+                                       : sourceNames[static_cast<int> (guess->source)]);
+
+        lines.add (line + "  " + juce::String (seen) + " messages");
+    }
+
+    monitor.setValue (lines.joinIntoString ("\n"));
+}
+
+//==============================================================================
+void ControllersPage::beginLearn (int parameterIndex)
+{
+    const auto& parameters = getParameters();
+
+    learner.begin (parameterIndex);
+    learningName = juce::isPositiveAndBelow (parameterIndex, parameters.size())
+                       ? parameters[parameterIndex].name
+                       : juce::String();
+
+    // The long clock first: nothing has arrived yet, and the end-user has to
+    // get from the menu to the hardware.
+    waitingForFirst = true;
+    startTimer (learnTimeoutMs);
+
+    refreshMonitor();
+}
+
+void ControllersPage::observeLearn (const juce::MidiMessage& message)
+{
+    if (! learner.isActive())
+        return;
+
+    const auto before = learner.messagesSeen();
+
+    learner.observe (message);
+
+    // A message the learner ignored — another channel, or something that cannot
+    // name a control — must not restart the clock, or a keyboard playing in the
+    // background would hold learning open indefinitely.
+    if (learner.messagesSeen() == before)
+        return;
+
+    // Restarting on every message is what makes the gesture as long as the
+    // end-user wants it: the short clock only runs out once they stop.
+    waitingForFirst = false;
+    startTimer (learnSettleMs);
+
+    refreshMonitor();
+}
+
+void ControllersPage::timerCallback()
+{
+    // The long clock expiring means nothing ever came, so there is nothing to
+    // decide; the short clock expiring means the gesture is over.
+    if (waitingForFirst)
+        cancelLearn();
+    else
+        finishLearn();
+}
+
+void ControllersPage::finishLearn()
+{
+    const auto learned = learner.suggestion();
+
+    stopTimer();
+    learner.cancel();
+
+    // Undoably, and with limits taken from the parameter's own range — which is
+    // what `addMapping` already does for a mapping arriving from outside.
+    if (learned.has_value())
+        addMapping (*learned);
+
+    refreshMonitor();
+
+    if (onLearnFinished != nullptr)
+        onLearnFinished (learned);
+}
+
+void ControllersPage::cancelLearn()
+{
+    if (! learner.isActive())
+        return;
+
+    stopTimer();
+    learner.cancel();
+    refreshMonitor();
+
+    if (onLearnFinished != nullptr)
+        onLearnFinished ({});
 }
 
 void ControllersPage::refreshHistory()
@@ -106,17 +232,6 @@ void ControllersPage::refreshHistory()
     // harder to aim at than one with a greyed button in it.
     undoButton.setEnabled (table.canUndo());
     redoButton.setEnabled (table.canRedo());
-
-    refreshDeleteButton();
-}
-
-void ControllersPage::refreshDeleteButton()
-{
-    // The three built-in rows cannot be removed — the sidebar would then have no
-    // way to answer bank select — so on those the button restores the row's
-    // defaults instead, and says which of the two it is about to do. A mixed
-    // selection reads `reset`, the less destructive of the two words.
-    deleteButton.setButtonText (table.selectionIsBuiltin() ? "reset" : "delete");
 }
 
 //==============================================================================

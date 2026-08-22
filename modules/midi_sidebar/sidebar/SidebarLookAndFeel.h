@@ -90,9 +90,12 @@ namespace metrics
 
         It is a minimum rather than a fixed size because it is *derived*: at this
         width the controllers table shows its pinned parameter column plus the
-        channel, MSB and LSB columns, which is the least that reads as a mapping
-        rather than as a fragment of one. Narrower and the table would be showing
-        a number with no idea what it belongs to.
+        channel, controller and mode columns, which is the least that reads as a
+        mapping rather than as a fragment of one. Narrower and the table would be
+        showing a number with no idea what it belongs to.
+
+        Losing the LSB column bought this its third scrolling column rather than
+        a narrower panel: the width stayed, and what fits inside it grew.
 
         There is no matching maximum here, because the sensible one is not a
         constant: the sidebar cannot usefully be wider than the window it lies

@@ -114,6 +114,16 @@ public:
     ControllersPage& getControllersPage() noexcept { return panel.getControllersPage(); }
     PresetsPage&     getPresetsPage()     noexcept { return panel.getPresetsPage(); }
 
+    /** The volume fader itself, so the owner can attach it to a host parameter.
+
+        Handed out rather than wrapped in a `getVolume`/`setVolume` pair,
+        because what an owner actually wants is a `SliderAttachment` — and that
+        needs the `juce::Slider`. The strip owns the slider whichever of its two
+        homes it is in, the rail or the callout, so this is stable across both.
+        A Master Volume system exclusive arrives here too; see
+        MidiDeviceControl.h. */
+    juce::Slider& getVolumeSlider() noexcept { return volumeStrip.getSlider(); }
+
     //==========================================================================
     void paint (juce::Graphics& g) override;
     void resized() override;
